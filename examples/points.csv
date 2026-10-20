@@ -1,0 +1,5 @@
+name,type,direction,init,comment
+start,BOOL,IN,,啟動按鈕
+stop,BOOL,IN,,停止按鈕
+motor,BOOL,OUT,,馬達接觸器
+cnt,INT,VAR,0,計數
