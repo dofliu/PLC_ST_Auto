@@ -2,6 +2,7 @@
 import math
 from .lexer import STError
 from .parser import parse
+from .profiles import get_profile
 
 INT_RANGES = {
     "SINT": (-2**7, 2**7 - 1), "INT": (-2**15, 2**15 - 1), "DINT": (-2**31, 2**31 - 1),
@@ -16,12 +17,16 @@ class _Exit(Exception):
     pass
 
 
-def wrap(tname, v):
-    """Coerce value to declared type (two's-complement wrap on overflow)."""
+def wrap(tname, v, overflow="wrap"):
+    """Coerce value to declared type; overflow: wrap | saturate | fault."""
     if tname == "BOOL":
         return bool(v)
     if tname in INT_RANGES:
         lo, hi = INT_RANGES[tname]
+        if overflow != "wrap" and not lo <= int(v) <= hi:
+            if overflow == "fault":
+                raise STError(f"integer overflow: {int(v)} does not fit {tname}")
+            return lo if int(v) < lo else hi
         bits = (hi - lo).bit_length()
         v = int(v) & ((1 << bits) - 1)
         if lo < 0 and v > hi:
@@ -203,7 +208,8 @@ FUNCS = {
 
 
 class VirtualPLC:
-    def __init__(self, source, scan_ms=10):
+    def __init__(self, source, scan_ms=10, profile="iec"):
+        self.profile = get_profile(profile)
         self.ast = parse(source)
         self.scan_ms = scan_ms
         self.vars, self.types, self.section, self.fbs = {}, {}, {}, {}
@@ -219,16 +225,21 @@ class VirtualPLC:
                 continue
             if t not in INT_RANGES and t not in ("BOOL", "REAL", "LREAL", "TIME", "STRING"):
                 raise STError(f"unknown type {t} for {d['name']}")
+            if t not in self.profile.types:
+                raise STError(f"type {t} of {d['name']} not supported on profile {self.profile.name}")
             self.types[n] = t
-            self.vars[n] = wrap(t, self.eval(d["init"])) if d["init"] else default(t)
+            self.vars[n] = self.wrap(t, self.eval(d["init"])) if d["init"] else default(t)
         self.names = {d["name"].lower(): d["name"] for d in self.ast["decls"]}
+
+    def wrap(self, t, v):
+        return wrap(t, v, self.profile.overflow)
 
     # -- external interface
     def set_input(self, name, value):
         n = name.lower()
         if n not in self.vars:
             raise STError(f"unknown variable {name}")
-        self.vars[n] = wrap(self.types[n], value)
+        self.vars[n] = self.wrap(self.types[n], value)
 
     def get(self, name):
         n = name.lower()
@@ -313,14 +324,14 @@ class VirtualPLC:
             count += 1
             if count > MAX_LOOP:
                 raise STError("FOR exceeded iteration limit")
-            self.vars[n] = wrap(self.types[n], i)
+            self.vars[n] = self.wrap(self.types[n], i)
             try:
                 self.run(body)
             except _Exit:
                 break
             i += st
         else:
-            self.vars[n] = wrap(self.types[n], i)
+            self.vars[n] = self.wrap(self.types[n], i)
 
     def assign(self, target, value):
         if target[0] == "var":
@@ -329,7 +340,7 @@ class VirtualPLC:
                 raise STError(f"assignment to unknown variable {target[1]}")
             if self.section[n] == "input":
                 pass  # allowed for testing; real PLCs forbid it (see validator, M4)
-            self.vars[n] = wrap(self.types[n], value)
+            self.vars[n] = self.wrap(self.types[n], value)
         else:
             fb = self.fbs[target[1][1].lower()]
             fb.v[target[2].upper()] = value
