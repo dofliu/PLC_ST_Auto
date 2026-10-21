@@ -5,6 +5,7 @@ import csv
 import sys
 
 from .interpreter import VirtualPLC, STError
+from .profiles import PROFILES
 from .tags import tags_to_var_blocks
 
 
@@ -31,7 +32,7 @@ def parse_assign(s, with_cycle=False):
 
 def run(args):
     with open(args.file, encoding="utf-8") as f:
-        plc = VirtualPLC(f.read(), scan_ms=args.scan_ms)
+        plc = VirtualPLC(f.read(), scan_ms=args.scan_ms, profile=args.profile)
     events = [parse_assign(a) for a in args.set] + [parse_assign(a, True) for a in args.at]
     cols = list(plc.snapshot())
     rows = []
@@ -59,11 +60,17 @@ def main(argv=None):
     r.add_argument("--scan-ms", type=int, default=10)
     r.add_argument("--set", action="append", default=[], metavar="NAME=VALUE", help="第 0 週期前設定")
     r.add_argument("--at", action="append", default=[], metavar="CYCLE:NAME=VALUE", help="指定週期前設定")
+    r.add_argument("--profile", default="iec", help="廠牌 profile(見 `profiles` 指令)")
     r.add_argument("--trace", help="寫入 CSV 檔(預設 stdout)")
     t = sub.add_parser("tags", help="CSV 點位表 → VAR 宣告")
     t.add_argument("file")
+    sub.add_parser("profiles", help="列出可用的廠牌 profile")
     a = p.parse_args(argv)
     try:
+        if a.cmd == "profiles":
+            for pr in PROFILES.values():
+                print(f"{pr.name}\t{pr.overflow}\t{pr.note}")
+            return 0
         if a.cmd == "run":
             return run(a)
         with open(a.file, encoding="utf-8") as f:
