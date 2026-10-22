@@ -29,3 +29,8 @@ python -m plc_st run examples/motor.st --cycles 10 --scan-ms 100 --set stop=fals
 python -m plc_st tags examples/points.csv   # CSV 點位表 → VAR 宣告
 ```
 點位表欄位: `name,type,direction(IN/OUT/INOUT/VAR),init,comment`。
+
+## 靜態檢查 (M4)
+```
+python -m plc_st check examples/motor.st --profile siemens-s7-1200
+```
