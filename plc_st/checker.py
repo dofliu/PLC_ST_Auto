@@ -1,6 +1,7 @@
 """Static checker: undeclared names, type mismatches, writes to inputs, profile limits."""
 from dataclasses import dataclass
 
+from .dialect import dialect_issues
 from .interpreter import FB_TYPES, FUNCS, INT_RANGES
 from .lexer import STError
 from .parser import parse
@@ -180,4 +181,5 @@ def check(src, profile="iec"):
                 err(ln, f"{d['type']} has no {'output' if op == '=>' else 'input'} {name}")
 
     stmts(prog["body"])
+    issues += [Issue("warning", ln, f"dialect: {m}") for ln, m in dialect_issues(src, prof.name)]
     return issues
