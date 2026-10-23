@@ -11,7 +11,7 @@
 ## M4 ✅
 - [x] 靜態檢查器 `plc_st/checker.py`:未宣告變數、型別不符、輸入變數被寫入、FB 成員/呼叫參數、profile 型別限制
 - [x] CLI `python -m plc_st check file.st --profile X`(有 error 則 exit 1)
-## M4b (下一個)
-- [ ] 廠牌方言警告(Siemens SCL / Rockwell / Mitsubishi 語法差異,如保留字、轉換函式命名)
-## M5
+## M4b ✅
+- [x] 廠牌方言警告 `plc_st/dialect.py`(保留字/與標準函式同名、MELSEC 裝置位址標籤、Logix 無 T#/**/IEC FB;僅 warning,已整合進 check)
+## M5 (下一個)
 - [ ] LLM provider 抽象(Gemini/GPT/Claude/Ollama)+ prompt 模板
