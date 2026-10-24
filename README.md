@@ -35,6 +35,13 @@ python -m plc_st tags examples/points.csv   # CSV 點位表 → VAR 宣告
 python -m plc_st check examples/motor.st --profile siemens-s7-1200
 ```
 
+## LLM 產生 (M5)
+```
+export ANTHROPIC_API_KEY=...   # 或 OPENAI_API_KEY / GEMINI_API_KEY;ollama 不需金鑰
+python -m plc_st generate "馬達啟停,停止優先" --provider claude --tags examples/points.csv -o out.st
+```
+產生後自動執行 `check`;LLM 輸出仍須經虛擬 PLC 與廠牌官方工具驗證。
+
 ## 注意:「無警告」不等於相容
 `check` 的廠牌方言檢查(`plc_st/dialect.py`)是保守的啟發式規則,只涵蓋少數已知差異。
 未出現警告不能視為通過該廠牌 IDE/PLC 的編譯或相容性驗證,上傳實機前請以廠牌官方工具再驗證。

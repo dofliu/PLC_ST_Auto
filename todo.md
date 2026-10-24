@@ -13,5 +13,8 @@
 - [x] CLI `python -m plc_st check file.st --profile X`(有 error 則 exit 1)
 ## M4b ✅
 - [x] 廠牌方言警告 `plc_st/dialect.py`(保留字/與標準函式同名、MELSEC 裝置位址標籤、Logix 無 T#/**/IEC FB;僅 warning,已整合進 check)
-## M5 (下一個)
-- [ ] LLM provider 抽象(Gemini/GPT/Claude/Ollama)+ prompt 模板
+## M5 ✅
+- [x] `plc_st/llm.py`:Gemini/OpenAI/Claude/Ollama provider(stdlib HTTP、transport 可注入)、prompt 模板、ST 擷取
+- [x] CLI `generate`(`--provider --model --base-url --tags -o`),產生後自動 `check`
+## M6 (下一個)
+- [ ] RAG:文件切塊 + TF-IDF 向量庫 + 檢索注入 prompt(`build_prompt(context=)` 已預留)
