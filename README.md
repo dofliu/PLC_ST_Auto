@@ -34,3 +34,7 @@ python -m plc_st tags examples/points.csv   # CSV 點位表 → VAR 宣告
 ```
 python -m plc_st check examples/motor.st --profile siemens-s7-1200
 ```
+
+## 注意:「無警告」不等於相容
+`check` 的廠牌方言檢查(`plc_st/dialect.py`)是保守的啟發式規則,只涵蓋少數已知差異。
+未出現警告不能視為通過該廠牌 IDE/PLC 的編譯或相容性驗證,上傳實機前請以廠牌官方工具再驗證。

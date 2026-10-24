@@ -39,6 +39,35 @@ class TestDialect(unittest.TestCase):
         src = "PROGRAM p\nVAR X0 : BOOL; END_VAR\nX0 := TRUE;\nEND_PROGRAM"
         self.assertTrue(all(i.severity == "warning" for i in check(src, "mitsubishi")))
 
+    def test_multi_name_declaration(self):
+        for decl in ("a, abs : INT;", "abs, a : INT;", "a, abs, b : INT;", "ABS, a : INT;"):
+            src = f"PROGRAM p\nVAR {decl} END_VAR\nEND_PROGRAM"
+            self.assertEqual(len(warns(src, "iec")), 1, decl)
+
+    def test_multi_name_other_vendors(self):
+        src = "PROGRAM p\nVAR ok : BOOL; This, X0 : INT; END_VAR\nEND_PROGRAM"
+        self.assertEqual(len(warns(src, "codesys")), 1)
+        self.assertEqual(len(warns(src, "mitsubishi")), 1)
+
+    def test_fb_type_case_insensitive(self):
+        for t in ("TON", "ton", "Ton", "r_trig"):
+            src = f"PROGRAM p\nVAR a : BOOL; x : {t}; END_VAR\nEND_PROGRAM"
+            self.assertTrue(any("TIMER" in m or "Logix" in m for m in warns(src, "rockwell")), t)
+
+    def test_shadow_case_insensitive(self):
+        for n in ("ton", "Abs", "TIME", "real"):
+            src = f"PROGRAM p\nVAR {n} : INT; END_VAR\nEND_PROGRAM"
+            self.assertTrue(warns(src, "iec"), n)
+
+    def test_no_false_positive_on_type_names(self):
+        src = "PROGRAM p\nVAR a : TON; b : INT; END_VAR\nEND_PROGRAM"
+        self.assertEqual(warns(src, "iec"), [])
+
+    def test_no_warning_is_not_proof(self):
+        # documented limitation: dialect checks are heuristics
+        import plc_st.dialect as d
+        self.assertIn("approximations", d.__doc__)
+
 
 if __name__ == "__main__":
     unittest.main()

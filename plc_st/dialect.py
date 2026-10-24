@@ -36,25 +36,35 @@ def dialect_issues(src, profile):
             out.append((ln, msg))
 
     reserved = _RESERVED.get(fam, set())
+    fb_names = {n.upper() for n in FB_TYPES}
     in_var = False
-    for i, (k, v, ln) in enumerate(toks):
+    names = []  # declared names awaiting their ':' (handles `a, b : INT`)
+    after_colon = False
+    for k, v, ln in toks:
         if k == "kw" and v.startswith("VAR"):
-            in_var = True
+            in_var, names, after_colon = True, [], False
         elif k == "kw" and v == "END_VAR":
             in_var = False
-        if k == "id" and in_var and i + 1 < len(toks) and toks[i + 1][1] == ":":
-            up = v.upper()
-            if up in _IEC_NAMES:
-                warn(ln, f"variable {v} shadows a standard function/type name; rename it for portability")
-            elif up in reserved:
-                warn(ln, f"variable {v} is reserved on {fam}")
-            elif fam == "mitsubishi" and _DEVICE.match(v):
-                warn(ln, f"label {v} looks like a MELSEC device address; GX Works rejects it")
+        elif in_var:
+            if k == "op" and v == ":":
+                after_colon = True
+                for nm, nl in names:
+                    up = nm.upper()
+                    if up in _IEC_NAMES:
+                        warn(nl, f"variable {nm} shadows a standard function/type name; rename it for portability")
+                    elif up in reserved:
+                        warn(nl, f"variable {nm} is reserved on {fam}")
+                    elif fam == "mitsubishi" and _DEVICE.match(nm):
+                        warn(nl, f"label {nm} looks like a MELSEC device address; GX Works rejects it")
+            elif k == "op" and v == ";":
+                names, after_colon = [], False
+            elif k == "id" and not after_colon:
+                names.append((v, ln))
+            elif k == "id" and fam == "rockwell" and v.upper() in fb_names:
+                warn(ln, f"Logix has no IEC {v.upper()} block; use TIMER/COUNTER tags with TONR/CTU instructions")
         if fam == "rockwell":
             if k == "time":
                 warn(ln, "Logix has no T# literal; use DINT milliseconds")
             elif k == "op" and v == "**":
                 warn(ln, "Logix uses XPY(a, b) instead of **")
-            elif k == "id" and v in FB_TYPES and in_var:
-                warn(ln, f"Logix has no IEC {v} block; use TIMER/COUNTER tags with TONR/CTU instructions")
     return out
