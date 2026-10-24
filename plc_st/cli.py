@@ -5,6 +5,7 @@ import csv
 import sys
 
 from .checker import check
+from .llm import get_provider, generate
 from .interpreter import VirtualPLC, STError
 from .profiles import PROFILES
 from .tags import tags_to_var_blocks
@@ -52,6 +53,28 @@ def run(args):
     return 0
 
 
+def gen(args):
+    req = args.requirement
+    if req.startswith("@"):
+        with open(req[1:], encoding="utf-8") as f:
+            req = f.read()
+    tags = ""
+    if args.tags:
+        with open(args.tags, encoding="utf-8") as f:
+            tags = tags_to_var_blocks(f.read())
+    prov = get_provider(args.provider, model=args.model, base_url=args.base_url)
+    code = generate(prov, req, tags, args.profile)
+    issues = check(code, args.profile)
+    for i in issues:
+        print(i, file=sys.stderr)
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(code)
+    else:
+        sys.stdout.write(code)
+    return 1 if any(i.severity == "error" for i in issues) else 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="plc_st")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -68,6 +91,14 @@ def main(argv=None):
     c.add_argument("--profile", default="iec")
     t = sub.add_parser("tags", help="CSV 點位表 → VAR 宣告")
     t.add_argument("file")
+    g = sub.add_parser("generate", help="呼叫 LLM 產生 ST,並以靜態檢查驗證(輸出到 stdout 或 -o)")
+    g.add_argument("requirement", help="需求文字,或 @檔案 讀取")
+    g.add_argument("--provider", default="ollama", help="gemini|openai|claude|ollama")
+    g.add_argument("--model")
+    g.add_argument("--base-url")
+    g.add_argument("--tags", help="CSV 點位表")
+    g.add_argument("--profile", default="iec")
+    g.add_argument("-o", "--output")
     sub.add_parser("profiles", help="列出可用的廠牌 profile")
     a = p.parse_args(argv)
     try:
@@ -81,6 +112,8 @@ def main(argv=None):
             for i in issues:
                 print(i)
             return 1 if any(i.severity == "error" for i in issues) else 0
+        if a.cmd == "generate":
+            return gen(a)
         if a.cmd == "run":
             return run(a)
         with open(a.file, encoding="utf-8") as f:
