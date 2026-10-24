@@ -72,8 +72,7 @@ class TestGenerateCLI(unittest.TestCase):
         from plc_st import llm
         from plc_st.cli import main
         resp = {"message": {"content": f"```st\n{ST}\n```"}}
-        with mock.patch.object(llm, "http_post_json", lambda *a, **k: resp), \
-                mock.patch.object(llm.Provider, "__init__", lambda s, **k: setattr(s, "transport", lambda *a: resp) or setattr(s, "model", "m")):
+        with mock.patch.object(llm, "http_post_json", lambda *a, **k: resp):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 rc = main(["generate", "turn on x", "--provider", "ollama"])
