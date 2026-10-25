@@ -16,5 +16,9 @@
 ## M5 ✅
 - [x] `plc_st/llm.py`:Gemini/OpenAI/Claude/Ollama provider(stdlib HTTP、transport 可注入)、prompt 模板、ST 擷取
 - [x] CLI `generate`(`--provider --model --base-url --tags -o`),產生後自動 `check`
-## M6 (下一個)
-- [ ] RAG:文件切塊 + TF-IDF 向量庫 + 檢索注入 prompt(`build_prompt(context=)` 已預留)
+## M6 ✅
+- [x] `plc_st/rag.py`:切塊、TF-IDF(含 CJK bigram)向量庫、JSON 持久化
+- [x] CLI `index` / `search`,`generate --index --top-k` 注入檢索片段
+## M7 (下一個)
+- [ ] 產生→check→把錯誤回饋 LLM 自動修正迴圈(最多 N 輪)
+- [ ] (後續)PDF/docx 文件讀取、可替換 embedding

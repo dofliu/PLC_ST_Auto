@@ -4,7 +4,7 @@
 - M3 廠牌 profile:型別支援/溢位行為(iec、codesys、siemens、rockwell、mitsubishi、omron、strict、saturate;為近似模擬)✅
 - M4 靜態檢查/驗證器(未宣告變數、型別不符、輸入被寫入、FB 呼叫)✅;廠牌方言警告(M4b ✅)
 - M5 LLM provider 抽象(Gemini/GPT/Claude/Ollama,HTTP,stdlib)+ prompt 模板 ✅
-- M6 RAG:文件切塊、TF-IDF/可替換 embedding 向量庫、檢索注入 prompt
+- M6 RAG:文件切塊、TF-IDF 向量庫(可替換 embedding 為後續)、檢索注入 prompt ✅
 - M7 產生→驗證→自動修正迴圈
 - M8 Web UI(輸入方式、設定、虛擬 PLC 面板、波形)
 - M9 匯出:PLCopen XML、各廠牌檔案格式
