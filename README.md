@@ -42,6 +42,13 @@ python -m plc_st generate "馬達啟停,停止優先" --provider claude --tags e
 ```
 產生後自動執行 `check`;LLM 輸出仍須經虛擬 PLC 與廠牌官方工具驗證。
 
+## RAG (M6)
+```
+python -m plc_st index examples/docs -o docs.idx.json      # 文件/資料夾 → 索引
+python -m plc_st search docs.idx.json "TON 計時器"
+python -m plc_st generate "..." --index docs.idx.json --top-k 4
+```
+
 ## 注意:「無警告」不等於相容
 `check` 的廠牌方言檢查(`plc_st/dialect.py`)是保守的啟發式規則,只涵蓋少數已知差異。
 未出現警告不能視為通過該廠牌 IDE/PLC 的編譯或相容性驗證,上傳實機前請以廠牌官方工具再驗證。

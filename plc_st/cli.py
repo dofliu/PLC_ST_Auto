@@ -6,6 +6,7 @@ import sys
 
 from .checker import check
 from .llm import get_provider, generate
+from .rag import VectorStore
 from .interpreter import VirtualPLC, STError
 from .profiles import PROFILES
 from .tags import tags_to_var_blocks
@@ -63,7 +64,12 @@ def gen(args):
         with open(args.tags, encoding="utf-8") as f:
             tags = tags_to_var_blocks(f.read())
     prov = get_provider(args.provider, model=args.model, base_url=args.base_url)
-    code = generate(prov, req, tags, args.profile)
+    ctx = None
+    if args.index:
+        ctx = VectorStore.load(args.index).context(req, args.top_k)
+        if not ctx:
+            print("warning: RAG found no relevant passages", file=sys.stderr)
+    code = generate(prov, req, tags, args.profile, ctx)
     issues = check(code, args.profile)
     for i in issues:
         print(i, file=sys.stderr)
@@ -98,7 +104,16 @@ def main(argv=None):
     g.add_argument("--base-url")
     g.add_argument("--tags", help="CSV 點位表")
     g.add_argument("--profile", default="iec")
+    g.add_argument("--index", help="RAG 索引檔(`index` 指令建立),檢索結果注入 prompt")
+    g.add_argument("--top-k", type=int, default=4)
     g.add_argument("-o", "--output")
+    ix = sub.add_parser("index", help="把文件(檔案/資料夾)建成 RAG 索引 JSON")
+    ix.add_argument("paths", nargs="+")
+    ix.add_argument("-o", "--output", required=True)
+    q = sub.add_parser("search", help="查詢 RAG 索引")
+    q.add_argument("index")
+    q.add_argument("query")
+    q.add_argument("--top-k", type=int, default=4)
     sub.add_parser("profiles", help="列出可用的廠牌 profile")
     a = p.parse_args(argv)
     try:
@@ -112,6 +127,17 @@ def main(argv=None):
             for i in issues:
                 print(i)
             return 1 if any(i.severity == "error" for i in issues) else 0
+        if a.cmd == "index":
+            st = VectorStore()
+            for pth in a.paths:
+                st.add_path(pth)
+            st.save(a.output)
+            print(f"indexed {len(st.docs)} chunks -> {a.output}")
+            return 0
+        if a.cmd == "search":
+            for sc, src, text in VectorStore.load(a.index).search(a.query, a.top_k):
+                print(f"{sc:.3f}\t{src}\t{text[:80]!r}")
+            return 0
         if a.cmd == "generate":
             return gen(a)
         if a.cmd == "run":
