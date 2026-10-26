@@ -78,3 +78,40 @@ class TestGenerateCLI(unittest.TestCase):
                 rc = main(["generate", "turn on x", "--provider", "ollama"])
         self.assertEqual(rc, 0)
         self.assertIn("END_PROGRAM", buf.getvalue())
+
+
+class TestRepairLoop(unittest.TestCase):
+    BAD = "PROGRAM P\nVAR x : BOOL; END_VAR\ny := TRUE;\nEND_PROGRAM"
+
+    class Seq:
+        def __init__(self, replies):
+            self.replies, self.users = list(replies), []
+
+        def complete(self, system, user):
+            self.users.append(user)
+            return self.replies.pop(0)
+
+    def test_repairs_then_stops(self):
+        from plc_st.llm import generate_checked
+        p = self.Seq([f"```st\n{self.BAD}\n```", f"```st\n{ST}\n```"])
+        code, issues, rounds = generate_checked(p, "req")
+        self.assertEqual(rounds, 1)
+        self.assertFalse([i for i in issues if i.severity == "error"])
+        self.assertIn("x := TRUE", code)
+        self.assertIn("static checker", p.users[1])
+        self.assertIn("y", p.users[1])
+
+    def test_gives_up_after_max_rounds(self):
+        from plc_st.llm import generate_checked
+        p = self.Seq([f"```st\n{self.BAD}\n```"] * 3)
+        _, issues, rounds = generate_checked(p, "req", max_rounds=2)
+        self.assertEqual(rounds, 2)
+        self.assertTrue(any(i.severity == "error" for i in issues))
+        self.assertEqual(len(p.users), 3)
+
+    def test_no_repair_when_clean_or_disabled(self):
+        from plc_st.llm import generate_checked
+        p = self.Seq([f"```st\n{ST}\n```"])
+        self.assertEqual(generate_checked(p, "req")[2], 0)
+        p = self.Seq([f"```st\n{self.BAD}\n```"])
+        self.assertEqual(generate_checked(p, "req", max_rounds=0)[2], 0)

@@ -5,7 +5,7 @@ import csv
 import sys
 
 from .checker import check
-from .llm import get_provider, generate
+from .llm import get_provider, generate_checked
 from .rag import VectorStore
 from .interpreter import VirtualPLC, STError
 from .profiles import PROFILES
@@ -69,8 +69,9 @@ def gen(args):
         ctx = VectorStore.load(args.index).context(req, args.top_k)
         if not ctx:
             print("warning: RAG found no relevant passages", file=sys.stderr)
-    code = generate(prov, req, tags, args.profile, ctx)
-    issues = check(code, args.profile)
+    code, issues, rounds = generate_checked(prov, req, tags, args.profile, ctx, args.max_rounds)
+    if rounds:
+        print(f"info: auto-repair used {rounds} round(s)", file=sys.stderr)
     for i in issues:
         print(i, file=sys.stderr)
     if args.output:
@@ -106,6 +107,7 @@ def main(argv=None):
     g.add_argument("--profile", default="iec")
     g.add_argument("--index", help="RAG 索引檔(`index` 指令建立),檢索結果注入 prompt")
     g.add_argument("--top-k", type=int, default=4)
+    g.add_argument("--max-rounds", type=int, default=3, help="check 有 error 時回饋 LLM 修正的最大次數(0=不修正)")
     g.add_argument("-o", "--output")
     ix = sub.add_parser("index", help="把文件(檔案/資料夾)建成 RAG 索引 JSON")
     ix.add_argument("paths", nargs="+")
