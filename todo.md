@@ -19,8 +19,10 @@
 ## M6 ✅
 - [x] `plc_st/rag.py`:切塊、TF-IDF(含 CJK bigram)向量庫、JSON 持久化
 - [x] CLI `index` / `search`,`generate --index --top-k` 注入檢索片段
-## M7 (下一個)
-- [ ] 產生→check→把錯誤回饋 LLM 自動修正迴圈(最多 N 輪)
+## M7 ✅
+- [x] 產生→check→把錯誤回饋 LLM 自動修正迴圈(`generate --max-rounds N`,預設 3)
+## M8 (下一個)
+- [ ] 產生後自動以虛擬 PLC 跑測試情境(YAML/JSON 測試腳本:輸入時序 + 預期輸出)
 - [ ] (後續)PDF/docx 文件讀取、可替換 embedding
 ## M6 修補 ✅
 - [x] 切塊參數檢查(size>0、0<=overlap<size)、`index` 排除輸出檔、`add_path` 批次只重建一次索引

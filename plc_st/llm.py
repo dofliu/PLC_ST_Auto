@@ -5,6 +5,7 @@ import os
 import re
 import urllib.request
 
+from .checker import check
 from .interpreter import STError
 
 DEFAULT_MODELS = {
@@ -145,3 +146,26 @@ def extract_st(text):
 def generate(provider, requirement, tags_text="", vendor="iec", context=None):
     system, user = build_prompt(requirement, tags_text, vendor, context)
     return extract_st(provider.complete(system, user))
+
+
+def build_repair_prompt(user, code, issues):
+    """把上一輪程式碼與檢查錯誤附在原 prompt 後,要求修正。"""
+    errs = "\n".join(f"- {i}" for i in issues)
+    return (f"{user}\n\nYour previous answer:\n```st\n{code.strip()}\n```\n"
+            f"The static checker reported these errors:\n{errs}\n"
+            "Fix all of them and output the complete corrected PROGRAM in one ```st block.")
+
+
+def generate_checked(provider, requirement, tags_text="", vendor="iec", context=None, max_rounds=3):
+    """產生 → check → 把 error 回饋 LLM 修正,最多 max_rounds 次修正。
+    回傳 (code, issues, rounds);issues 為最後一輪檢查結果(含 warning)。"""
+    system, user = build_prompt(requirement, tags_text, vendor, context)
+    code = extract_st(provider.complete(system, user))
+    issues = check(code, vendor)
+    rounds = 0
+    while rounds < max_rounds and any(i.severity == "error" for i in issues):
+        rounds += 1
+        errors = [i for i in issues if i.severity == "error"]
+        code = extract_st(provider.complete(system, build_repair_prompt(user, code, errors)))
+        issues = check(code, vendor)
+    return code, issues, rounds
