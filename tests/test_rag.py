@@ -38,6 +38,39 @@ class TestRAG(unittest.TestCase):
             self.assertEqual(main(["search", p, "TON timer PT"]), 0)
             self.assertEqual(main(["index", "README.md", "-o", p]), 0)
 
+    def test_invalid_chunk_params(self):
+        # 回歸:size == overlap 時舊版硬切迴圈不會前進
+        for size, overlap in [(100, 100), (100, 150), (0, 0), (100, -1)]:
+            with self.assertRaises(ValueError):
+                chunk_text("x" * 500, size=size, overlap=overlap)
+        self.assertEqual(main(["index", "examples/docs", "-o", os.devnull]), 0)
+
+    def test_reindex_excludes_output_in_input_dir(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "doc.md"), "w", encoding="utf-8") as f:
+                f.write("TON on-delay timer.\n\nCTU counter.")
+            out = os.path.join(d, "idx.json")
+            self.assertEqual(main(["index", d, "-o", out]), 0)
+            first = VectorStore.load(out).docs
+            self.assertEqual(main(["index", d, "-o", out]), 0)
+            second = VectorStore.load(out).docs
+            self.assertEqual(first, second)
+            self.assertTrue(all(doc["source"].endswith("doc.md") for doc in second))
+
+    def test_add_path_indexes_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            for i in range(5):
+                with open(os.path.join(d, f"{i}.md"), "w", encoding="utf-8") as f:
+                    f.write(f"document {i} about timers")
+            s = VectorStore()
+            calls = []
+            orig = s._index
+            s._index = lambda: (calls.append(1), orig())
+            s.add_path(d)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(len(s.docs), 5)
+            self.assertTrue(s.search("timers"))
+
     def test_unsupported(self):
         with self.assertRaises(ValueError):
             VectorStore().add_file("x.pdf")
