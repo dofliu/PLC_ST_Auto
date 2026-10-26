@@ -20,6 +20,8 @@ def tokenize(text):
 
 def chunk_text(text, size=800, overlap=100):
     """依段落累積切塊;超長段落以固定視窗硬切(含重疊)。"""
+    if size <= 0 or not 0 <= overlap < size:
+        raise ValueError(f"invalid chunking: need size > 0 and 0 <= overlap < size (got {size}, {overlap})")
     chunks, cur = [], ""
     for para in re.split(r"\n\s*\n", text):
         para = para.strip()
@@ -46,10 +48,11 @@ class VectorStore:
         self._tf = []
         self._idf = {}
 
-    def add_text(self, source, text, size=800, overlap=100):
+    def add_text(self, source, text, size=800, overlap=100, reindex=True):
         for c in chunk_text(text, size, overlap):
             self.docs.append({"source": source, "text": c})
-        self._index()
+        if reindex:
+            self._index()
 
     def add_file(self, path, **kw):
         ext = os.path.splitext(path)[1].lower()
@@ -58,14 +61,20 @@ class VectorStore:
         with open(path, encoding="utf-8", errors="replace") as f:
             self.add_text(path, f.read(), **kw)
 
-    def add_path(self, path, **kw):
+    def add_path(self, path, exclude=(), **kw):
+        """加入檔案或資料夾(遞迴);exclude 內的路徑(如輸出索引檔)會略過。全部讀完才重建一次索引。"""
+        skip = {os.path.realpath(e) for e in exclude}
         if os.path.isdir(path):
-            for root, _, files in sorted(os.walk(path)):
-                for n in sorted(files):
-                    if os.path.splitext(n)[1].lower() in TEXT_EXT:
-                        self.add_file(os.path.join(root, n), **kw)
+            files = [os.path.join(root, n)
+                     for root, _, names in sorted(os.walk(path))
+                     for n in sorted(names)
+                     if os.path.splitext(n)[1].lower() in TEXT_EXT]
         else:
-            self.add_file(path, **kw)
+            files = [path]
+        for f in files:
+            if os.path.realpath(f) not in skip:
+                self.add_file(f, reindex=False, **kw)
+        self._index()
 
     def _index(self):
         self._tf = [Counter(tokenize(d["text"])) for d in self.docs]

@@ -130,7 +130,7 @@ def main(argv=None):
         if a.cmd == "index":
             st = VectorStore()
             for pth in a.paths:
-                st.add_path(pth)
+                st.add_path(pth, exclude=[a.output])
             st.save(a.output)
             print(f"indexed {len(st.docs)} chunks -> {a.output}")
             return 0
