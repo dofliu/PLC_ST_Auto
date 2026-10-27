@@ -7,6 +7,7 @@ import sys
 from .checker import check
 from .llm import get_provider, generate_checked
 from .rag import VectorStore
+from .scenario import run_scenario
 from .interpreter import VirtualPLC, STError
 from .profiles import PROFILES
 from .tags import tags_to_var_blocks
@@ -109,6 +110,10 @@ def main(argv=None):
     g.add_argument("--top-k", type=int, default=4)
     g.add_argument("--max-rounds", type=int, default=3, help="check 有 error 時回饋 LLM 修正的最大次數(0=不修正)")
     g.add_argument("-o", "--output")
+    s = sub.add_parser("test", help="以情境腳本(JSON:輸入時序+預期輸出)驗證 ST;有不符則 exit 1")
+    s.add_argument("file")
+    s.add_argument("scenario")
+    s.add_argument("--profile")
     ix = sub.add_parser("index", help="把文件(檔案/資料夾)建成 RAG 索引 JSON")
     ix.add_argument("paths", nargs="+")
     ix.add_argument("-o", "--output", required=True)
@@ -140,6 +145,15 @@ def main(argv=None):
             for sc, src, text in VectorStore.load(a.index).search(a.query, a.top_k):
                 print(f"{sc:.3f}\t{src}\t{text[:80]!r}")
             return 0
+        if a.cmd == "test":
+            with open(a.file, encoding="utf-8") as f:
+                src = f.read()
+            with open(a.scenario, encoding="utf-8") as f:
+                fails = run_scenario(src, f.read(), profile=a.profile)
+            for x in fails:
+                print(f"FAIL step {x['step']}: {x['var']} expected {x['expected']!r} got {x['actual']!r}")
+            print("PASS" if not fails else f"{len(fails)} failure(s)")
+            return 1 if fails else 0
         if a.cmd == "generate":
             return gen(a)
         if a.cmd == "run":

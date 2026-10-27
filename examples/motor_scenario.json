@@ -1,0 +1,9 @@
+{
+  "scan_ms": 100,
+  "steps": [
+    {"name": "idle", "cycles": 2, "expect": {"motor": false}},
+    {"name": "start", "set": {"start": true}, "cycles": 1, "expect": {"motor": true}},
+    {"name": "timer elapsed", "ms": 600, "expect": {"t.Q": true}},
+    {"name": "stop", "set": {"stop": true}, "expect": {"motor": false}}
+  ]
+}

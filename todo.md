@@ -21,8 +21,10 @@
 - [x] CLI `index` / `search`,`generate --index --top-k` 注入檢索片段
 ## M7 ✅
 - [x] 產生→check→把錯誤回饋 LLM 自動修正迴圈(`generate --max-rounds N`,預設 3)
-## M8 (下一個)
-- [ ] 產生後自動以虛擬 PLC 跑測試情境(YAML/JSON 測試腳本:輸入時序 + 預期輸出)
-- [ ] (後續)PDF/docx 文件讀取、可替換 embedding
+## M8 ✅
+- [x] `plc_st/scenario.py` + CLI `test file.st scenario.json`(輸入時序 + 預期輸出,不符 exit 1)
+## M9 (下一個)
+- [ ] `generate --scenario`:產生後以情境驗證,失敗回饋 LLM 修正
+- [ ] (後續)PDF/docx 文件讀取、可替換 embedding、Web UI
 ## M6 修補 ✅
 - [x] 切塊參數檢查(size>0、0<=overlap<size)、`index` 排除輸出檔、`add_path` 批次只重建一次索引
