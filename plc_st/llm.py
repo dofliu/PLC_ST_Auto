@@ -5,7 +5,7 @@ import os
 import re
 import urllib.request
 
-from .checker import check
+from .checker import check, Issue
 from .interpreter import STError
 
 DEFAULT_MODELS = {
@@ -152,20 +152,40 @@ def build_repair_prompt(user, code, issues):
     """把上一輪程式碼與檢查錯誤附在原 prompt 後,要求修正。"""
     errs = "\n".join(f"- {i}" for i in issues)
     return (f"{user}\n\nYour previous answer:\n```st\n{code.strip()}\n```\n"
-            f"The static checker reported these errors:\n{errs}\n"
+            f"The static checker / test scenario reported these errors:\n{errs}\n"
             "Fix all of them and output the complete corrected PROGRAM in one ```st block.")
 
 
-def generate_checked(provider, requirement, tags_text="", vendor="iec", context=None, max_rounds=3):
-    """產生 → check → 把 error 回饋 LLM 修正,最多 max_rounds 次修正。
-    回傳 (code, issues, rounds);issues 為最後一輪檢查結果(含 warning)。"""
+def _scenario_issues(code, scenario, vendor):
+    """以情境在虛擬 PLC 執行,不符/執行錯誤轉成 error Issue。"""
+    from .scenario import run_scenario
+    try:
+        fails = run_scenario(code, scenario, profile=vendor)
+    except STError as e:
+        return [Issue("error", 0, f"scenario could not run: {e}")]
+    return [Issue("error", 0, f"scenario step {f['step']}: {f['var']} expected {f['expected']!r} "
+                              f"but program produced {f['actual']!r}") for f in fails]
+
+
+def generate_checked(provider, requirement, tags_text="", vendor="iec", context=None, max_rounds=3,
+                     scenario=None):
+    """產生 → check(+情境驗證)→ 把 error 回饋 LLM 修正,最多 max_rounds 次修正。
+    scenario 為 JSON 字串/dict(見 scenario.py);靜態檢查通過後才執行情境。
+    回傳 (code, issues, rounds);issues 為最後一輪結果(含 warning)。"""
     system, user = build_prompt(requirement, tags_text, vendor, context)
+
+    def evaluate(code):
+        issues = check(code, vendor)
+        if scenario is not None and not any(i.severity == "error" for i in issues):
+            issues = issues + _scenario_issues(code, scenario, vendor)
+        return issues
+
     code = extract_st(provider.complete(system, user))
-    issues = check(code, vendor)
+    issues = evaluate(code)
     rounds = 0
     while rounds < max_rounds and any(i.severity == "error" for i in issues):
         rounds += 1
         errors = [i for i in issues if i.severity == "error"]
         code = extract_st(provider.complete(system, build_repair_prompt(user, code, errors)))
-        issues = check(code, vendor)
+        issues = evaluate(code)
     return code, issues, rounds
