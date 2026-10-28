@@ -70,7 +70,11 @@ def gen(args):
         ctx = VectorStore.load(args.index).context(req, args.top_k)
         if not ctx:
             print("warning: RAG found no relevant passages", file=sys.stderr)
-    code, issues, rounds = generate_checked(prov, req, tags, args.profile, ctx, args.max_rounds)
+    scenario = None
+    if args.scenario:
+        with open(args.scenario, encoding="utf-8") as f:
+            scenario = f.read()
+    code, issues, rounds = generate_checked(prov, req, tags, args.profile, ctx, args.max_rounds, scenario)
     if rounds:
         print(f"info: auto-repair used {rounds} round(s)", file=sys.stderr)
     for i in issues:
@@ -109,6 +113,7 @@ def main(argv=None):
     g.add_argument("--index", help="RAG 索引檔(`index` 指令建立),檢索結果注入 prompt")
     g.add_argument("--top-k", type=int, default=4)
     g.add_argument("--max-rounds", type=int, default=3, help="check 有 error 時回饋 LLM 修正的最大次數(0=不修正)")
+    g.add_argument("--scenario", help="情境腳本 JSON;check 通過後在虛擬 PLC 驗證,不符則回饋 LLM 修正")
     g.add_argument("-o", "--output")
     s = sub.add_parser("test", help="以情境腳本(JSON:輸入時序+預期輸出)驗證 ST;有不符則 exit 1")
     s.add_argument("file")

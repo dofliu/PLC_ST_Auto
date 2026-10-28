@@ -55,6 +55,12 @@ python -m plc_st test examples/motor.st examples/motor_scenario.json
 ```
 JSON:`steps` 每步 `set` 輸入 → 掃描 `cycles`/`ms` → 比對 `expect`(支援 `t.Q` 這類 FB 成員);不符 exit 1。
 
+## 產生時情境驗證 (M9)
+```
+python -m plc_st generate @req.txt --scenario examples/motor_scenario.json --provider claude -o out.st
+```
+靜態檢查通過後在虛擬 PLC 跑情境,不符的步驟會回饋 LLM 修正(受 `--max-rounds` 限制)。
+
 ## 注意:「無警告」不等於相容
 `check` 的廠牌方言檢查(`plc_st/dialect.py`)是保守的啟發式規則,只涵蓋少數已知差異。
 未出現警告不能視為通過該廠牌 IDE/PLC 的編譯或相容性驗證,上傳實機前請以廠牌官方工具再驗證。

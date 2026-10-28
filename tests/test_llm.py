@@ -115,3 +115,47 @@ class TestRepairLoop(unittest.TestCase):
         self.assertEqual(generate_checked(p, "req")[2], 0)
         p = self.Seq([f"```st\n{self.BAD}\n```"])
         self.assertEqual(generate_checked(p, "req", max_rounds=0)[2], 0)
+
+
+class TestScenarioLoop(unittest.TestCase):
+    SPEC = '{"steps": [{"set": {"go": true}, "expect": {"m": true}}]}'
+    WRONG = "PROGRAM P\nVAR_INPUT go : BOOL; END_VAR\nVAR_OUTPUT m : BOOL; END_VAR\nm := NOT go;\nEND_PROGRAM"
+    RIGHT = "PROGRAM P\nVAR_INPUT go : BOOL; END_VAR\nVAR_OUTPUT m : BOOL; END_VAR\nm := go;\nEND_PROGRAM"
+    Seq = TestRepairLoop.Seq
+
+    def test_scenario_failure_triggers_repair(self):
+        from plc_st.llm import generate_checked
+        p = self.Seq([f"```st\n{self.WRONG}\n```", f"```st\n{self.RIGHT}\n```"])
+        code, issues, rounds = generate_checked(p, "req", scenario=self.SPEC)
+        self.assertEqual(rounds, 1)
+        self.assertFalse([i for i in issues if i.severity == "error"])
+        self.assertIn("m := go", code)
+        self.assertIn("expected True but program produced False", p.users[1])
+
+    def test_scenario_failure_remains_after_max_rounds(self):
+        from plc_st.llm import generate_checked
+        p = self.Seq([f"```st\n{self.WRONG}\n```"] * 2)
+        _, issues, rounds = generate_checked(p, "req", max_rounds=1, scenario=self.SPEC)
+        self.assertEqual(rounds, 1)
+        self.assertTrue(any("scenario" in i.msg for i in issues))
+
+    def test_bad_scenario_reported_not_raised(self):
+        from plc_st.llm import generate_checked
+        p = self.Seq([f"```st\n{self.RIGHT}\n```"])
+        _, issues, _ = generate_checked(p, "req", max_rounds=0, scenario='{"steps": [{"expect": {"zz": 1}}]}')
+        self.assertTrue(any("could not run" in i.msg for i in issues))
+
+    def test_cli_scenario_flag(self):
+        import io, os, tempfile
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from plc_st import llm
+        from plc_st.cli import main
+        with tempfile.TemporaryDirectory() as d:
+            sp = os.path.join(d, "s.json")
+            open(sp, "w").write(self.SPEC)
+            resp = {"message": {"content": f"```st\n{self.WRONG}\n```"}}
+            with mock.patch.object(llm, "http_post_json", lambda *a, **k: resp):
+                with redirect_stdout(io.StringIO()):
+                    rc = main(["generate", "r", "--max-rounds", "0", "--scenario", sp])
+        self.assertEqual(rc, 1)
