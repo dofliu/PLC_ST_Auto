@@ -73,7 +73,7 @@ class TestRAG(unittest.TestCase):
 
     def test_unsupported(self):
         with self.assertRaises(ValueError):
-            VectorStore().add_file("x.pdf")
+            VectorStore().add_file("x.bin")
 
 
 if __name__ == "__main__":
