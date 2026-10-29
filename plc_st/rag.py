@@ -5,6 +5,8 @@ import os
 import re
 from collections import Counter
 
+from .docreader import DOC_EXT, read_document
+
 TEXT_EXT = {".txt", ".md", ".st", ".csv", ".xml", ".json", ".rst"}
 
 
@@ -56,6 +58,9 @@ class VectorStore:
 
     def add_file(self, path, **kw):
         ext = os.path.splitext(path)[1].lower()
+        if ext in DOC_EXT:
+            self.add_text(path, read_document(path), **kw)
+            return
         if ext not in TEXT_EXT:
             raise ValueError(f"unsupported document type: {ext or path}")
         with open(path, encoding="utf-8", errors="replace") as f:
@@ -68,7 +73,7 @@ class VectorStore:
             files = [os.path.join(root, n)
                      for root, _, names in sorted(os.walk(path))
                      for n in sorted(names)
-                     if os.path.splitext(n)[1].lower() in TEXT_EXT]
+                     if os.path.splitext(n)[1].lower() in TEXT_EXT | DOC_EXT]
         else:
             files = [path]
         for f in files:

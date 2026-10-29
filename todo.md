@@ -25,8 +25,10 @@
 - [x] `plc_st/scenario.py` + CLI `test file.st scenario.json`(輸入時序 + 預期輸出,不符 exit 1)
 ## M9 ✅
 - [x] `generate --scenario`:check 通過後以情境驗證,失敗回饋 LLM 修正
-## M10 (下一個)
-- [ ] PDF/docx 文件讀取納入 RAG(`index`)
-- [ ] 可替換 embedding、Web UI
+## M10 ✅
+- [x] `plc_st/docreader.py`:docx(stdlib)、PDF(pypdf 或 stdlib 簡易解析)納入 RAG `index`
+## M11 (下一個)
+- [ ] 可替換 embedding
+- [ ] Web UI(stdlib http.server:輸入、設定、虛擬 PLC 面板)
 ## M6 修補 ✅
 - [x] 切塊參數檢查(size>0、0<=overlap<size)、`index` 排除輸出檔、`add_path` 批次只重建一次索引

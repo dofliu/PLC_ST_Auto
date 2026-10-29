@@ -8,5 +8,6 @@
 - M7 ✅ 產生→驗證→自動修正迴圈
 - M8 ✅ 測試情境腳本(輸入時序+預期輸出)自動驗證(`test` 指令)
 - M9 ✅ generate 整合情境驗證(`--scenario`)
-- M10 PDF/docx 讀取;M11 Web UI(輸入方式、設定、虛擬 PLC 面板、波形)
-- M11 匯出:PLCopen XML、各廠牌檔案格式
+- M10 ✅ PDF/docx 讀取
+- M11 Web UI(輸入方式、設定、虛擬 PLC 面板、波形)
+- M12 匯出:PLCopen XML、各廠牌檔案格式
