@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PLC ST 開發介面</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--bd:#d5dae2;--ac:#2557d6;--ok:#1b8a4b;--er:#c62828;--wn:#b26a00}
+@media(prefers-color-scheme:dark){:root{--bg:#14181f;--fg:#e4e8ef;--card:#1d232d;--bd:#323b4a;--ac:#6c9bff;--ok:#4cc27f;--er:#ff7070;--wn:#e0a030}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,"Noto Sans TC",sans-serif}
+header{padding:10px 16px;border-bottom:1px solid var(--bd);font-weight:600}
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px;padding:12px}
+section{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;min-width:0}
+h2{margin:0 0 8px;font-size:15px}
+textarea,input,select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:6px;font:13px ui-monospace,monospace}
+textarea{min-height:130px;resize:vertical}
+label{display:block;margin:6px 0 2px;font-size:12px;opacity:.8}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:110px}
+button{background:var(--ac);color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;margin:6px 6px 0 0}
+button.s{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+pre{background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:8px;overflow:auto;max-height:220px;margin:6px 0 0;white-space:pre-wrap}
+.er{color:var(--er)}.wn{color:var(--wn)}.ok{color:var(--ok)}
+canvas{width:100%;height:190px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;margin-top:6px}
+table{border-collapse:collapse;font-size:12px}td,th{border:1px solid var(--bd);padding:2px 6px}
+.wide{grid-column:1/-1}
+</style></head><body>
+<header>PLC ST 開發介面 — 輸入 → LLM/RAG 產生 → 檢查 → 虛擬 PLC 驗證</header>
+<main>
+<section><h2>1. 需求輸入</h2>
+ <label>需求文字(或上傳 .txt/.md 檔)</label><textarea id="req">按下 start 後馬達啟動,按 stop 停止;馬達連續運轉 500ms 後計數器加 1。</textarea>
+ <input type="file" id="reqfile" accept=".txt,.md">
+ <label>點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,comment"></textarea>
+ <input type="file" id="tagsfile" accept=".csv,.txt">
+ <button class="s" onclick="tagsToVar()">點位表 → VAR 宣告</button>
+</section>
+<section><h2>2. LLM 設定 / 產生</h2>
+ <div class="row"><div><label>Provider</label><select id="prov"><option>ollama</option><option>gemini</option><option>openai</option><option>claude</option></select></div>
+ <div><label>Model(空=預設)</label><input id="model"></div></div>
+ <div class="row"><div><label>API Key(僅送至本機伺服器,不儲存)</label><input id="key" type="password" autocomplete="off"></div>
+ <div><label>Base URL(可選)</label><input id="base"></div></div>
+ <div class="row"><div><label>廠牌 Profile</label><select id="profile"></select></div>
+ <div><label>自動修正輪數</label><input id="rounds" type="number" value="3" min="0" max="10"></div></div>
+ <label><input type="checkbox" id="userag" style="width:auto"> 使用 RAG 文件檢索</label>
+ <button onclick="gen()">產生 ST</button><span id="genst"></span>
+ <pre id="genout" hidden></pre>
+</section>
+<section><h2>3. RAG 文件庫</h2>
+ <input type="file" id="ragfile" multiple accept=".txt,.md,.st,.csv,.json,.docx,.pdf">
+ <button onclick="ragAdd()">加入索引</button><button class="s" onclick="ragClear()">清空</button><span id="ragst"></span>
+ <div class="row"><input id="ragq" placeholder="測試查詢…"><button style="flex:0" onclick="ragSearch()">搜尋</button></div>
+ <pre id="ragout" hidden></pre>
+</section>
+<section class="wide"><h2>4. ST 程式碼</h2>
+ <textarea id="code" style="min-height:230px" spellcheck="false">PROGRAM Motor
+VAR_INPUT start : BOOL; stop : BOOL; END_VAR
+VAR_OUTPUT motor : BOOL; END_VAR
+VAR t : TON; cnt : INT; END_VAR
+IF start AND NOT stop THEN motor := TRUE; END_IF;
+IF stop THEN motor := FALSE; END_IF;
+t(IN := motor, PT := T#500ms);
+IF t.Q THEN cnt := cnt + 1; END_IF;
+END_PROGRAM</textarea>
+ <input type="file" id="codefile" accept=".st,.txt">
+ <button onclick="chk()">靜態檢查</button><button class="s" onclick="dl()">下載 .st</button>
+ <pre id="chkout" hidden></pre>
+</section>
+<section><h2>5. 虛擬 PLC</h2>
+ <div class="row"><div><label>週期數</label><input id="cycles" type="number" value="80"></div>
+ <div><label>掃描週期 ms</label><input id="scan" type="number" value="10"></div></div>
+ <label>輸入事件(每行 <code>週期:變數=值</code>)</label>
+ <textarea id="events" style="min-height:70px">2:start=true
+40:start=false
+60:stop=true</textarea>
+ <button onclick="runPlc()">執行並繪製波形</button><span id="runst"></span>
+ <canvas id="wave" width="900" height="380"></canvas>
+</section>
+<section><h2>6. 情境測試</h2>
+ <textarea id="scn" style="min-height:190px">{"scan_ms": 100, "steps": [
+ {"name": "start", "set": {"start": true}, "ms": 600, "expect": {"motor": true, "t.Q": true}},
+ {"name": "stop", "set": {"start": false, "stop": true}, "cycles": 1, "expect": {"motor": false}}
+]}</textarea>
+ <input type="file" id="scnfile" accept=".json">
+ <button onclick="tst()">執行情境</button>
+ <pre id="tstout" hidden></pre>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+async function api(p,b){const r=await fetch(p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
+ const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
+function show(id,html,cls){const e=$(id);e.hidden=false;e.className=cls||'';e.innerHTML=html}
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if(f)$(target).value=await f.text()}}
+fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');fileTo('scnfile','scn');
+api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('')});
+const issuesHtml=l=>l.length?l.map(i=>`<div class="${i.severity=='error'?'er':'wn'}">${i.severity}${i.line?' line '+i.line:''}: ${esc(i.msg)}</div>`).join(''):'<span class="ok">✔ 無問題</span>';
+async function tagsToVar(){try{const j=await api('/api/tags',{csv:$('tags').value});$('code').value=j.code}catch(e){show('chkout',esc(e.message),'er')}}
+async function chk(){try{show('chkout',issuesHtml((await api('/api/check',{code:$('code').value,profile:$('profile').value})).issues))}catch(e){show('chkout',esc(e.message),'er')}}
+function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('code').value]));a.download='program.st';a.click()}
+async function gen(){$('genst').textContent=' 產生中…';try{
+ const j=await api('/api/generate',{requirement:$('req').value,tags_csv:$('tags').value,provider:$('prov').value,model:$('model').value,api_key:$('key').value,base_url:$('base').value,profile:$('profile').value,max_rounds:+$('rounds').value,use_rag:$('userag').checked,scenario:$('scn').value});
+ $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues))}
+ catch(e){$('genst').textContent='';show('genout',esc(e.message),'er')}}
+async function ragAdd(){const fs=[...$('ragfile').files];if(!fs.length){$('ragst').textContent=' 請先選檔案';return}
+ try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b})}
+ $('ragst').textContent=` 索引共 ${last.total} 個片段`}catch(e){$('ragst').textContent=' '+e.message}}
+function toB64(f){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f)})}
+async function ragClear(){await api('/api/rag/clear',{});$('ragst').textContent=' 已清空'}
+async function ragSearch(){try{const j=await api('/api/rag/search',{query:$('ragq').value});show('ragout',j.hits.length?j.hits.map(h=>`<b>${h.score}</b> [${esc(h.source)}]\n${esc(h.text.slice(0,200))}`).join('\n---\n'):'(無相關片段)')}catch(e){show('ragout',esc(e.message),'er')}}
+function parseEv(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\d+):([\w.]+)=(.+)$/);if(!m)throw new Error('事件格式錯誤: '+l);
+ const v=m[3].toLowerCase()=='true'?true:m[3].toLowerCase()=='false'?false:Number(m[3]);return{cycle:+m[1],name:m[2],value:v}})}
+async function runPlc(){try{const j=await api('/api/run',{code:$('code').value,profile:$('profile').value,cycles:+$('cycles').value,scan_ms:+$('scan').value,events:parseEv($('events').value)});
+ $('runst').textContent=` ${j.rows.length} 週期`;draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er'}}
+function draw(j){const c=$('wave'),g=c.getContext('2d'),cs=getComputedStyle(document.body);g.clearRect(0,0,c.width,c.height);
+ const cols=j.columns.slice(2),n=j.rows.length,lh=c.height/Math.max(cols.length,1),lm=110,w=c.width-lm-10;
+ g.font='13px sans-serif';cols.forEach((name,k)=>{const vals=j.rows.map(r=>r[k+2]),y0=k*lh+lh-8,h=lh-18;
+  g.fillStyle=cs.color;g.fillText(name,4,y0-h/2);
+  const nums=vals.map(Number),mn=Math.min(...nums),mx=Math.max(...nums),bool=vals.every(v=>typeof v=='boolean');
+  g.strokeStyle='#2557d6';g.lineWidth=1.6;g.beginPath();
+  vals.forEach((v,i)=>{const x=lm+i*w/Math.max(n-1,1),f=bool?(v?1:0):(mx==mn?.5:(Number(v)-mn)/(mx-mn)),y=y0-f*h;
+   if(i==0)g.moveTo(x,y);else{g.lineTo(x,g._py);g.lineTo(x,y)}g._py=y});g.stroke();
+  if(!bool){g.fillStyle=cs.color;g.fillText(`${mn}..${mx}`,4,y0-h/2+14)}})}
+async function tst(){try{const j=await api('/api/test',{code:$('code').value,scenario:$('scn').value,profile:$('profile').value});
+ show('tstout',j.passed?'PASS':j.failures.map(f=>`FAIL step ${esc(f.step)}: ${esc(f.var)} expected ${JSON.stringify(f.expected)} got ${JSON.stringify(f.actual)}`).join('\n'),j.passed?'ok':'er')}catch(e){show('tstout',esc(e.message),'er')}}
+</script></body></html>

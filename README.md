@@ -64,3 +64,6 @@ python -m plc_st generate @req.txt --scenario examples/motor_scenario.json --pro
 ## 注意:「無警告」不等於相容
 `check` 的廠牌方言檢查(`plc_st/dialect.py`)是保守的啟發式規則,只涵蓋少數已知差異。
 未出現警告不能視為通過該廠牌 IDE/PLC 的編譯或相容性驗證,上傳實機前請以廠牌官方工具再驗證。
+
+## Web UI
+`python -m plc_st serve --port 8765` 後開啟 http://127.0.0.1:8765 (僅本機)。UI 功能測試:`PYTHONPATH=. CHROMIUM_PATH=<chromium> python tests/ui_smoke.py`(需 playwright)。報告見 `docs/test_report_M11.md`。

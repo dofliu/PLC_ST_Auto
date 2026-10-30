@@ -27,8 +27,11 @@
 - [x] `generate --scenario`:check 通過後以情境驗證,失敗回饋 LLM 修正
 ## M10 ✅
 - [x] `plc_st/docreader.py`:docx(stdlib)、PDF(pypdf 或 stdlib 簡易解析)納入 RAG `index`
-## M11 (下一個)
+## M11 ✅
+- [x] Web UI:`python -m plc_st serve`(stdlib http.server;需求/CSV/檔案輸入、LLM 設定、RAG 上傳、檢查、虛擬 PLC 波形、情境測試)
+- [x] UI 功能測試 `tests/ui_smoke.py` + 截圖 + `docs/test_report_M11.md`
+## M12 (下一個)
 - [ ] 可替換 embedding
-- [ ] Web UI(stdlib http.server:輸入、設定、虛擬 PLC 面板)
+- [ ] 匯出 PLCopen XML / 廠牌檔案格式
 ## M6 修補 ✅
 - [x] 切塊參數檢查(size>0、0<=overlap<size)、`index` 排除輸出檔、`add_path` 批次只重建一次索引

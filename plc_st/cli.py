@@ -127,11 +127,22 @@ def main(argv=None):
     q.add_argument("query")
     q.add_argument("--top-k", type=int, default=4)
     sub.add_parser("profiles", help="列出可用的廠牌 profile")
+    sv = sub.add_parser("serve", help="啟動 Web UI(僅 127.0.0.1)")
+    sv.add_argument("--port", type=int, default=8765)
     a = p.parse_args(argv)
     try:
         if a.cmd == "profiles":
             for pr in PROFILES.values():
                 print(f"{pr.name}\t{pr.overflow}\t{pr.note}")
+            return 0
+        if a.cmd == "serve":
+            from .web import make_server
+            srv = make_server(port=a.port)
+            print(f"serving on http://127.0.0.1:{a.port}")
+            try:
+                srv.serve_forever()
+            except KeyboardInterrupt:
+                pass
             return 0
         if a.cmd == "check":
             with open(a.file, encoding="utf-8") as f:
