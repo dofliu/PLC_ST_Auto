@@ -98,6 +98,10 @@ def handle(method, path, payload, state):
         if path == "/api/test":
             fails = run_scenario(_need(payload, "code"), _need(payload, "scenario"), profile=payload.get("profile"))
             return 200, {"passed": not fails, "failures": fails}
+        if path == "/api/export":
+            from .export import export, FORMATS
+            fmt = payload.get("format", "plcopen")
+            return 200, {"text": export(_need(payload, "code"), fmt), "ext": FORMATS[fmt][0]}
         if path == "/api/tags":
             return 200, {"code": tags_to_var_blocks(_need(payload, "csv"))}
         if path == "/api/generate":

@@ -49,6 +49,11 @@ with sync_playwright() as p:
     pg.click("text=靜態檢查")
     pg.wait_for_function("document.getElementById('chkout').textContent.includes('error')")
     ok("check reports error", "error" in pg.inner_text("#chkout"))
+    pg.fill("#code", open("examples/motor.st", encoding="utf-8").read())
+    with pg.expect_download() as dl:
+        pg.click("text=匯出")
+    ok("export PLCopen XML download", dl.value.suggested_filename == "program.xml"
+       and "<pou" in open(dl.value.path(), encoding="utf-8").read())
     pg.click("text=產生 ST")
     pg.wait_for_function("document.getElementById('genout').className=='er'")
     ok("generate surfaces LLM error", True)

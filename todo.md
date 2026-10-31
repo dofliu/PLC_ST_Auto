@@ -30,8 +30,11 @@
 ## M11 ✅
 - [x] Web UI:`python -m plc_st serve`(stdlib http.server;需求/CSV/檔案輸入、LLM 設定、RAG 上傳、檢查、虛擬 PLC 波形、情境測試)
 - [x] UI 功能測試 `tests/ui_smoke.py` + 截圖 + `docs/test_report_M11.md`
-## M12 (下一個)
-- [ ] 可替換 embedding
-- [ ] 匯出 PLCopen XML / 廠牌檔案格式
+## M12 ✅
+- [x] `plc_st/export.py`:PLCopen XML、Siemens SCL(.scl)、純 ST;CLI `export`、Web UI 匯出按鈕
+- [x] 測試 `tests/test_export.py`、UI 匯出下載 + `docs/test_report_M12.md`
+## M13 (下一個)
+- [ ] 可替換 embedding(provider 抽象,如 Ollama/OpenAI embeddings)
+- [ ] Rockwell L5X / Mitsubishi GX Works 匯出
 ## M6 修補 ✅
 - [x] 切塊參數檢查(size>0、0<=overlap<size)、`index` 排除輸出檔、`add_path` 批次只重建一次索引

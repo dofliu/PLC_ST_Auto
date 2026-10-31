@@ -67,3 +67,6 @@ python -m plc_st generate @req.txt --scenario examples/motor_scenario.json --pro
 
 ## Web UI
 `python -m plc_st serve --port 8765` 後開啟 http://127.0.0.1:8765 (僅本機)。UI 功能測試:`PYTHONPATH=. CHROMIUM_PATH=<chromium> python tests/ui_smoke.py`(需 playwright)。報告見 `docs/test_report_M11.md`。
+
+## 匯出
+`python -m plc_st export examples/motor.st --format plcopen|scl|st -o out.xml`(Web UI 亦有「匯出」按鈕)。PLCopen XML 可匯入 CODESYS 等;匯出後請在目標 IDE 編譯確認。

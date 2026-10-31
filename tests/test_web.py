@@ -17,6 +17,11 @@ class WebHandleTests(unittest.TestCase):
     def post(self, path, **p):
         return handle("POST", path, p, self.s)
 
+    def test_export(self):
+        code, body = self.post("/api/export", code=MOTOR, format="scl")
+        self.assertEqual((code, body["ext"]), (200, "scl"))
+        self.assertEqual(self.post("/api/export", code=MOTOR, format="bad")[0], 400)
+
     def test_profiles(self):
         code, body = handle("GET", "/api/profiles", {}, self.s)
         self.assertEqual(code, 200)

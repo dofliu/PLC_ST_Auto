@@ -126,6 +126,10 @@ def main(argv=None):
     q.add_argument("index")
     q.add_argument("query")
     q.add_argument("--top-k", type=int, default=4)
+    e = sub.add_parser("export", help="匯出 ST:plcopen(XML)|scl(Siemens)|st")
+    e.add_argument("file")
+    e.add_argument("--format", default="plcopen")
+    e.add_argument("-o", "--output")
     sub.add_parser("profiles", help="列出可用的廠牌 profile")
     sv = sub.add_parser("serve", help="啟動 Web UI(僅 127.0.0.1)")
     sv.add_argument("--port", type=int, default=8765)
@@ -143,6 +147,16 @@ def main(argv=None):
                 srv.serve_forever()
             except KeyboardInterrupt:
                 pass
+            return 0
+        if a.cmd == "export":
+            from .export import export
+            with open(a.file, encoding="utf-8") as f:
+                out = export(f.read(), a.format)
+            if a.output:
+                with open(a.output, "w", encoding="utf-8") as f:
+                    f.write(out)
+            else:
+                sys.stdout.write(out)
             return 0
         if a.cmd == "check":
             with open(a.file, encoding="utf-8") as f:

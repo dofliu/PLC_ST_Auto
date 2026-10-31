@@ -59,6 +59,7 @@ IF t.Q THEN cnt := cnt + 1; END_IF;
 END_PROGRAM</textarea>
  <input type="file" id="codefile" accept=".st,.txt">
  <button onclick="chk()">靜態檢查</button><button class="s" onclick="dl()">下載 .st</button>
+ <select id="expfmt"><option value="plcopen">PLCopen XML</option><option value="scl">Siemens SCL</option></select><button class="s" onclick="exp()">匯出</button>
  <pre id="chkout" hidden></pre>
 </section>
 <section><h2>5. 虛擬 PLC</h2>
@@ -92,6 +93,7 @@ fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');file
 api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('')});
 const issuesHtml=l=>l.length?l.map(i=>`<div class="${i.severity=='error'?'er':'wn'}">${i.severity}${i.line?' line '+i.line:''}: ${esc(i.msg)}</div>`).join(''):'<span class="ok">✔ 無問題</span>';
 async function tagsToVar(){try{const j=await api('/api/tags',{csv:$('tags').value});$('code').value=j.code}catch(e){show('chkout',esc(e.message),'er')}}
+async function exp(){try{const f=$('expfmt').value,j=await api('/api/export',{code:$('code').value,format:f});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j.text],{type:'text/plain'}));a.download='program.'+j.ext;a.click();show('chkout','已匯出 '+esc(a.download)+'('+j.text.length+' 字元)')}catch(e){show('chkout',esc(e.message),'er')}}
 async function chk(){try{show('chkout',issuesHtml((await api('/api/check',{code:$('code').value,profile:$('profile').value})).issues))}catch(e){show('chkout',esc(e.message),'er')}}
 function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('code').value]));a.download='program.st';a.click()}
 async function gen(){$('genst').textContent=' 產生中…';try{
