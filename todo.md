@@ -33,8 +33,11 @@
 ## M12 ✅
 - [x] `plc_st/export.py`:PLCopen XML、Siemens SCL(.scl)、純 ST;CLI `export`、Web UI 匯出按鈕
 - [x] 測試 `tests/test_export.py`、UI 匯出下載 + `docs/test_report_M12.md`
-## M13 (下一個)
-- [ ] 可替換 embedding(provider 抽象,如 Ollama/OpenAI embeddings)
-- [ ] Rockwell L5X / Mitsubishi GX Works 匯出
+## M13 ✅
+- [x] `plc_st/embed.py`:可替換 embedding(hash/OpenAI/Ollama/Gemini),`index --embedder`,索引保存 embedder 規格
+- [x] Rockwell L5X 匯出(CLI + Web UI)、`docs/test_report_M13.md`
+## M14 (下一個)
+- [ ] Mitsubishi GX Works 匯出
+- [ ] Web UI 提供 embedder 選項
 ## M6 修補 ✅
 - [x] 切塊參數檢查(size>0、0<=overlap<size)、`index` 排除輸出檔、`add_path` 批次只重建一次索引

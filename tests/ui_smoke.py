@@ -54,6 +54,11 @@ with sync_playwright() as p:
         pg.click("text=匯出")
     ok("export PLCopen XML download", dl.value.suggested_filename == "program.xml"
        and "<pou" in open(dl.value.path(), encoding="utf-8").read())
+    pg.select_option("#expfmt", "l5x")
+    with pg.expect_download() as dl:
+        pg.click("text=匯出")
+    ok("export Rockwell L5X download", dl.value.suggested_filename.endswith(".L5X")
+       and "<Routine" in open(dl.value.path(), encoding="utf-8").read())
     pg.click("text=產生 ST")
     pg.wait_for_function("document.getElementById('genout').className=='er'")
     ok("generate surfaces LLM error", True)

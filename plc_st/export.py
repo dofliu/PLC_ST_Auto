@@ -77,7 +77,35 @@ def to_scl(src):
             f"{decl}\nBEGIN\n{body}\nEND_ORGANIZATION_BLOCK\n")
 
 
-FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "st": ("st", lambda s: s)}
+_L5X_TYPE = {"TON": "TIMER", "TOF": "TIMER", "TP": "TIMER", "CTU": "COUNTER", "CTD": "COUNTER",
+             "CTUD": "COUNTER", "TIME": "DINT", "UINT": "INT", "UDINT": "DINT", "USINT": "SINT",
+             "BYTE": "SINT", "WORD": "INT", "DWORD": "DINT", "LREAL": "REAL"}
+
+
+def to_l5x(src, project="PLC_ST_Auto"):
+    """Rockwell Studio 5000:Program(Tags + ST Routine)L5X 匯入檔。
+    型別對映:TON/TOF→TIMER、CTU/CTD→COUNTER、TIME→DINT 等;函式塊呼叫語法需在 Logix 端人工調整(見 dialect 警告)。"""
+    name, blocks, _, body = split_program(src)
+    now = datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y")
+    o = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+         f'<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="32.00" TargetName={quoteattr(name)} '
+         f'TargetType="Program" ContainsContext="false" ExportDate={quoteattr(now)}>',
+         f'<Controller Use="Context" Name={quoteattr(project)}><Programs>',
+         f'<Program Use="Target" Name={quoteattr(name)} MainRoutineName="MainRoutine"><Tags>']
+    for kind, decls in blocks:
+        usage = {"VAR_INPUT": "Input", "VAR_OUTPUT": "Output", "VAR_IN_OUT": "InOut"}.get(kind, "Local")
+        for n, t, init in decls:
+            dt = _L5X_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)
+            o.append(f'<Tag Name={quoteattr(n)} TagType="Base" DataType={quoteattr(dt)} '
+                     f'Usage={quoteattr(usage)} Constant="false" ExternalAccess="Read/Write"/>')
+    o += ["</Tags><Routines>", '<Routine Name="MainRoutine" Type="ST"><STContent>']
+    for i, line in enumerate(body.splitlines()):
+        o.append(f'<Line Number="{i}"><![CDATA[{line.replace("]]>", "]]]]><![CDATA[>")}]]></Line>')
+    o += ["</STContent></Routine></Routines></Program></Programs></Controller></RSLogix5000Content>", ""]
+    return "\n".join(o)
+
+
+FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "l5x": ("L5X", to_l5x), "st": ("st", lambda s: s)}
 
 
 def export(src, fmt):

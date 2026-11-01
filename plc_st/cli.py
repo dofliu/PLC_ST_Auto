@@ -122,11 +122,14 @@ def main(argv=None):
     ix = sub.add_parser("index", help="把文件(檔案/資料夾)建成 RAG 索引 JSON")
     ix.add_argument("paths", nargs="+")
     ix.add_argument("-o", "--output", required=True)
+    ix.add_argument("--embedder", help="dense embedding:hash|openai|ollama|gemini(預設 TF-IDF)")
+    ix.add_argument("--embed-model")
+    ix.add_argument("--embed-base-url")
     q = sub.add_parser("search", help="查詢 RAG 索引")
     q.add_argument("index")
     q.add_argument("query")
     q.add_argument("--top-k", type=int, default=4)
-    e = sub.add_parser("export", help="匯出 ST:plcopen(XML)|scl(Siemens)|st")
+    e = sub.add_parser("export", help="匯出 ST:plcopen(XML)|scl(Siemens)|l5x(Rockwell)|st")
     e.add_argument("file")
     e.add_argument("--format", default="plcopen")
     e.add_argument("-o", "--output")
@@ -165,7 +168,11 @@ def main(argv=None):
                 print(i)
             return 1 if any(i.severity == "error" for i in issues) else 0
         if a.cmd == "index":
-            st = VectorStore()
+            emb = None
+            if a.embedder:
+                from .embed import make_embedder
+                emb = make_embedder(a.embedder, model=a.embed_model, base_url=a.embed_base_url)
+            st = VectorStore(emb)
             for pth in a.paths:
                 st.add_path(pth, exclude=[a.output])
             st.save(a.output)

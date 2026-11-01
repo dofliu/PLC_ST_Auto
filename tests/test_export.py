@@ -37,3 +37,21 @@ class TestExport(unittest.TestCase):
             export(SRC, "nope")
         with self.assertRaises(STError):
             export("no program", "plcopen")
+
+
+class TestL5X(unittest.TestCase):
+    def test_l5x(self):
+        from plc_st.export import to_l5x
+        root = ET.fromstring(to_l5x(SRC))
+        self.assertEqual(root.get("TargetName"), "Motor")
+        tags = {t.get("Name"): t for t in root.iter("Tag")}
+        self.assertEqual(tags["t"].get("DataType"), "TIMER")
+        self.assertEqual(tags["start"].get("Usage"), "Input")
+        lines = [l.text for l in root.iter("Line")]
+        self.assertTrue(lines[0].startswith("IF start"))
+        self.assertEqual(root.find(".//Routine").get("Type"), "ST")
+
+    def test_cdata_terminator(self):
+        from plc_st.export import to_l5x
+        src = "PROGRAM P\nVAR a : INT; END_VAR\n(* ]]> *) a := 1;\nEND_PROGRAM"
+        ET.fromstring(to_l5x(src))
