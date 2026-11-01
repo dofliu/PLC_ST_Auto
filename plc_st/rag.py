@@ -45,8 +45,10 @@ def chunk_text(text, size=800, overlap=100):
 
 
 class VectorStore:
-    def __init__(self):
+    def __init__(self, embedder=None):
         self.docs = []  # {"source", "text"}
+        self.embedder = embedder  # None → TF-IDF;否則 dense 向量(cosine)
+        self._vecs = []
         self._tf = []
         self._idf = {}
 
@@ -82,10 +84,18 @@ class VectorStore:
         self._index()
 
     def _index(self):
+        if self.embedder:
+            self._vecs = self._embed_all([d["text"] for d in self.docs])
         self._tf = [Counter(tokenize(d["text"])) for d in self.docs]
         df = Counter(t for tf in self._tf for t in tf)
         n = len(self.docs)
         self._idf = {t: math.log((1 + n) / (1 + c)) + 1 for t, c in df.items()}
+
+    def _embed_all(self, texts, batch=64):
+        out = []
+        for i in range(0, len(texts), batch):
+            out.extend(self.embedder.embed(texts[i:i + batch]))
+        return out
 
     def _vec(self, tf):
         v = {t: (1 + math.log(c)) * self._idf[t] for t, c in tf.items() if t in self._idf}
@@ -93,6 +103,13 @@ class VectorStore:
         return v, norm
 
     def search(self, query, k=4, min_score=0.05):
+        if self.embedder:
+            from .embed import cosine
+            q = self.embedder.embed([query])[0]
+            out = [(cosine(q, v), d) for d, v in zip(self.docs, self._vecs)]
+            out = [x for x in out if x[0] >= min_score]
+            out.sort(key=lambda x: -x[0])
+            return [(s, d["source"], d["text"]) for s, d in out[:k]]
         q, qn = self._vec(Counter(tokenize(query)))
         if not qn:
             return []
@@ -113,13 +130,25 @@ class VectorStore:
 
     def save(self, path):
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"docs": self.docs}, f, ensure_ascii=False)
+            data = {"docs": self.docs}
+            if self.embedder:
+                data["embedder"] = self.embedder.spec()
+                data["vectors"] = self._vecs
+            json.dump(data, f, ensure_ascii=False)
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path, **embed_kw):
+        """載入索引;若索引含 embedder 規格則重建同一 embedder(查詢向量需同模型)。"""
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         s = cls()
         s.docs = data["docs"]
-        s._index()
+        spec = data.get("embedder")
+        if spec:
+            from .embed import make_embedder
+            kw = {"model": spec["model"], "base_url": spec.get("base_url"), **embed_kw}
+            s.embedder = make_embedder(spec["name"], **kw)
+            s._vecs = data["vectors"]
+        else:
+            s._index()
         return s

@@ -11,4 +11,5 @@
 - M10 ✅ PDF/docx 讀取
 - M11 ✅ Web UI(`serve` 指令:輸入方式、設定、RAG、虛擬 PLC 面板、波形、情境測試)
 - M12 ✅ 匯出:PLCopen XML、Siemens SCL(`export` 指令 + UI)
-- M13 可替換 embedding;Rockwell L5X / Mitsubishi 匯出
+- M13 ✅ 可替換 embedding;Rockwell L5X 匯出
+- M14 Mitsubishi 匯出;Web UI embedder 選項
