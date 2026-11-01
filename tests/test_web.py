@@ -22,6 +22,24 @@ class WebHandleTests(unittest.TestCase):
         self.assertEqual((code, body["ext"]), (200, "scl"))
         self.assertEqual(self.post("/api/export", code=MOTOR, format="bad")[0], 400)
 
+    def test_export_gxworks(self):
+        code, body = self.post("/api/export", code=MOTOR, format="gxworks")
+        self.assertEqual((code, body["ext"]), (200, "txt"))
+        self.assertIn("Label Name", body["text"])
+
+    def test_rag_embedder_option(self):
+        code, _ = self.post("/api/rag/add", name="a.md", text="TON timer 計時器", embedder="hash")
+        self.assertEqual(code, 200)
+        self.assertEqual(self.s.store.embedder.name, "hash")
+        code, body = self.post("/api/rag/search", query="TON timer")
+        self.assertEqual(code, 200)
+        self.assertTrue(body["hits"])
+        self.assertEqual(self.post("/api/rag/add", name="b.md", text="x y z", embedder="ollama")[0], 400)
+        self.assertEqual(self.post("/api/rag/add", name="b.md", text="x y z")[0], 400)
+        self.post("/api/rag/clear")
+        self.assertEqual(self.post("/api/rag/add", name="b.md", text="x y z")[0], 200)
+        self.assertEqual(self.post("/api/rag/add", name="c.md", text="x", embedder="nope")[0], 400)
+
     def test_profiles(self):
         code, body = handle("GET", "/api/profiles", {}, self.s)
         self.assertEqual(code, 200)

@@ -129,7 +129,7 @@ def main(argv=None):
     q.add_argument("index")
     q.add_argument("query")
     q.add_argument("--top-k", type=int, default=4)
-    e = sub.add_parser("export", help="匯出 ST:plcopen(XML)|scl(Siemens)|l5x(Rockwell)|st")
+    e = sub.add_parser("export", help="匯出 ST:plcopen(XML)|scl(Siemens)|l5x(Rockwell)|gxworks(Mitsubishi)|st")
     e.add_argument("file")
     e.add_argument("--format", default="plcopen")
     e.add_argument("-o", "--output")

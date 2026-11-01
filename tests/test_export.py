@@ -55,3 +55,12 @@ class TestL5X(unittest.TestCase):
         from plc_st.export import to_l5x
         src = "PROGRAM P\nVAR a : INT; END_VAR\n(* ]]> *) a := 1;\nEND_PROGRAM"
         ET.fromstring(to_l5x(src))
+
+
+class TestGxWorks(unittest.TestCase):
+    def test_gxworks(self):
+        out = export(SRC, "gxworks")
+        self.assertIn("Class\tLabel Name\tData Type", out)
+        self.assertIn("VAR_GLOBAL\tstart\tBit", out)
+        self.assertIn("t.Q", out)
+        self.assertIn("IF start", out)
