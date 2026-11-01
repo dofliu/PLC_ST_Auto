@@ -105,7 +105,33 @@ def to_l5x(src, project="PLC_ST_Auto"):
     return "\n".join(o)
 
 
-FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "l5x": ("L5X", to_l5x), "st": ("st", lambda s: s)}
+_MELSEC_TYPE = {"BOOL": "Bit", "SINT": "Word [Signed]", "INT": "Word [Signed]", "DINT": "Double Word [Signed]",
+                "LINT": "Double Word [Signed]", "USINT": "Word [Unsigned]/Bit String [16-bit]",
+                "UINT": "Word [Unsigned]/Bit String [16-bit]", "UDINT": "Double Word [Unsigned]/Bit String [32-bit]",
+                "BYTE": "Word [Unsigned]/Bit String [16-bit]", "WORD": "Word [Unsigned]/Bit String [16-bit]",
+                "DWORD": "Double Word [Unsigned]/Bit String [32-bit]", "REAL": "FLOAT (Single Precision)",
+                "LREAL": "FLOAT (Double Precision)", "TIME": "Time", "STRING": "String"}
+_MELSEC_CLASS = {"VAR_INPUT": "VAR_GLOBAL", "VAR_OUTPUT": "VAR_GLOBAL", "VAR_IN_OUT": "VAR_GLOBAL", "VAR": "VAR"}
+
+
+def to_gxworks(src, project="PLC_ST_Auto"):
+    """Mitsubishi GX Works3:標籤表(Tab 分隔,可貼入 Label Setting)+ ST 本體(貼入 ST 程式編輯器)。
+    型別對映:INT→Word [Signed]、DINT→Double Word [Signed]、REAL→FLOAT (Single Precision) 等;
+    FB(TON/CTU…)在 GX Works3 為 Timer/Counter 函式塊,需於標籤表手動確認實例型別。"""
+    name, blocks, _, body = split_program(src)
+    o = [f"(* GX Works3 export: {project} / {name} *)",
+         "(* === Label Setting(Tab 分隔:Class / Label Name / Data Type / Initial Value)=== *)",
+         "Class\tLabel Name\tData Type\tInitial Value"]
+    for kind, decls in blocks:
+        for n, t, init in decls:
+            dt = _MELSEC_TYPE.get(t.upper(), t)
+            o.append(f"{_MELSEC_CLASS[kind]}\t{n}\t{dt}\t{init or ''}")
+    o += ["(* === ST Program Body === *)", body, ""]
+    return "\n".join(o)
+
+
+FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "l5x": ("L5X", to_l5x),
+           "gxworks": ("txt", to_gxworks), "st": ("st", lambda s: s)}
 
 
 def export(src, fmt):

@@ -42,6 +42,7 @@ table{border-collapse:collapse;font-size:12px}td,th{border:1px solid var(--bd);p
  <pre id="genout" hidden></pre>
 </section>
 <section><h2>3. RAG 文件庫</h2>
+ <div class="row"><select id="embsel"><option value="tfidf">TF-IDF(離線)</option><option value="hash">hash 向量(離線)</option><option value="ollama">Ollama embedding</option><option value="openai">OpenAI embedding</option><option value="gemini">Gemini embedding</option></select><input id="embkey" type="password" placeholder="Embedding API Key(可空)"></div>
  <input type="file" id="ragfile" multiple accept=".txt,.md,.st,.csv,.json,.docx,.pdf">
  <button onclick="ragAdd()">加入索引</button><button class="s" onclick="ragClear()">清空</button><span id="ragst"></span>
  <div class="row"><input id="ragq" placeholder="測試查詢…"><button style="flex:0" onclick="ragSearch()">搜尋</button></div>
@@ -59,7 +60,7 @@ IF t.Q THEN cnt := cnt + 1; END_IF;
 END_PROGRAM</textarea>
  <input type="file" id="codefile" accept=".st,.txt">
  <button onclick="chk()">靜態檢查</button><button class="s" onclick="dl()">下載 .st</button>
- <select id="expfmt"><option value="plcopen">PLCopen XML</option><option value="scl">Siemens SCL</option><option value="l5x">Rockwell L5X</option></select><button class="s" onclick="exp()">匯出</button>
+ <select id="expfmt"><option value="plcopen">PLCopen XML</option><option value="scl">Siemens SCL</option><option value="l5x">Rockwell L5X</option><option value="gxworks">Mitsubishi GX Works3</option></select><button class="s" onclick="exp()">匯出</button>
  <pre id="chkout" hidden></pre>
 </section>
 <section><h2>5. 虛擬 PLC</h2>
@@ -101,7 +102,7 @@ async function gen(){$('genst').textContent=' 產生中…';try{
  $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues))}
  catch(e){$('genst').textContent='';show('genout',esc(e.message),'er')}}
 async function ragAdd(){const fs=[...$('ragfile').files];if(!fs.length){$('ragst').textContent=' 請先選檔案';return}
- try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b})}
+ try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b,embedder:$('embsel').value,embed_api_key:$('embkey').value})}
  $('ragst').textContent=` 索引共 ${last.total} 個片段`}catch(e){$('ragst').textContent=' '+e.message}}
 function toB64(f){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f)})}
 async function ragClear(){await api('/api/rag/clear',{});$('ragst').textContent=' 已清空'}

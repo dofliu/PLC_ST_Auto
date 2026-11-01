@@ -67,6 +67,18 @@ def _generate(p, state):
 
 
 def _rag_add(p, state):
+    if p.get("embedder", "tfidf") == "tfidf" and state.store.embedder and state.store.docs:
+        raise STError("embedder 與現有索引不同,請先清空索引")
+    if p.get("embedder") and p["embedder"] != "tfidf":
+        from .embed import make_embedder
+        spec = {k: p[k] for k in ("embed_model", "embed_api_key", "embed_base_url") if p.get(k)}
+        kw = {{"embed_model": "model", "embed_api_key": "api_key", "embed_base_url": "base_url"}[k]: v for k, v in spec.items()}
+        emb = make_embedder(p["embedder"], **kw)
+        cur = state.store.embedder.spec() if state.store.embedder else None
+        if not state.store.docs or cur != emb.spec():
+            if state.store.docs:
+                raise STError("embedder 與現有索引不同,請先清空索引")
+            state.store = VectorStore(embedder=emb)
     name = os.path.basename(_need(p, "name"))
     ext = os.path.splitext(name)[1].lower()
     if p.get("base64"):
