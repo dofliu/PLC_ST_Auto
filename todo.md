@@ -44,3 +44,6 @@
 - [x] README 匯出格式說明
 ## M6 修補 ✅
 - [x] 切塊參數檢查(size>0、0<=overlap<size)、`index` 排除輸出檔、`add_path` 批次只重建一次索引
+## M16 ✅
+- [x] CTUD FB、ASIN/ACOS/ATAN、FLOOR/CEIL、SHL/SHR/ROL/ROR、LEN/CONCAT/LEFT/RIGHT
+- [x] 測試與 `docs/test_report_M16.md`

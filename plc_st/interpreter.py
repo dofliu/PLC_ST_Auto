@@ -156,6 +156,30 @@ class CTD(FB):
         v["Q"] = v["CV"] <= 0
 
 
+class CTUD(FB):
+    inputs_t = {"CU": "BOOL", "CD": "BOOL", "R": "BOOL", "LD": "BOOL", "PV": "INT"}
+    outputs_t = {"QU": "BOOL", "QD": "BOOL", "CV": "INT"}
+
+    def __init__(self):
+        super().__init__()
+        self.pu = self.pd = False
+
+    def call(self, dt):
+        v = self.v
+        if v["R"]:
+            v["CV"] = 0
+        elif v["LD"]:
+            v["CV"] = v["PV"]
+        else:
+            if v["CU"] and not self.pu and v["CV"] < 32767:
+                v["CV"] += 1
+            elif v["CD"] and not self.pd and v["CV"] > -32768:
+                v["CV"] -= 1
+        self.pu, self.pd = v["CU"], v["CD"]
+        v["QU"] = v["CV"] >= v["PV"]
+        v["QD"] = v["CV"] <= 0
+
+
 class R_TRIG(FB):
     inputs_t = {"CLK": "BOOL"}
     outputs_t = {"Q": "BOOL"}
@@ -193,7 +217,7 @@ class SR(FB):
         v["Q1"] = v["SET1"] or (v["Q1"] and not v["RESET"])
 
 
-FB_TYPES = {c.__name__: c for c in (TON, TOF, TP, CTU, CTD, R_TRIG, F_TRIG, RS, SR)}
+FB_TYPES = {c.__name__: c for c in (TON, TOF, TP, CTU, CTD, CTUD, R_TRIG, F_TRIG, RS, SR)}
 
 FUNCS = {
     "ABS": abs, "SQRT": math.sqrt, "SIN": math.sin, "COS": math.cos, "TAN": math.tan,
@@ -204,6 +228,15 @@ FUNCS = {
     "BOOL_TO_INT": int, "INT_TO_BOOL": bool,
     "LIMIT": lambda mn, x, mx: max(mn, min(x, mx)),
     "SEL": lambda g, a, b: b if g else a,
+    "ASIN": math.asin, "ACOS": math.acos, "ATAN": math.atan,
+    "FLOOR": lambda x: int(math.floor(x)), "CEIL": lambda x: int(math.ceil(x)),
+    "REAL_TO_DINT": lambda x: int(round(x)), "DINT_TO_BOOL": bool, "BOOL_TO_DINT": int,
+    "WORD_TO_INT": int, "INT_TO_WORD": lambda x: x & 0xFFFF,
+    "SHL": lambda x, n: x << n, "SHR": lambda x, n: x >> n,
+    "ROL": lambda x, n: ((x << n) | (x >> (16 - n))) & 0xFFFF,
+    "ROR": lambda x, n: ((x >> n) | (x << (16 - n))) & 0xFFFF,
+    "LEN": len, "CONCAT": lambda a, b: a + b,
+    "LEFT": lambda s, n: s[:n], "RIGHT": lambda s, n: s[len(s) - n:] if n else "",
 }
 
 

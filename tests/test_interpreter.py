@@ -99,3 +99,29 @@ IF r.Q THEN hits := hits + 1; END_IF;
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestM16(unittest.TestCase):
+    def test_ctud_and_funcs(self):
+        src = """PROGRAM X
+VAR c : CTUD; up, dn, rs : BOOL; a : INT; f : INT; s : INT; l : INT; END_VAR
+c(CU := up, CD := dn, R := rs, PV := 2);
+a := c.CV;
+f := FLOOR(-1.5);
+s := SHL(1, 3);
+l := LEN('abcd');
+END_PROGRAM"""
+        p = VirtualPLC(src)
+        p.scan(1)
+        self.assertEqual((p.get("f"), p.get("s"), p.get("l")), (-2, 8, 4))
+        for v in (True, False, True, False):
+            p.set_input("up", v)
+            p.scan(1)
+        self.assertEqual(p.get("a"), 2)
+        self.assertTrue(p.get("c.QU"))
+        p.set_input("dn", True)
+        p.scan(1)
+        self.assertEqual(p.get("a"), 1)
+        p.set_input("rs", True)
+        p.scan(1)
+        self.assertEqual(p.get("a"), 0)
