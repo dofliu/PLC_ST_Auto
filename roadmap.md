@@ -13,4 +13,5 @@
 - M12 ✅ 匯出:PLCopen XML、Siemens SCL(`export` 指令 + UI)
 - M13 ✅ 可替換 embedding;Rockwell L5X 匯出
 - M14 ✅ Mitsubishi GX Works3 匯出;Web UI embedder 選項
-- M15 Omron 匯出;README 補完
+- M15 ✅ Omron 匯出;README 補完
+- M16 ✅ CTUD 計數器、標準函式擴充(位移、取整、字串)
