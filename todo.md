@@ -40,6 +40,7 @@
 - [x] Mitsubishi GX Works3 匯出(CLI `export --format gxworks` + Web UI)
 - [x] Web UI 提供 embedder 選項
 ## M15 (下一個)
+- [ ] L5X 有損型別對映(UDINT/DWORD/LREAL)改為拒絕或警告
 - [ ] Omron Sysmac Studio 匯出
 - [ ] README 補完整功能/匯出格式說明
 ## M6 修補 ✅

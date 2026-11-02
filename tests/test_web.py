@@ -40,6 +40,23 @@ class WebHandleTests(unittest.TestCase):
         self.assertEqual(self.post("/api/rag/add", name="b.md", text="x y z")[0], 200)
         self.assertEqual(self.post("/api/rag/add", name="c.md", text="x", embedder="nope")[0], 400)
 
+    def test_rag_embedder_switch_and_key(self):
+        from unittest import mock
+        from plc_st.embed import HashEmbedder, OpenAIEmbedder
+        patcher = mock.patch.object(OpenAIEmbedder, "embed", lambda self, texts: HashEmbedder().embed(texts))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        a = self.post("/api/rag/add", name="a.md", text="TON timer", embedder="openai", embed_api_key="k1")
+        self.assertEqual(a[0], 200)
+        self.post("/api/rag/add", name="b.md", text="TON timer 2", embedder="openai", embed_api_key="k2")
+        self.assertEqual(self.s.store.embedder.api_key, "k2")
+        self.post("/api/rag/clear")
+        self.assertEqual(self.post("/api/rag/add", name="c.md", text="x y", embedder="hash")[0], 200)
+        # 空索引切回 TF-IDF 須重設
+        self.s.store.docs.clear()
+        self.assertEqual(self.post("/api/rag/add", name="d.md", text="x y")[0], 200)
+        self.assertIsNone(self.s.store.embedder)
+
     def test_profiles(self):
         code, body = handle("GET", "/api/profiles", {}, self.s)
         self.assertEqual(code, 200)

@@ -64,3 +64,8 @@ class TestGxWorks(unittest.TestCase):
         self.assertIn("VAR_GLOBAL\tstart\tBit", out)
         self.assertIn("t.Q", out)
         self.assertIn("IF start", out)
+
+    def test_gxworks_rejects_64bit(self):
+        for t in ("LINT", "ULINT"):
+            with self.assertRaises(STError):
+                export(f"PROGRAM P\nVAR a : {t}; END_VAR\na := a + 1;\nEND_PROGRAM", "gxworks")

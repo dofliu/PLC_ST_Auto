@@ -106,7 +106,7 @@ def to_l5x(src, project="PLC_ST_Auto"):
 
 
 _MELSEC_TYPE = {"BOOL": "Bit", "SINT": "Word [Signed]", "INT": "Word [Signed]", "DINT": "Double Word [Signed]",
-                "LINT": "Double Word [Signed]", "USINT": "Word [Unsigned]/Bit String [16-bit]",
+                "USINT": "Word [Unsigned]/Bit String [16-bit]",
                 "UINT": "Word [Unsigned]/Bit String [16-bit]", "UDINT": "Double Word [Unsigned]/Bit String [32-bit]",
                 "BYTE": "Word [Unsigned]/Bit String [16-bit]", "WORD": "Word [Unsigned]/Bit String [16-bit]",
                 "DWORD": "Double Word [Unsigned]/Bit String [32-bit]", "REAL": "FLOAT (Single Precision)",
@@ -119,6 +119,11 @@ def to_gxworks(src, project="PLC_ST_Auto"):
     型別對映:INT→Word [Signed]、DINT→Double Word [Signed]、REAL→FLOAT (Single Precision) 等;
     FB(TON/CTU…)在 GX Works3 為 Timer/Counter 函式塊,需於標籤表手動確認實例型別。"""
     name, blocks, _, body = split_program(src)
+    for _k, decls in blocks:
+        for n, t, _i in decls:
+            if t.upper() in ("LINT", "ULINT"):
+                raise STError(f"gxworks export: {n} 為 64 位元型別 {t.upper()},GX Works3 標籤無對應型別,"
+                              "不自動降為 32 位元以免改變數值;請改用 DINT/LREAL 或手動處理")
     o = [f"(* GX Works3 export: {project} / {name} *)",
          "(* === Label Setting(Tab 分隔:Class / Label Name / Data Type / Initial Value)=== *)",
          "Class\tLabel Name\tData Type\tInitial Value"]

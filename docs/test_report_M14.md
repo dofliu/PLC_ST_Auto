@@ -12,3 +12,10 @@
 ## 已知限制
 - GX Works3 輸出為標籤表 + ST 本體文字,未在真實 GX Works3 匯入驗證;Timer/Counter FB 實例型別需人工確認。
 - 遠端 embedding 仍僅以 mock transport 測試。
+
+## M14 修補(合併後回報的問題)
+- GX Works3 匯出:原本把 LINT 對映為 32 位元 Double Word,可能改變數值 → 現在 LINT/ULINT 直接拒絕匯出(STError),不再靜默降位元。
+- RAG embedder:規格相同但更換 API Key 時未生效 → 現在更新現有 embedder 的金鑰。
+- 空索引切換 embedder(含切回 TF-IDF)未重設 → 現在空索引時直接重建 store。
+- 新增 3 項測試,共 91 項 OK。
+- 仍存在(未處理):L5X 匯出的 UDINT→DINT、DWORD→DINT、LREAL→REAL 亦為有損對映,列入 M15。

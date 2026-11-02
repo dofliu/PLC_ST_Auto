@@ -67,18 +67,21 @@ def _generate(p, state):
 
 
 def _rag_add(p, state):
-    if p.get("embedder", "tfidf") == "tfidf" and state.store.embedder and state.store.docs:
-        raise STError("embedder 與現有索引不同,請先清空索引")
-    if p.get("embedder") and p["embedder"] != "tfidf":
+    choice = p.get("embedder") or "tfidf"
+    emb = None
+    if choice != "tfidf":
         from .embed import make_embedder
-        spec = {k: p[k] for k in ("embed_model", "embed_api_key", "embed_base_url") if p.get(k)}
-        kw = {{"embed_model": "model", "embed_api_key": "api_key", "embed_base_url": "base_url"}[k]: v for k, v in spec.items()}
-        emb = make_embedder(p["embedder"], **kw)
-        cur = state.store.embedder.spec() if state.store.embedder else None
-        if not state.store.docs or cur != emb.spec():
-            if state.store.docs:
-                raise STError("embedder 與現有索引不同,請先清空索引")
-            state.store = VectorStore(embedder=emb)
+        kw = {dst: p[src] for src, dst in (("embed_model", "model"), ("embed_api_key", "api_key"),
+                                           ("embed_base_url", "base_url")) if p.get(src)}
+        emb = make_embedder(choice, **kw)
+    cur = state.store.embedder
+    same = (cur is None and emb is None) or (cur and emb and cur.spec() == emb.spec())
+    if not same:
+        if state.store.docs:
+            raise STError("embedder 與現有索引不同,請先清空索引")
+        state.store = VectorStore(embedder=emb)  # 空索引:直接切換(含切回 TF-IDF)
+    elif emb:
+        cur.api_key = emb.api_key  # 規格相同但金鑰可能已更換
     name = os.path.basename(_need(p, "name"))
     ext = os.path.splitext(name)[1].lower()
     if p.get("base64"):
