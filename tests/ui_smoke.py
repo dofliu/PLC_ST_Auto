@@ -65,6 +65,11 @@ with sync_playwright() as p:
         pg.click("text=匯出")
     ok("export GX Works3 download", dl.value.suggested_filename.endswith(".txt")
        and "Label Name" in open(dl.value.path(), encoding="utf-8").read())
+    pg.select_option("#expfmt", "sysmac")
+    with pg.expect_download() as dl:
+        pg.click("text=匯出")
+    ok("export Sysmac download", dl.value.suggested_filename.endswith(".txt")
+       and "Data Type" in open(dl.value.path(), encoding="utf-8").read())
     pg.click("text=產生 ST")
     pg.wait_for_function("document.getElementById('genout').className=='er'")
     ok("generate surfaces LLM error", True)

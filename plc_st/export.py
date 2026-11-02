@@ -130,8 +130,28 @@ def to_gxworks(src, project="PLC_ST_Auto"):
     return "\n".join(o)
 
 
+_OMRON_TYPE = {"SINT": "SINT", "USINT": "USINT", "BYTE": "BYTE", "WORD": "WORD", "DWORD": "DWORD",
+               "LINT": "LINT", "ULINT": "ULINT", "TIME": "TIME", "STRING": "STRING"}
+_OMRON_CLASS = {"VAR": "Internal", "VAR_INPUT": "Input", "VAR_OUTPUT": "Output", "VAR_IN_OUT": "In Out"}
+
+
+def to_sysmac(src, project="PLC_ST_Auto"):
+    """Omron Sysmac Studio:變數表(Tab 分隔,可貼入 Global/Local Variables)+ ST 本體。
+    Sysmac 為 IEC 61131-3 型別;TON/TOF/CTU 等 FB 於變數表型別保持原名,需確認實例。"""
+    name, blocks, _, body = split_program(src)
+    o = [f"(* Sysmac Studio export: {project} / {name} *)",
+         "(* === Variable Table(Tab 分隔:Name / Data Type / Initial Value / Class)=== *)",
+         "Name\tData Type\tInitial Value\tClass"]
+    for kind, decls in blocks:
+        for n, t, init in decls:
+            o.append(f"{n}\t{_OMRON_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)}\t{init or ''}\t{_OMRON_CLASS[kind]}")
+    o += ["(* === ST Program Body === *)", body, ""]
+    return "\n".join(o)
+
+
 FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "l5x": ("L5X", to_l5x),
-           "gxworks": ("txt", to_gxworks), "st": ("st", lambda s: s)}
+           "gxworks": ("txt", to_gxworks),
+           "sysmac": ("txt", to_sysmac), "st": ("st", lambda s: s)}
 
 
 def export(src, fmt):
