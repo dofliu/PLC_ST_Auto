@@ -27,6 +27,11 @@ class WebHandleTests(unittest.TestCase):
         self.assertEqual((code, body["ext"]), (200, "txt"))
         self.assertIn("Label Name", body["text"])
 
+    def test_export_sysmac(self):
+        code, body = self.post("/api/export", code=MOTOR, format="sysmac")
+        self.assertEqual(code, 200)
+        self.assertIn("Data Type", body["text"])
+
     def test_rag_embedder_option(self):
         code, _ = self.post("/api/rag/add", name="a.md", text="TON timer 計時器", embedder="hash")
         self.assertEqual(code, 200)

@@ -64,3 +64,12 @@ class TestGxWorks(unittest.TestCase):
         self.assertIn("VAR_GLOBAL\tstart\tBit", out)
         self.assertIn("t.Q", out)
         self.assertIn("IF start", out)
+
+
+class TestSysmac(unittest.TestCase):
+    def test_sysmac(self):
+        out = export(SRC, "sysmac")
+        self.assertIn("Name\tData Type\tInitial Value\tClass", out)
+        self.assertIn("\tInput", out)
+        self.assertIn("t\tTON\t\tInternal", out)
+        self.assertIn("IF start", out)

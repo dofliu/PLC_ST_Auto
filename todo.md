@@ -39,8 +39,8 @@
 ## M14 ✅
 - [x] Mitsubishi GX Works3 匯出(CLI `export --format gxworks` + Web UI)
 - [x] Web UI 提供 embedder 選項
-## M15 (下一個)
-- [ ] Omron Sysmac Studio 匯出
-- [ ] README 補完整功能/匯出格式說明
+## M15 ✅
+- [x] Omron Sysmac Studio 匯出(CLI `--format sysmac` + Web UI)
+- [x] README 匯出格式說明
 ## M6 修補 ✅
 - [x] 切塊參數檢查(size>0、0<=overlap<size)、`index` 排除輸出檔、`add_path` 批次只重建一次索引
