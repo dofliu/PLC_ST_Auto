@@ -17,6 +17,13 @@ class _Exit(Exception):
     pass
 
 
+class _Return(Exception):
+    pass
+
+
+MAX_DEPTH = 32
+
+
 def wrap(tname, v, overflow="wrap"):
     """Coerce value to declared type; overflow: wrap | saturate | fault."""
     if tname == "BOOL":
@@ -43,6 +50,39 @@ def wrap(tname, v, overflow="wrap"):
 
 def default(tname):
     return {"BOOL": False, "REAL": 0.0, "LREAL": 0.0, "STRING": ""}.get(tname, 0)
+
+
+class _View:
+    """Case-insensitive dict-like view over a user FB instance's variables."""
+
+    def __init__(self, fb):
+        self.fb = fb
+
+    def __getitem__(self, k):
+        sc = self.fb.sc
+        n = k.lower()
+        if n not in sc["vars"]:
+            raise STError(f"{self.fb.d['name']} has no member {k}")
+        return sc["vars"][n]
+
+    def __setitem__(self, k, val):
+        sc = self.fb.sc
+        n = k.lower()
+        if n not in sc["vars"]:
+            raise STError(f"{self.fb.d['name']} has no member {k}")
+        sc["vars"][n] = self.fb.plc.wrap(sc["types"][n], val)
+
+
+class UserFB:
+    """Instance of a user-defined FUNCTION_BLOCK; locals persist between calls."""
+
+    def __init__(self, plc, d):
+        self.plc, self.d = plc, d
+        self.sc = plc._build(d["decls"])
+        self.v = _View(self)
+
+    def call(self, dt):
+        self.plc._exec_in(self.sc, self.d["body"])
 
 
 class FB:
@@ -245,39 +285,104 @@ class VirtualPLC:
         self.profile = get_profile(profile)
         self.ast = parse(source)
         self.scan_ms = scan_ms
-        self.vars, self.types, self.section, self.fbs = {}, {}, {}, {}
-        self.arrays = {}  # name -> lower bound; self.vars[name] is a list
+        self.udefs = {**self.ast.get("fbs", {})}
+        self.ufuncs = dict(self.ast.get("functions", {}))
+        self.depth = 0
         self.cycles = 0
         self.time_ms = 0
-        for d in self.ast["decls"]:
-            n = d["name"].lower()
-            self.section[n] = d["section"]
-            t = d["type"]
-            if t in FB_TYPES:
-                self.fbs[n] = FB_TYPES[t]()
-                self.types[n] = t
-                continue
-            if t not in INT_RANGES and t not in ("BOOL", "REAL", "LREAL", "TIME", "STRING"):
-                raise STError(f"unknown type {t} for {d['name']}")
-            if t not in self.profile.types:
-                raise STError(f"type {t} of {d['name']} not supported on profile {self.profile.name}")
-            self.types[n] = t
-            if d.get("array"):
-                lo, hi = self.eval(d["array"][0]), self.eval(d["array"][1])
-                if hi < lo:
-                    raise STError(f"array {d['name']}: upper bound {hi} < lower bound {lo}")
-                init = d["init"][1] if d["init"] else []
-                if len(init) > hi - lo + 1:
-                    raise STError(f"array {d['name']}: too many initial values")
-                vals = [self.wrap(t, self.eval(x)) for x in init]
-                self.arrays[n] = lo
-                self.vars[n] = vals + [default(t)] * (hi - lo + 1 - len(vals))
-            else:
-                self.vars[n] = self.wrap(t, self.eval(d["init"])) if d["init"] else default(t)
+        self._set_scope(self._build(self.ast["decls"]))
         self.names = {d["name"].lower(): d["name"] for d in self.ast["decls"]}
 
     def wrap(self, t, v):
         return wrap(t, v, self.profile.overflow)
+
+    # -- scopes (program / user FUNCTION / user FUNCTION_BLOCK instance)
+    def _get_scope(self):
+        return {"vars": self.vars, "types": self.types, "section": self.section,
+                "fbs": self.fbs, "arrays": self.arrays}
+
+    def _set_scope(self, sc):
+        self.vars, self.types, self.section = sc["vars"], sc["types"], sc["section"]
+        self.fbs, self.arrays = sc["fbs"], sc["arrays"]
+
+    def _build(self, decls):
+        sc = {"vars": {}, "types": {}, "section": {}, "fbs": {}, "arrays": {}}
+        saved = self._get_scope() if hasattr(self, "vars") else None
+        self._set_scope(sc)
+        try:
+            for d in decls:
+                n = d["name"].lower()
+                self.section[n] = d["section"]
+                t = d["type"]
+                if t in FB_TYPES:
+                    self.fbs[n] = FB_TYPES[t]()
+                    self.types[n] = t
+                    continue
+                if t.lower() in self.udefs:
+                    self.fbs[n] = UserFB(self, self.udefs[t.lower()])
+                    self.types[n] = t
+                    continue
+                if t not in INT_RANGES and t not in ("BOOL", "REAL", "LREAL", "TIME", "STRING"):
+                    raise STError(f"unknown type {t} for {d['name']}")
+                if t not in self.profile.types:
+                    raise STError(f"type {t} of {d['name']} not supported on profile {self.profile.name}")
+                self.types[n] = t
+                if d.get("array"):
+                    lo, hi = self.eval(d["array"][0]), self.eval(d["array"][1])
+                    if hi < lo:
+                        raise STError(f"array {d['name']}: upper bound {hi} < lower bound {lo}")
+                    init = d["init"][1] if d["init"] else []
+                    if len(init) > hi - lo + 1:
+                        raise STError(f"array {d['name']}: too many initial values")
+                    vals = [self.wrap(t, self.eval(x)) for x in init]
+                    self.arrays[n] = lo
+                    self.vars[n] = vals + [default(t)] * (hi - lo + 1 - len(vals))
+                else:
+                    self.vars[n] = self.wrap(t, self.eval(d["init"])) if d["init"] else default(t)
+        finally:
+            if saved is not None:
+                self._set_scope(saved)
+        return sc
+
+    def _exec_in(self, sc, body):
+        """Run `body` with `sc` as the active variable scope (RETURN ends the body)."""
+        self.depth += 1
+        if self.depth > MAX_DEPTH:
+            self.depth -= 1
+            raise STError("call depth exceeded (recursion is not allowed in IEC 61131-3)")
+        saved = self._get_scope()
+        self._set_scope(sc)
+        try:
+            self.run(body)
+        except _Return:
+            pass
+        finally:
+            self._set_scope(saved)
+            self.depth -= 1
+
+    def call_function(self, fn, args):
+        decls = fn["decls"] + [{"name": fn["name"], "type": fn["type"], "section": "local",
+                                "init": None, "array": None}]
+        sc = self._build(decls)
+        ins = [d["name"].lower() for d in fn["decls"] if d["section"] in ("input", "inout")]
+        outs, pos = [], 0
+        for name, op, e in args:
+            if op == "=>":
+                outs.append((name, e))
+                continue
+            if name is None:
+                if pos >= len(ins):
+                    raise STError(f"too many arguments for function {fn['name']}")
+                key, pos = ins[pos], pos + 1
+            else:
+                key = name.lower()
+                if key not in ins:
+                    raise STError(f"function {fn['name']} has no input {name}")
+            sc["vars"][key] = self.wrap(sc["types"][key], self.eval(e))
+        self._exec_in(sc, fn["body"])
+        for name, e in outs:
+            self.assign(e, sc["vars"][name.lower()])
+        return sc["vars"][fn["name"].lower()]
 
     # -- external interface
     def _split_index(self, name):
@@ -337,7 +442,7 @@ class VirtualPLC:
         for _ in range(cycles):
             try:
                 self.run(self.ast["body"])
-            except _Exit:
+            except (_Exit, _Return):
                 pass
             self.cycles += 1
             self.time_ms += self.scan_ms
@@ -392,6 +497,8 @@ class VirtualPLC:
                         break
             elif op == "exit":
                 raise _Exit()
+            elif op == "return":
+                raise _Return()
 
     def for_loop(self, s):
         _, var, a, b, step, body = s
@@ -469,6 +576,9 @@ class VirtualPLC:
         if k == "neg":
             return -self.eval(e[1])
         if k == "func":
+            uf = self.ufuncs.get(e[1].lower())
+            if uf:
+                return self.call_function(uf, e[2])
             f = FUNCS.get(e[1].upper())
             if not f:
                 raise STError(f"unknown function {e[1]}")

@@ -9,7 +9,8 @@ KEYWORDS = {
     "END_VAR", "IF", "THEN", "ELSIF", "ELSE", "END_IF", "CASE", "OF", "END_CASE",
     "FOR", "TO", "BY", "DO", "END_FOR", "WHILE", "END_WHILE", "REPEAT", "UNTIL",
     "END_REPEAT", "EXIT", "AND", "OR", "XOR", "NOT", "MOD", "TRUE", "FALSE",
-    "RETAIN", "CONSTANT", "ARRAY",
+    "RETAIN", "CONSTANT", "ARRAY", "FUNCTION", "END_FUNCTION",
+    "FUNCTION_BLOCK", "END_FUNCTION_BLOCK", "RETURN",
 }
 
 _TIME_UNITS = {"d": 86400000, "h": 3600000, "m": 60000, "s": 1000, "ms": 1}
