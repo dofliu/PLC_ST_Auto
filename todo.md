@@ -47,3 +47,9 @@
 ## M16 ✅
 - [x] CTUD FB、ASIN/ACOS/ATAN、FLOOR/CEIL、SHL/SHR/ROL/ROR、LEN/CONCAT/LEFT/RIGHT
 - [x] 測試與 `docs/test_report_M16.md`
+## M17 ✅
+- [x] `ARRAY[lo..hi] OF T` 一維陣列:宣告/初始值 `[1,2,3]`、索引讀寫、越界檢查(執行期+靜態)、CASE 範圍 `..` 詞法修正
+- [x] PLCopen XML 匯出 `<array>`;測試 `tests/test_array.py`、`docs/test_report_M17.md`
+## 下一步候選(≤2h)
+- [ ] 多維陣列、STRUCT / TYPE
+- [ ] 使用者自訂 FUNCTION / FUNCTION_BLOCK

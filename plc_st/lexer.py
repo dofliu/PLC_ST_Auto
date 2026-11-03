@@ -9,7 +9,7 @@ KEYWORDS = {
     "END_VAR", "IF", "THEN", "ELSIF", "ELSE", "END_IF", "CASE", "OF", "END_CASE",
     "FOR", "TO", "BY", "DO", "END_FOR", "WHILE", "END_WHILE", "REPEAT", "UNTIL",
     "END_REPEAT", "EXIT", "AND", "OR", "XOR", "NOT", "MOD", "TRUE", "FALSE",
-    "RETAIN", "CONSTANT",
+    "RETAIN", "CONSTANT", "ARRAY",
 }
 
 _TIME_UNITS = {"d": 86400000, "h": 3600000, "m": 60000, "s": 1000, "ms": 1}
@@ -22,7 +22,7 @@ _TOKEN = re.compile(r"""
   | (?P<int>\d+)
   | (?P<str>'[^']*')
   | (?P<id>[A-Za-z_][A-Za-z_0-9]*)
-  | (?P<op>:=|=>|<>|<=|>=|\*\*|[-+*/=<>():;,.\[\]])
+  | (?P<op>:=|=>|<>|<=|>=|\*\*|\.\.|[-+*/=<>():;,.\[\]])
 """, re.X | re.S)
 
 

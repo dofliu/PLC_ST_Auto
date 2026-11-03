@@ -56,16 +56,30 @@ class Parser:
             while self.accept("op", ","):
                 names.append(self.expect("id")[1])
             self.expect("op", ":")
+            arr = None
+            if self.accept("kw", "ARRAY"):
+                self.expect("op", "[")
+                lo = self.expr()
+                self.expect("op", "..")
+                hi = self.expr()
+                if self.is_("op", ","):
+                    raise STError("multi-dimensional ARRAY not supported")
+                self.expect("op", "]")
+                self.expect("kw", "OF")
+                arr = (lo, hi)
             tname = self.expect("id")[1].upper()
-            size = None
-            if tname == "ARRAY":
-                raise STError("ARRAY not supported yet")
             init = None
             if self.accept("op", ":="):
-                init = self.expr()
+                if arr and self.accept("op", "["):
+                    init = ("arrinit", [self.expr()])
+                    while self.accept("op", ","):
+                        init[1].append(self.expr())
+                    self.expect("op", "]")
+                else:
+                    init = self.expr()
             self.expect("op", ";")
             for n in names:
-                out.append({"name": n, "type": tname, "section": section, "init": init})
+                out.append({"name": n, "type": tname, "section": section, "init": init, "array": arr})
         return out
 
     def statements(self, stops):
@@ -134,10 +148,18 @@ class Parser:
 
     def designator(self):
         name = self.expect("id")[1]
-        node = ("var", name)
-        while self.accept("op", "."):
-            node = ("member", node, self.expect("id")[1])
-        return node
+        return self.selectors(("var", name))
+
+    def selectors(self, node):
+        while True:
+            if self.accept("op", "."):
+                node = ("member", node, self.expect("id")[1])
+            elif self.accept("op", "["):
+                idx = self.expr()
+                self.expect("op", "]")
+                node = ("index", node, idx)
+            else:
+                return node
 
     def call_args(self):
         args = []
@@ -186,9 +208,7 @@ class Parser:
             labels = []
             while True:
                 lo = self.expr()
-                if self.is_("op", ".") and self.t[self.i + 1][1] == ".":
-                    self.next()
-                    self.next()
+                if self.accept("op", ".."):
                     labels.append((lo, self.expr()))
                 else:
                     labels.append((lo, None))
@@ -263,10 +283,7 @@ class Parser:
             if self.is_("op", "("):
                 self.next()
                 return ("func", v, self.call_args())
-            node = ("var", v)
-            while self.accept("op", "."):
-                node = ("member", node, self.expect("id")[1])
-            return node
+            return self.selectors(("var", v))
         raise STError(f"line {ln}: unexpected token {v!r}")
 
 
