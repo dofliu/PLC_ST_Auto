@@ -38,13 +38,31 @@ def check(src, profile="iec"):
         return [Issue("error", 0, f"syntax: {e}")]
     issues = []
     env = {}
-    for d in prog["decls"]:
-        if d["name"].lower() in env:
-            issues.append(Issue("error", 0, f"duplicate declaration {d['name']}"))
-        env[d["name"].lower()] = d
-        t = d["type"]
-        if t not in FB_TYPES and t not in prof.types:
-            issues.append(Issue("error", 0, f"type {t} of {d['name']} not supported by profile {prof.name}"))
+    ufn, ufb = prog["functions"], prog["fbs"]
+
+    class _UFB:  # adapter so user FBs look like built-in FB classes
+        def __init__(self, d):
+            self.inputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] == "input"}
+            self.outputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] == "output"}
+
+    def fb_of(t):
+        if t in FB_TYPES:
+            return FB_TYPES[t]
+        if t.lower() in ufb:
+            return _UFB(ufb[t.lower()])
+        return None
+
+    def load_scope(decls):
+        env.clear()
+        for d in decls:
+            if d["name"].lower() in env:
+                issues.append(Issue("error", 0, f"duplicate declaration {d['name']}"))
+            env[d["name"].lower()] = d
+            t = d["type"]
+            if fb_of(t) is None and t not in prof.types:
+                issues.append(Issue("error", 0, f"type {t} of {d['name']} not supported by profile {prof.name}"))
+
+    load_scope(prog["decls"])
 
     def err(ln, msg, sev="error"):
         issues.append(Issue(sev, ln, msg))
@@ -109,6 +127,21 @@ def check(src, profile="iec"):
                 return "REAL" if "REAL" in (a, b) or "LREAL" in (a, b) else (a or b)
             return None
         if k == "func":
+            uf = ufn.get(e[1].lower())
+            if uf:
+                ins = [x["name"].lower() for x in uf["decls"] if x["section"] in ("input", "inout")]
+                pos = 0
+                for nm, op, v in e[2]:
+                    ty(v, ln)
+                    if op == "=>":
+                        continue
+                    if nm is None:
+                        pos += 1
+                    elif nm.lower() not in ins:
+                        err(ln, f"function {uf['name']} has no input {nm}")
+                if pos > len(ins):
+                    err(ln, f"too many arguments for function {uf['name']}")
+                return uf["type"]
             if e[1].upper() not in FUNCS:
                 err(ln, f"unknown function {e[1]}")
             for _, _, v in e[2]:
@@ -124,7 +157,7 @@ def check(src, profile="iec"):
         if d is None:
             err(ln, f"undeclared variable {base[1]}")
             return None
-        fb = FB_TYPES.get(d["type"])
+        fb = fb_of(d["type"])
         if fb is None:
             err(ln, f"{base[1]} is {d['type']}, has no member {e[2]}")
             return None
@@ -143,7 +176,7 @@ def check(src, profile="iec"):
             if d and d.get("array"):
                 err(ln, f"cannot assign whole array {target[1]}; use {target[1]}[i]")
                 return
-            if d and d["type"] in FB_TYPES:
+            if d and fb_of(d["type"]) is not None:
                 err(ln, f"cannot assign to function block instance {target[1]}")
                 return
         et = ty(e, ln)
@@ -193,10 +226,10 @@ def check(src, profile="iec"):
         ln = s[3]
         tgt = s[1]
         d = env.get(tgt[1].lower()) if tgt[0] == "var" else None
-        if d is None or d["type"] not in FB_TYPES:
+        fb = fb_of(d["type"]) if d else None
+        if fb is None:
             err(ln, f"call target {tgt[1] if tgt[0] == 'var' else '?'} is not a declared function block")
             return
-        fb = FB_TYPES[d["type"]]
         ins = {k.upper() for k in fb.inputs_t}
         outs = {k.upper() for k in fb.outputs_t}
         for name, op, v in s[2]:
@@ -205,5 +238,13 @@ def check(src, profile="iec"):
                 err(ln, f"{d['type']} has no {'output' if op == '=>' else 'input'} {name}")
 
     stmts(prog["body"])
+    for fn in list(ufn.values()) + list(ufb.values()):
+        decls = list(fn["decls"])
+        if fn["kind"] == "function":
+            if fn["type"] not in prof.types:
+                err(0, f"return type {fn['type']} of {fn['name']} not supported by profile {prof.name}")
+            decls.append({"name": fn["name"], "type": fn["type"], "section": "local", "init": None, "array": None})
+        load_scope(decls)
+        stmts(fn["body"])
     issues += [Issue("warning", ln, f"dialect: {m}") for ln, m in dialect_issues(src, prof.name)]
     return issues

@@ -34,7 +34,30 @@ class Parser:
         return self.next()
 
     # -- program
+    def pou_def(self):
+        """FUNCTION name : TYPE ... END_FUNCTION  |  FUNCTION_BLOCK name ... END_FUNCTION_BLOCK."""
+        kind = "function" if self.next()[1] == "FUNCTION" else "fb"
+        name = self.expect("id")[1]
+        rtype = None
+        if kind == "function":
+            self.expect("op", ":")
+            rtype = self.expect("id")[1].upper()
+        decls = []
+        while self.peek()[0] == "kw" and self.peek()[1] in SECTIONS:
+            decls += self.var_block()
+        end = "END_FUNCTION" if kind == "function" else "END_FUNCTION_BLOCK"
+        body = self.statements({end})
+        self.expect("kw", end)
+        return {"kind": kind, "name": name, "type": rtype, "decls": decls, "body": body}
+
     def parse(self):
+        functions, fbdefs = {}, {}
+        while self.peek()[0] == "kw" and self.peek()[1] in ("FUNCTION", "FUNCTION_BLOCK"):
+            d = self.pou_def()
+            tbl = functions if d["kind"] == "function" else fbdefs
+            if d["name"].lower() in functions or d["name"].lower() in fbdefs:
+                raise STError(f"duplicate definition of {d['name']}")
+            tbl[d["name"].lower()] = d
         name = "Main"
         if self.accept("kw", "PROGRAM"):
             name = self.expect("id")[1]
@@ -44,7 +67,7 @@ class Parser:
         body = self.statements({"END_PROGRAM"})
         self.accept("kw", "END_PROGRAM")
         self.expect("eof")
-        return {"name": name, "decls": decls, "body": body}
+        return {"name": name, "decls": decls, "body": body, "functions": functions, "fbs": fbdefs}
 
     def var_block(self):
         section = SECTIONS[self.next()[1]]
@@ -130,6 +153,10 @@ class Parser:
                 self.expect("kw", "END_REPEAT")
                 self.accept("op", ";")
                 return ("repeat", body, c)
+            if v == "RETURN":
+                self.next()
+                self.accept("op", ";")
+                return ("return",)
             if v == "EXIT":
                 self.next()
                 self.accept("op", ";")

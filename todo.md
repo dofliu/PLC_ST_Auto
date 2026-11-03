@@ -50,6 +50,10 @@
 ## M17 ✅
 - [x] `ARRAY[lo..hi] OF T` 一維陣列:宣告/初始值 `[1,2,3]`、索引讀寫、越界檢查(執行期+靜態)、CASE 範圍 `..` 詞法修正
 - [x] PLCopen XML 匯出 `<array>`;測試 `tests/test_array.py`、`docs/test_report_M17.md`
+## M18 ✅
+- [x] 使用者自訂 `FUNCTION`(回傳值、RETURN、具名/位置參數)與 `FUNCTION_BLOCK`(實例狀態保存、`inst.out` 存取)
+- [x] 靜態檢查涵蓋 POU 本體/呼叫參數;遞迴深度保護;非 st 格式匯出遇自訂 POU 明確報錯
+- [x] 測試 `tests/test_userpou.py`、`docs/test_report_M18.md`
 ## 下一步候選(≤2h)
 - [ ] 多維陣列、STRUCT / TYPE
-- [ ] 使用者自訂 FUNCTION / FUNCTION_BLOCK
+- [ ] 自訂 POU 的 PLCopen/SCL 匯出;VAR_IN_OUT 回寫
