@@ -68,5 +68,9 @@ python -m plc_st generate @req.txt --scenario examples/motor_scenario.json --pro
 ## Web UI
 `python -m plc_st serve --port 8765` 後開啟 http://127.0.0.1:8765 (僅本機)。UI 功能測試:`PYTHONPATH=. CHROMIUM_PATH=<chromium> python tests/ui_smoke.py`(需 playwright)。報告見 `docs/test_report_M11.md`。
 
+## 陣列 (M17)
+支援一維 `ARRAY[lo..hi] OF T`(可帶初始值 `:= [1,2,3]`),以 `a[i]` 讀寫;越界於靜態檢查(常數索引)與執行期皆報錯。
+`--set buf[2]=5`、情境與 trace 以 `buf[0]`、`buf[1]`… 欄位呈現。尚不支援多維陣列、STRUCT;PLCopen 匯出為 `<array>`,其他廠牌匯出保留原 ST 宣告文字。
+
 ## 匯出
 `python -m plc_st export examples/motor.st --format plcopen|scl|l5x|gxworks|sysmac|st -o out`(Web UI 亦有「匯出」按鈕)。PLCopen XML 可匯入 CODESYS 等;scl=Siemens TIA、l5x=Rockwell Studio 5000、gxworks=Mitsubishi GX Works3(標籤表+ST)、sysmac=Omron Sysmac Studio(變數表+ST);匯出後請在目標 IDE 編譯確認。

@@ -65,6 +65,27 @@ def check(src, profile="iec"):
             if d is None:
                 err(ln, f"undeclared variable {e[1]}")
                 return None
+            if d.get("array"):
+                err(ln, f"array {e[1]} used without index")
+                return None
+            return d["type"]
+        if k == "index":
+            it = ty(e[2], ln)
+            if it is not None and it not in INT_RANGES:
+                err(ln, f"array index must be an integer, got {it}")
+            b = e[1]
+            d = env.get(b[1].lower()) if b[0] == "var" else None
+            if d is None:
+                if b[0] == "var":
+                    err(ln, f"undeclared variable {b[1]}")
+                return None
+            if not d.get("array"):
+                err(ln, f"{b[1]} is not an array")
+                return None
+            lo, hi = d["array"]
+            if it is not None and e[2][0] == "num" and lo[0] == hi[0] == "num" \
+                    and not lo[1] <= e[2][1] <= hi[1]:
+                err(ln, f"array index {e[2][1]} out of range [{lo[1]}..{hi[1]}] for {b[1]}")
             return d["type"]
         if k == "member":
             return member(e, ln)
@@ -119,6 +140,9 @@ def check(src, profile="iec"):
             d = env.get(target[1].lower())
             if d and d["section"] == "input":
                 err(ln, f"write to input variable {target[1]}", "warning")
+            if d and d.get("array"):
+                err(ln, f"cannot assign whole array {target[1]}; use {target[1]}[i]")
+                return
             if d and d["type"] in FB_TYPES:
                 err(ln, f"cannot assign to function block instance {target[1]}")
                 return

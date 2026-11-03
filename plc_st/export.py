@@ -56,8 +56,18 @@ def to_plcopen(src, project="PLC_ST_Auto"):
             continue
         o.append(f"      <{_SECTION[kind]}>")
         for n, t, init in decls:
-            typ = f"<{t.upper()}/>" if t.upper() in _BASE else f"<derived name={quoteattr(t)}/>"
-            iv = f'<initialValue><simpleValue value={quoteattr(init)}/></initialValue>' if init else ""
+            am = re.match(r"(?is)ARRAY\s*\[\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\]\s*OF\s+(\w+)$", t)
+            if am:
+                bt = am.group(3).upper()
+                base = f"<{bt}/>" if bt in _BASE else f"<derived name={quoteattr(am.group(3))}/>"
+                typ = (f'<array><dimension lower="{am.group(1)}" upper="{am.group(2)}"/>'
+                       f"<baseType>{base}</baseType></array>")
+                vals = [v.strip() for v in init.strip("[] ").split(",")] if init else []
+                iv = ("<initialValue>" + "".join(f'<value><simpleValue value={quoteattr(v)}/></value>'
+                                                 for v in vals) + "</initialValue>") if vals else ""
+            else:
+                typ = f"<{t.upper()}/>" if t.upper() in _BASE else f"<derived name={quoteattr(t)}/>"
+                iv = f'<initialValue><simpleValue value={quoteattr(init)}/></initialValue>' if init else ""
             o.append(f"        <variable name={quoteattr(n)}><type>{typ}</type>{iv}</variable>")
         o.append(f"      </{_SECTION[kind]}>")
     o += ["    </interface><body><ST>",

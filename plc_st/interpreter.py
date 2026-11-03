@@ -246,6 +246,7 @@ class VirtualPLC:
         self.ast = parse(source)
         self.scan_ms = scan_ms
         self.vars, self.types, self.section, self.fbs = {}, {}, {}, {}
+        self.arrays = {}  # name -> lower bound; self.vars[name] is a list
         self.cycles = 0
         self.time_ms = 0
         for d in self.ast["decls"]:
@@ -261,21 +262,59 @@ class VirtualPLC:
             if t not in self.profile.types:
                 raise STError(f"type {t} of {d['name']} not supported on profile {self.profile.name}")
             self.types[n] = t
-            self.vars[n] = self.wrap(t, self.eval(d["init"])) if d["init"] else default(t)
+            if d.get("array"):
+                lo, hi = self.eval(d["array"][0]), self.eval(d["array"][1])
+                if hi < lo:
+                    raise STError(f"array {d['name']}: upper bound {hi} < lower bound {lo}")
+                init = d["init"][1] if d["init"] else []
+                if len(init) > hi - lo + 1:
+                    raise STError(f"array {d['name']}: too many initial values")
+                vals = [self.wrap(t, self.eval(x)) for x in init]
+                self.arrays[n] = lo
+                self.vars[n] = vals + [default(t)] * (hi - lo + 1 - len(vals))
+            else:
+                self.vars[n] = self.wrap(t, self.eval(d["init"])) if d["init"] else default(t)
         self.names = {d["name"].lower(): d["name"] for d in self.ast["decls"]}
 
     def wrap(self, t, v):
         return wrap(t, v, self.profile.overflow)
 
     # -- external interface
-    def set_input(self, name, value):
+    def _split_index(self, name):
+        """'arr[3]' -> ('arr', 3); plain names -> (name, None)."""
         n = name.lower()
+        if n.endswith("]") and "[" in n:
+            base, _, idx = n[:-1].partition("[")
+            return base, int(idx)
+        return n, None
+
+    def _elem(self, base, idx):
+        if base not in self.arrays:
+            raise STError(f"{base} is not an array")
+        i = idx - self.arrays[base]
+        if not 0 <= i < len(self.vars[base]):
+            lo = self.arrays[base]
+            raise STError(f"array index {idx} out of range [{lo}..{lo + len(self.vars[base]) - 1}] for {base}")
+        return i
+
+    def set_input(self, name, value):
+        n, idx = self._split_index(name)
         if n not in self.vars:
             raise STError(f"unknown variable {name}")
-        self.vars[n] = self.wrap(self.types[n], value)
+        if idx is not None:
+            self.vars[n][self._elem(n, idx)] = self.wrap(self.types[n], value)
+        elif n in self.arrays:
+            raise STError(f"{name} is an array; use {name}[i]")
+        else:
+            self.vars[n] = self.wrap(self.types[n], value)
 
     def get(self, name):
         n = name.lower()
+        if n.endswith("]"):
+            base, idx = self._split_index(n)
+            if base not in self.vars:
+                raise STError(f"unknown variable {name}")
+            return self.vars[base][self._elem(base, idx)]
         if "." in n:
             fb, field = n.split(".", 1)
             return self.fbs[fb].v[field.upper()]
@@ -284,7 +323,15 @@ class VirtualPLC:
         return self.vars[n]
 
     def snapshot(self):
-        return {self.names[n]: v for n, v in self.vars.items()}
+        out = {}
+        for n, v in self.vars.items():
+            if n in self.arrays:
+                lo = self.arrays[n]
+                for i, x in enumerate(v):
+                    out[f"{self.names[n]}[{lo + i}]"] = x
+            else:
+                out[self.names[n]] = v
+        return out
 
     def scan(self, cycles=1):
         for _ in range(cycles):
@@ -374,9 +421,17 @@ class VirtualPLC:
             if self.section[n] == "input":
                 pass  # allowed for testing; real PLCs forbid it (see validator, M4)
             self.vars[n] = self.wrap(self.types[n], value)
+        elif target[0] == "index":
+            n = self._arr_name(target)
+            self.vars[n][self._elem(n, self.eval(target[2]))] = self.wrap(self.types[n], value)
         else:
             fb = self.fbs[target[1][1].lower()]
             fb.v[target[2].upper()] = value
+
+    def _arr_name(self, e):
+        if e[1][0] != "var" or e[1][1].lower() not in self.arrays:
+            raise STError("indexing a non-array expression")
+        return e[1][1].lower()
 
     def call_fb(self, target, args):
         fb = self.fbs.get(target[1].lower()) if target[0] == "var" else None
@@ -398,9 +453,14 @@ class VirtualPLC:
             return e[1]
         if k == "var":
             n = e[1].lower()
+            if n in self.arrays:
+                raise STError(f"array {e[1]} used without index")
             if n in self.vars:
                 return self.vars[n]
             raise STError(f"unknown variable {e[1]}")
+        if k == "index":
+            n = self._arr_name(e)
+            return self.vars[n][self._elem(n, self.eval(e[2]))]
         if k == "member":
             return self.fbs[e[1][1].lower()].v[e[2].upper()]
         if k == "not":
