@@ -286,6 +286,8 @@ class VirtualPLC:
         self.ast = parse(source)
         self.scan_ms = scan_ms
         self.udefs = {**self.ast.get("fbs", {})}
+        self.structs = dict(self.ast.get("types", {}))
+        self.disp = {}
         self.ufuncs = dict(self.ast.get("functions", {}))
         self.depth = 0
         self.cycles = 0
@@ -322,6 +324,9 @@ class VirtualPLC:
                     self.fbs[n] = UserFB(self, self.udefs[t.lower()])
                     self.types[n] = t
                     continue
+                if t.lower() in self.structs:
+                    self._flatten(d["name"], t, d["init"], d["section"])
+                    continue
                 if t not in INT_RANGES and t not in ("BOOL", "REAL", "LREAL", "TIME", "STRING"):
                     raise STError(f"unknown type {t} for {d['name']}")
                 if t not in self.profile.types:
@@ -343,6 +348,46 @@ class VirtualPLC:
             if saved is not None:
                 self._set_scope(saved)
         return sc
+
+    def _flatten(self, name, tname, init, section, stack=()):
+        """STRUCT instance -> scalar variables 'name.field' (nested structs recurse)."""
+        sd = self.structs[tname.lower()]
+        if tname.lower() in stack:
+            raise STError(f"recursive STRUCT {sd['name']}")
+        given = {}
+        if init is not None:
+            if init[0] != "structinit":
+                raise STError(f"{name}: STRUCT {sd['name']} needs an initialiser like (a := 1)")
+            given = {k.lower(): v for k, v in init[1]}
+        known = {f["name"].lower() for f in sd["fields"]}
+        for k in given:
+            if k not in known:
+                raise STError(f"{name}: STRUCT {sd['name']} has no field {k}")
+        for f in sd["fields"]:
+            key = f"{name}.{f['name']}"
+            fi = given.get(f["name"].lower(), f["init"])
+            ft = f["type"]
+            if ft.lower() in self.structs:
+                self._flatten(key, ft, fi, section, stack + (tname.lower(),))
+                continue
+            if ft not in INT_RANGES and ft not in ("BOOL", "REAL", "LREAL", "TIME", "STRING"):
+                raise STError(f"unknown type {ft} for field {key}")
+            if ft not in self.profile.types:
+                raise STError(f"type {ft} of {key} not supported on profile {self.profile.name}")
+            n = key.lower()
+            self.section[n] = section
+            self.types[n] = ft
+            self.disp[n] = key
+            self.vars[n] = self.wrap(ft, self.eval(fi)) if fi is not None else default(ft)
+
+    def _path(self, e):
+        """var/member chain -> lowercase dotted name (None if not a plain chain)."""
+        if e[0] == "var":
+            return e[1].lower()
+        if e[0] == "member":
+            b = self._path(e[1])
+            return None if b is None else f"{b}.{e[2].lower()}"
+        return None
 
     def _exec_in(self, sc, body):
         """Run `body` with `sc` as the active variable scope (RETURN ends the body)."""
@@ -420,7 +465,7 @@ class VirtualPLC:
             if base not in self.vars:
                 raise STError(f"unknown variable {name}")
             return self.vars[base][self._elem(base, idx)]
-        if "." in n:
+        if "." in n and n not in self.vars:
             fb, field = n.split(".", 1)
             return self.fbs[fb].v[field.upper()]
         if n not in self.vars:
@@ -435,7 +480,7 @@ class VirtualPLC:
                 for i, x in enumerate(v):
                     out[f"{self.names[n]}[{lo + i}]"] = x
             else:
-                out[self.names[n]] = v
+                out[self.names.get(n) or self.disp.get(n, n)] = v
         return out
 
     def scan(self, cycles=1):
@@ -532,6 +577,12 @@ class VirtualPLC:
             n = self._arr_name(target)
             self.vars[n][self._elem(n, self.eval(target[2]))] = self.wrap(self.types[n], value)
         else:
+            p = self._path(target)
+            if p in self.vars:
+                self.vars[p] = self.wrap(self.types[p], value)
+                return
+            if target[1][0] != "var" or target[1][1].lower() not in self.fbs:
+                raise STError(f"assignment to unknown member {p}")
             fb = self.fbs[target[1][1].lower()]
             fb.v[target[2].upper()] = value
 
@@ -564,11 +615,18 @@ class VirtualPLC:
                 raise STError(f"array {e[1]} used without index")
             if n in self.vars:
                 return self.vars[n]
+            if any(k.startswith(n + ".") for k in self.vars):
+                raise STError(f"STRUCT {e[1]} used without member")
             raise STError(f"unknown variable {e[1]}")
         if k == "index":
             n = self._arr_name(e)
             return self.vars[n][self._elem(n, self.eval(e[2]))]
         if k == "member":
+            p = self._path(e)
+            if p in self.vars:
+                return self.vars[p]
+            if e[1][0] != "var" or e[1][1].lower() not in self.fbs:
+                raise STError(f"unknown member {p}")
             return self.fbs[e[1][1].lower()].v[e[2].upper()]
         if k == "not":
             v = self.eval(e[1])

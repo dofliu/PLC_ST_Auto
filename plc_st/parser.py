@@ -50,8 +50,51 @@ class Parser:
         self.expect("kw", end)
         return {"kind": kind, "name": name, "type": rtype, "decls": decls, "body": body}
 
+    def type_def(self):
+        """TYPE name : STRUCT f : T [:= init]; ... END_STRUCT END_TYPE"""
+        self.expect("kw", "TYPE")
+        name = self.expect("id")[1]
+        self.expect("op", ":")
+        self.expect("kw", "STRUCT")
+        fields = []
+        while not self.accept("kw", "END_STRUCT"):
+            names = [self.expect("id")[1]]
+            while self.accept("op", ","):
+                names.append(self.expect("id")[1])
+            self.expect("op", ":")
+            if self.is_("kw", "ARRAY"):
+                raise STError("ARRAY inside STRUCT not supported")
+            tname = self.expect("id")[1].upper()
+            init = self.init_value() if self.accept("op", ":=") else None
+            self.expect("op", ";")
+            for n in names:
+                fields.append({"name": n, "type": tname, "init": init})
+        self.accept("op", ";")
+        self.expect("kw", "END_TYPE")
+        self.accept("op", ";")
+        return {"name": name, "fields": fields}
+
+    def init_value(self):
+        """expression, or struct initialiser (a := 1, b := 2)."""
+        if self.is_("op", "(") and self.t[self.i + 1][0] == "id" and self.t[self.i + 2][1] == ":=":
+            self.next()
+            items = []
+            while True:
+                fname = self.expect("id")[1]
+                self.expect("op", ":=")
+                items.append((fname, self.init_value()))
+                if self.accept("op", ")"):
+                    return ("structinit", items)
+                self.expect("op", ",")
+        return self.expr()
+
     def parse(self):
-        functions, fbdefs = {}, {}
+        functions, fbdefs, types = {}, {}, {}
+        while self.is_("kw", "TYPE"):
+            td = self.type_def()
+            if td["name"].lower() in types:
+                raise STError(f"duplicate definition of {td['name']}")
+            types[td["name"].lower()] = td
         while self.peek()[0] == "kw" and self.peek()[1] in ("FUNCTION", "FUNCTION_BLOCK"):
             d = self.pou_def()
             tbl = functions if d["kind"] == "function" else fbdefs
@@ -67,7 +110,7 @@ class Parser:
         body = self.statements({"END_PROGRAM"})
         self.accept("kw", "END_PROGRAM")
         self.expect("eof")
-        return {"name": name, "decls": decls, "body": body, "functions": functions, "fbs": fbdefs}
+        return {"name": name, "decls": decls, "body": body, "functions": functions, "fbs": fbdefs, "types": types}
 
     def var_block(self):
         section = SECTIONS[self.next()[1]]
@@ -99,7 +142,7 @@ class Parser:
                         init[1].append(self.expr())
                     self.expect("op", "]")
                 else:
-                    init = self.expr()
+                    init = self.init_value()
             self.expect("op", ";")
             for n in names:
                 out.append({"name": n, "type": tname, "section": section, "init": init, "array": arr})
