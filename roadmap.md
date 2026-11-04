@@ -19,3 +19,4 @@
 - M18 ✅ 使用者自訂 FUNCTION / FUNCTION_BLOCK(解譯/檢查;僅 st 格式匯出)
 - M18b ✅ PLCopen XML 以 TC6 XSD 驗證;修正陣列初值與 STRING 型別
 - M19 ✅ STRUCT / TYPE(巢狀、初始化、欄位存取;僅 st 格式匯出)
+- M20 ✅ VAR_IN_OUT 寫回、函式陳述式呼叫

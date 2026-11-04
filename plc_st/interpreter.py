@@ -427,7 +427,26 @@ class VirtualPLC:
         self._exec_in(sc, fn["body"])
         for name, e in outs:
             self.assign(e, sc["vars"][name.lower()])
+        self._write_back(fn["decls"], args, lambda k: sc["vars"][k], ins, fn["name"])
         return sc["vars"][fn["name"].lower()]
+
+    def _write_back(self, decls, args, getter, ins, owner):
+        """Copy VAR_IN_OUT values back to the caller's variables."""
+        io = {d["name"].lower() for d in decls if d["section"] == "inout"}
+        if not io:
+            return
+        pos = 0
+        for name, op, e in args:
+            if op == "=>":
+                continue
+            if name is None:
+                key, pos = (ins[pos] if pos < len(ins) else None), pos + 1
+            else:
+                key = name.lower()
+            if key in io:
+                if e[0] not in ("var", "index", "member"):
+                    raise STError(f"VAR_IN_OUT {key} of {owner} needs a variable argument")
+                self.assign(e, getter(key))
 
     # -- external interface
     def _split_index(self, name):
@@ -593,6 +612,9 @@ class VirtualPLC:
 
     def call_fb(self, target, args):
         fb = self.fbs.get(target[1].lower()) if target[0] == "var" else None
+        if fb is None and target[0] == "var" and target[1].lower() in self.ufuncs:
+            self.call_function(self.ufuncs[target[1].lower()], args)  # function as statement
+            return
         if fb is None:
             raise STError(f"{target} is not a function block instance")
         outs = []
@@ -604,6 +626,9 @@ class VirtualPLC:
         fb.call(self.scan_ms)
         for name, e in outs:
             self.assign(e, fb.v[name.upper()])
+        if isinstance(fb, UserFB):
+            ins = [d["name"].lower() for d in fb.d["decls"] if d["section"] in ("input", "inout")]
+            self._write_back(fb.d["decls"], args, lambda k: fb.v[k], ins, fb.d["name"])
 
     def eval(self, e):
         k = e[0]

@@ -43,7 +43,7 @@ def check(src, profile="iec"):
 
     class _UFB:  # adapter so user FBs look like built-in FB classes
         def __init__(self, d):
-            self.inputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] == "input"}
+            self.inputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] in ("input", "inout")}
             self.outputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] == "output"}
 
     def fb_of(t):
@@ -266,6 +266,9 @@ def check(src, profile="iec"):
         tgt = s[1]
         d = env.get(tgt[1].lower()) if tgt[0] == "var" else None
         fb = fb_of(d["type"]) if d else None
+        if fb is None and d is None and tgt[0] == "var" and tgt[1].lower() in ufn:
+            ty(("func", tgt[1], s[2]), ln)  # user function called as a statement
+            return
         if fb is None:
             err(ln, f"call target {tgt[1] if tgt[0] == 'var' else '?'} is not a declared function block")
             return

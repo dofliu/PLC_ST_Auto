@@ -60,6 +60,9 @@
 - [x] `validate_plcopen()` + CLI `export --validate`;`tests/test_plcopen_schema.py` 以 TC6 XSD 驗證
 ## M19 ✅
 - [x] `TYPE ... STRUCT` 巢狀結構、初始化、欄位存取(解譯/檢查);測試 `tests/test_struct.py`、`docs/test_report_M19.md`
+## M20 ✅
+- [x] `VAR_IN_OUT` 寫回(自訂 FUNCTION / FUNCTION_BLOCK;非變數引數明確報錯)、函式可作為陳述式呼叫
+- [x] 檢查器支援 inout 作為呼叫參數;`tests/test_inout.py`、`examples/inout.st`、`docs/test_report_M20.md`
 ## 下一步候選(≤2h)
 - [ ] 多維陣列、STRUCT 陣列/整體賦值、STRUCT 匯出(PLCopen dataType)
-- [ ] 自訂 POU 的 PLCopen/SCL 匯出;VAR_IN_OUT 回寫
+- [ ] 自訂 POU 的 PLCopen/SCL 匯出
