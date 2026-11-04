@@ -58,6 +58,8 @@
 - [x] 陣列初值改為 `<initialValue><arrayValue><value>…</value></arrayValue></initialValue>`
 - [x] STRING 型別改為 TC6 規定的 `<string/>`(schema 驗證時發現)
 - [x] `validate_plcopen()` + CLI `export --validate`;`tests/test_plcopen_schema.py` 以 TC6 XSD 驗證
+## M19 ✅
+- [x] `TYPE ... STRUCT` 巢狀結構、初始化、欄位存取(解譯/檢查);測試 `tests/test_struct.py`、`docs/test_report_M19.md`
 ## 下一步候選(≤2h)
-- [ ] 多維陣列、STRUCT / TYPE
+- [ ] 多維陣列、STRUCT 陣列/整體賦值、STRUCT 匯出(PLCopen dataType)
 - [ ] 自訂 POU 的 PLCopen/SCL 匯出;VAR_IN_OUT 回寫

@@ -190,12 +190,12 @@ FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "l5x": ("L5X"
            "sysmac": ("txt", to_sysmac), "st": ("st", lambda s: s)}
 
 
-_USERPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
+_USERPOU = re.compile(r"^\s*(?:FUNCTION(?:_BLOCK)?\s+\w+|TYPE\s+\w+\s*:)", re.M | re.I)
 
 
 def export(src, fmt):
     if fmt in FORMATS and fmt != "st" and _USERPOU.search(re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)):
-        raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK,此格式尚未支援(僅 st 格式可完整匯出)")
+        raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK/TYPE(STRUCT),此格式尚未支援(僅 st 格式可完整匯出)")
     try:
         return FORMATS[fmt][1](src)
     except KeyError:

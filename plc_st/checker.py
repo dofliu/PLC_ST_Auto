@@ -39,6 +39,7 @@ def check(src, profile="iec"):
     issues = []
     env = {}
     ufn, ufb = prog["functions"], prog["fbs"]
+    structs = prog.get("types", {})
 
     class _UFB:  # adapter so user FBs look like built-in FB classes
         def __init__(self, d):
@@ -59,8 +60,24 @@ def check(src, profile="iec"):
                 issues.append(Issue("error", 0, f"duplicate declaration {d['name']}"))
             env[d["name"].lower()] = d
             t = d["type"]
-            if fb_of(t) is None and t not in prof.types:
+            if t.lower() in structs:
+                struct_types(t, d["name"], ())
+            elif fb_of(t) is None and t not in prof.types:
                 issues.append(Issue("error", 0, f"type {t} of {d['name']} not supported by profile {prof.name}"))
+
+    def struct_types(t, owner, stack):
+        sd = structs[t.lower()]
+        if t.lower() in stack:
+            issues.append(Issue("error", 0, f"recursive STRUCT {sd['name']}"))
+            return
+        for f in sd["fields"]:
+            ft = f["type"]
+            if ft.lower() in structs:
+                struct_types(ft, owner, stack + (t.lower(),))
+            elif ft not in INT_RANGES and ft not in ("BOOL", "REAL", "LREAL", "TIME", "STRING"):
+                issues.append(Issue("error", 0, f"unknown type {ft} in STRUCT {sd['name']}"))
+            elif ft not in prof.types:
+                issues.append(Issue("error", 0, f"type {ft} of {owner}.{f['name']} not supported by profile {prof.name}"))
 
     load_scope(prog["decls"])
 
@@ -85,6 +102,9 @@ def check(src, profile="iec"):
                 return None
             if d.get("array"):
                 err(ln, f"array {e[1]} used without index")
+                return None
+            if d["type"].lower() in structs:
+                err(ln, f"STRUCT {e[1]} used without member")
                 return None
             return d["type"]
         if k == "index":
@@ -149,14 +169,30 @@ def check(src, profile="iec"):
             return None
         return None
 
+    def struct_field(t, name, ln, _owner):
+        sd = structs.get(t.lower())
+        if sd is None:
+            err(ln, f"{t} has no member {name}")
+            return None
+        for f in sd["fields"]:
+            if f["name"].lower() == name.lower():
+                return f["type"]
+        err(ln, f"STRUCT {sd['name']} has no field {name}")
+        return None
+
     def member(e, ln):
         base = e[1]
+        if base[0] == "member":
+            bt = member(base, ln)
+            return struct_field(bt, e[2], ln, "") if bt else None
         if base[0] != "var":
             return None
         d = env.get(base[1].lower())
         if d is None:
             err(ln, f"undeclared variable {base[1]}")
             return None
+        if d["type"].lower() in structs:
+            return struct_field(d["type"], e[2], ln, base[1])
         fb = fb_of(d["type"])
         if fb is None:
             err(ln, f"{base[1]} is {d['type']}, has no member {e[2]}")
@@ -178,6 +214,9 @@ def check(src, profile="iec"):
                 return
             if d and fb_of(d["type"]) is not None:
                 err(ln, f"cannot assign to function block instance {target[1]}")
+                return
+            if d and d["type"].lower() in structs:
+                err(ln, f"cannot assign whole STRUCT {target[1]}; assign its fields")
                 return
         et = ty(e, ln)
         if tt is None or et is None:
