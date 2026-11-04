@@ -17,3 +17,4 @@
 - M16 ✅ CTUD 計數器、標準函式擴充(位移、取整、字串)
 - M17 ✅ ARRAY 一維陣列(解譯/檢查/PLCopen 匯出)
 - M18 ✅ 使用者自訂 FUNCTION / FUNCTION_BLOCK(解譯/檢查;僅 st 格式匯出)
+- M18b ✅ PLCopen XML 以 TC6 XSD 驗證;修正陣列初值與 STRING 型別
