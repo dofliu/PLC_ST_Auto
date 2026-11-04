@@ -133,6 +133,7 @@ def main(argv=None):
     e.add_argument("file")
     e.add_argument("--format", default="plcopen")
     e.add_argument("-o", "--output")
+    e.add_argument("--validate", action="store_true", help="plcopen:以 TC6 XSD 驗證(需 lxml),失敗 exit 1")
     sub.add_parser("profiles", help="列出可用的廠牌 profile")
     sv = sub.add_parser("serve", help="啟動 Web UI(僅 127.0.0.1)")
     sv.add_argument("--port", type=int, default=8765)
@@ -155,6 +156,16 @@ def main(argv=None):
             from .export import export
             with open(a.file, encoding="utf-8") as f:
                 out = export(f.read(), a.format)
+            if a.validate:
+                if a.format != "plcopen":
+                    raise STError("--validate 僅支援 --format plcopen")
+                from .export import validate_plcopen
+                errs = validate_plcopen(out)
+                for m in errs:
+                    print(f"schema: {m}", file=sys.stderr)
+                if errs:
+                    return 1
+                print("schema: OK (PLCopen TC6 v2.01)", file=sys.stderr)
             if a.output:
                 with open(a.output, "w", encoding="utf-8") as f:
                     f.write(out)

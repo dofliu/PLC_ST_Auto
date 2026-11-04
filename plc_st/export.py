@@ -1,6 +1,7 @@
 """匯出:PLCopen XML(TC6 v2.01,CODESYS/Beckhoff/多數工具可匯入)、Siemens SCL(.scl)、純文字 ST。
 
 以文字層級切分 PROGRAM(宣告區 / 本體),不改動使用者程式邏輯。"""
+import os
 import re
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape, quoteattr
@@ -40,6 +41,14 @@ def split_program(src):
     return name, blocks, decl_text, inner[last:].strip()
 
 
+def _tc6_type(t):
+    """IEC 型別 → TC6 型別元素;TC6 的 string/wstring 為小寫,其餘基本型別大寫。"""
+    u = t.upper()
+    if u in ("STRING", "WSTRING"):
+        return f"<{u.lower()}/>"
+    return f"<{u}/>" if u in _BASE else f"<derived name={quoteattr(t)}/>"
+
+
 def to_plcopen(src, project="PLC_ST_Auto"):
     name, blocks, _, body = split_program(src)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
@@ -58,15 +67,16 @@ def to_plcopen(src, project="PLC_ST_Auto"):
         for n, t, init in decls:
             am = re.match(r"(?is)ARRAY\s*\[\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\]\s*OF\s+(\w+)$", t)
             if am:
-                bt = am.group(3).upper()
-                base = f"<{bt}/>" if bt in _BASE else f"<derived name={quoteattr(am.group(3))}/>"
+                base = _tc6_type(am.group(3))
                 typ = (f'<array><dimension lower="{am.group(1)}" upper="{am.group(2)}"/>'
                        f"<baseType>{base}</baseType></array>")
                 vals = [v.strip() for v in init.strip("[] ").split(",")] if init else []
-                iv = ("<initialValue>" + "".join(f'<value><simpleValue value={quoteattr(v)}/></value>'
-                                                 for v in vals) + "</initialValue>") if vals else ""
+                # TC6: initialValue holds ONE value; arrays wrap elements in <arrayValue>
+                iv = ("<initialValue><arrayValue>"
+                      + "".join(f'<value><simpleValue value={quoteattr(v)}/></value>' for v in vals)
+                      + "</arrayValue></initialValue>") if vals else ""
             else:
-                typ = f"<{t.upper()}/>" if t.upper() in _BASE else f"<derived name={quoteattr(t)}/>"
+                typ = _tc6_type(t)
                 iv = f'<initialValue><simpleValue value={quoteattr(init)}/></initialValue>' if init else ""
             o.append(f"        <variable name={quoteattr(n)}><type>{typ}</type>{iv}</variable>")
         o.append(f"      </{_SECTION[kind]}>")
@@ -78,6 +88,22 @@ def to_plcopen(src, project="PLC_ST_Auto"):
           "</resource></configuration></configurations></instances>",
           "</project>", ""]
     return "\n".join(o)
+
+
+TC6_XSD = os.path.join(os.path.dirname(__file__), "schemas", "tc6_xml_v201.xsd")
+
+
+def validate_plcopen(xml_text, xsd=TC6_XSD):
+    """以 PLCopen TC6 v2.01 XSD 驗證;回傳錯誤訊息清單(空 = 通過)。需要 lxml。"""
+    try:
+        from lxml import etree
+    except ImportError:
+        raise STError("PLCopen schema 驗證需要 lxml(pip install lxml)") from None
+    schema = etree.XMLSchema(etree.parse(xsd))
+    doc = etree.fromstring(xml_text.encode("utf-8"))
+    if schema.validate(doc):
+        return []
+    return [f"line {e.line}: {e.message}" for e in schema.error_log]
 
 
 def to_scl(src):
