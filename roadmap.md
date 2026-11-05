@@ -20,3 +20,4 @@
 - M18b ✅ PLCopen XML 以 TC6 XSD 驗證;修正陣列初值與 STRING 型別
 - M19 ✅ STRUCT / TYPE(巢狀、初始化、欄位存取;僅 st 格式匯出)
 - M20 ✅ VAR_IN_OUT 寫回、函式陳述式呼叫
+- M21 ✅ 多維陣列(解譯/檢查/PLCopen 匯出)

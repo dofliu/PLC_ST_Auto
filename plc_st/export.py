@@ -65,11 +65,12 @@ def to_plcopen(src, project="PLC_ST_Auto"):
             continue
         o.append(f"      <{_SECTION[kind]}>")
         for n, t, init in decls:
-            am = re.match(r"(?is)ARRAY\s*\[\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\]\s*OF\s+(\w+)$", t)
+            am = re.match(r"(?is)ARRAY\s*\[\s*(-?\d+\s*\.\.\s*-?\d+(?:\s*,\s*-?\d+\s*\.\.\s*-?\d+)*)\s*\]\s*OF\s+(\w+)$", t)
             if am:
-                base = _tc6_type(am.group(3))
-                typ = (f'<array><dimension lower="{am.group(1)}" upper="{am.group(2)}"/>'
-                       f"<baseType>{base}</baseType></array>")
+                base = _tc6_type(am.group(2))
+                dims = "".join(f'<dimension lower="{a}" upper="{b}"/>'
+                               for a, b in re.findall(r"(-?\d+)\s*\.\.\s*(-?\d+)", am.group(1)))
+                typ = f"<array>{dims}<baseType>{base}</baseType></array>"
                 vals = [v.strip() for v in init.strip("[] ").split(",")] if init else []
                 # TC6: initialValue holds ONE value; arrays wrap elements in <arrayValue>
                 iv = ("<initialValue><arrayValue>"
