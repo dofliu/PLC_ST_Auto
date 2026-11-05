@@ -43,7 +43,7 @@ class StructTests(unittest.TestCase):
         e = "\n".join(errs(bad))
         self.assertIn("no field nope", e)
         self.assertIn("type mismatch", e)
-        self.assertIn("whole STRUCT", e)
+        self.assertIn("same type", e)
 
     def test_bad_init_field(self):
         with self.assertRaises(STError):

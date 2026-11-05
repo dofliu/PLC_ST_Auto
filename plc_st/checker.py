@@ -82,7 +82,8 @@ def check(src, profile="iec"):
     load_scope(prog["decls"])
 
     def err(ln, msg, sev="error"):
-        issues.append(Issue(sev, ln, msg))
+        if not any(i.line == ln and i.msg == msg and i.severity == sev for i in issues):
+            issues.append(Issue(sev, ln, msg))
 
     def ty(e, ln):
         """Infer the expression's type name (None if unknown)."""
@@ -211,7 +212,23 @@ def check(src, profile="iec"):
             err(ln, f"{d['type']} has no member {e[2]}")
         return m
 
+    def stype(x, ln):
+        if x[0] == "var":
+            d = env.get(x[1].lower())
+            if d and not d.get("array") and d["type"].lower() in structs:
+                return d["type"].lower()
+        elif x[0] == "member":
+            t = member(x, ln)
+            if t and t.lower() in structs:
+                return t.lower()
+        return None
+
     def assign(target, e, ln):
+        st = stype(target, ln)
+        if st:
+            if stype(e, ln) != st:
+                err(ln, f"STRUCT {structs[st]['name']} can only be assigned a STRUCT of the same type")
+            return
         tt = ty(target, ln)
         if target[0] == "var":
             d = env.get(target[1].lower())
