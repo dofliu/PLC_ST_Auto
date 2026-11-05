@@ -125,14 +125,17 @@ class Parser:
             arr = None
             if self.accept("kw", "ARRAY"):
                 self.expect("op", "[")
-                lo = self.expr()
-                self.expect("op", "..")
-                hi = self.expr()
-                if self.is_("op", ","):
-                    raise STError("multi-dimensional ARRAY not supported")
+                dims = []
+                while True:
+                    lo = self.expr()
+                    self.expect("op", "..")
+                    hi = self.expr()
+                    dims.append((lo, hi))
+                    if not self.accept("op", ","):
+                        break
                 self.expect("op", "]")
                 self.expect("kw", "OF")
-                arr = (lo, hi)
+                arr = dims[0]
             tname = self.expect("id")[1].upper()
             init = None
             if self.accept("op", ":="):
@@ -145,7 +148,7 @@ class Parser:
                     init = self.init_value()
             self.expect("op", ";")
             for n in names:
-                out.append({"name": n, "type": tname, "section": section, "init": init, "array": arr})
+                out.append({"name": n, "type": tname, "section": section, "init": init, "array": arr, "dims": dims if arr else None})
         return out
 
     def statements(self, stops):
@@ -225,9 +228,10 @@ class Parser:
             if self.accept("op", "."):
                 node = ("member", node, self.expect("id")[1])
             elif self.accept("op", "["):
-                idx = self.expr()
+                node = ("index", node, self.expr())
+                while self.accept("op", ","):  # a[i,j] == a[i][j] (row-major)
+                    node = ("index", node, self.expr())
                 self.expect("op", "]")
-                node = ("index", node, idx)
             else:
                 return node
 

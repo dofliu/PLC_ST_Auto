@@ -333,15 +333,19 @@ class VirtualPLC:
                     raise STError(f"type {t} of {d['name']} not supported on profile {self.profile.name}")
                 self.types[n] = t
                 if d.get("array"):
-                    lo, hi = self.eval(d["array"][0]), self.eval(d["array"][1])
-                    if hi < lo:
-                        raise STError(f"array {d['name']}: upper bound {hi} < lower bound {lo}")
+                    dims, size = [], 1
+                    for dl, dh in d.get("dims") or [d["array"]]:
+                        lo, hi = self.eval(dl), self.eval(dh)
+                        if hi < lo:
+                            raise STError(f"array {d['name']}: upper bound {hi} < lower bound {lo}")
+                        dims.append((lo, hi))
+                        size *= hi - lo + 1
                     init = d["init"][1] if d["init"] else []
-                    if len(init) > hi - lo + 1:
+                    if len(init) > size:
                         raise STError(f"array {d['name']}: too many initial values")
                     vals = [self.wrap(t, self.eval(x)) for x in init]
-                    self.arrays[n] = lo
-                    self.vars[n] = vals + [default(t)] * (hi - lo + 1 - len(vals))
+                    self.arrays[n] = dims
+                    self.vars[n] = vals + [default(t)] * (size - len(vals))
                 else:
                     self.vars[n] = self.wrap(t, self.eval(d["init"])) if d["init"] else default(t)
         finally:
@@ -454,17 +458,33 @@ class VirtualPLC:
         n = name.lower()
         if n.endswith("]") and "[" in n:
             base, _, idx = n[:-1].partition("[")
-            return base, int(idx)
+            return base, [int(x) for x in idx.split(",")]
         return n, None
 
-    def _elem(self, base, idx):
+    def _elem(self, base, idxs):
         if base not in self.arrays:
             raise STError(f"{base} is not an array")
-        i = idx - self.arrays[base]
-        if not 0 <= i < len(self.vars[base]):
-            lo = self.arrays[base]
-            raise STError(f"array index {idx} out of range [{lo}..{lo + len(self.vars[base]) - 1}] for {base}")
-        return i
+        if not isinstance(idxs, (list, tuple)):
+            idxs = [idxs]
+        dims = self.arrays[base]
+        if len(idxs) != len(dims):
+            raise STError(f"{base} needs {len(dims)} index(es), got {len(idxs)}")
+        flat = 0
+        for (lo, hi), ix in zip(dims, idxs):
+            if not lo <= ix <= hi:
+                raise STError(f"array index {ix} out of range [{lo}..{hi}] for {base}")
+            flat = flat * (hi - lo + 1) + (ix - lo)
+        return flat
+
+    def _chain(self, e):
+        """index chain a[i][j] / a[i,j] -> (array name, [index values])."""
+        idx = []
+        while e[0] == "index":
+            idx.append(self.eval(e[2]))
+            e = e[1]
+        if e[0] != "var" or e[1].lower() not in self.arrays:
+            raise STError("indexing a non-array expression")
+        return e[1].lower(), idx[::-1]
 
     def set_input(self, name, value):
         n, idx = self._split_index(name)
@@ -495,9 +515,14 @@ class VirtualPLC:
         out = {}
         for n, v in self.vars.items():
             if n in self.arrays:
-                lo = self.arrays[n]
+                dims = self.arrays[n]
                 for i, x in enumerate(v):
-                    out[f"{self.names[n]}[{lo + i}]"] = x
+                    sub, r = [], i
+                    for lo, hi in reversed(dims):
+                        w = hi - lo + 1
+                        sub.append(lo + r % w)
+                        r //= w
+                    out[f"{self.names[n]}[{','.join(map(str, sub[::-1]))}]"] = x
             else:
                 out[self.names.get(n) or self.disp.get(n, n)] = v
         return out
@@ -593,8 +618,8 @@ class VirtualPLC:
                 pass  # allowed for testing; real PLCs forbid it (see validator, M4)
             self.vars[n] = self.wrap(self.types[n], value)
         elif target[0] == "index":
-            n = self._arr_name(target)
-            self.vars[n][self._elem(n, self.eval(target[2]))] = self.wrap(self.types[n], value)
+            n, ix = self._chain(target)
+            self.vars[n][self._elem(n, ix)] = self.wrap(self.types[n], value)
         else:
             p = self._path(target)
             if p in self.vars:
@@ -604,11 +629,6 @@ class VirtualPLC:
                 raise STError(f"assignment to unknown member {p}")
             fb = self.fbs[target[1][1].lower()]
             fb.v[target[2].upper()] = value
-
-    def _arr_name(self, e):
-        if e[1][0] != "var" or e[1][1].lower() not in self.arrays:
-            raise STError("indexing a non-array expression")
-        return e[1][1].lower()
 
     def call_fb(self, target, args):
         fb = self.fbs.get(target[1].lower()) if target[0] == "var" else None
@@ -644,8 +664,8 @@ class VirtualPLC:
                 raise STError(f"STRUCT {e[1]} used without member")
             raise STError(f"unknown variable {e[1]}")
         if k == "index":
-            n = self._arr_name(e)
-            return self.vars[n][self._elem(n, self.eval(e[2]))]
+            n, ix = self._chain(e)
+            return self.vars[n][self._elem(n, ix)]
         if k == "member":
             p = self._path(e)
             if p in self.vars:

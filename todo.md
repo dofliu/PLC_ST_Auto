@@ -63,6 +63,8 @@
 ## M20 ✅
 - [x] `VAR_IN_OUT` 寫回(自訂 FUNCTION / FUNCTION_BLOCK;非變數引數明確報錯)、函式可作為陳述式呼叫
 - [x] 檢查器支援 inout 作為呼叫參數;`tests/test_inout.py`、`examples/inout.st`、`docs/test_report_M20.md`
+## M21 ✅
+- [x] 多維陣列 `ARRAY[a..b, c..d]`(列優先、`m[i,j]`、檢查、PLCopen 多 dimension);`tests/test_multidim.py`、`examples/matrix.st`、`docs/test_report_M21.md`
 ## 下一步候選(≤2h)
-- [ ] 多維陣列、STRUCT 陣列/整體賦值、STRUCT 匯出(PLCopen dataType)
+- [ ] STRUCT 陣列/整體賦值、STRUCT 匯出(PLCopen dataType)
 - [ ] 自訂 POU 的 PLCopen/SCL 匯出
