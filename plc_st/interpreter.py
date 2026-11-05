@@ -541,7 +541,8 @@ class VirtualPLC:
         for s in stmts:
             op = s[0]
             if op == "assign":
-                self.assign(s[1], self.eval(s[2]))
+                if not self._struct_copy(s[1], s[2]):
+                    self.assign(s[1], self.eval(s[2]))
             elif op == "call":
                 self.call_fb(s[1], s[2])
             elif op == "if":
@@ -608,6 +609,28 @@ class VirtualPLC:
             i += st
         else:
             self.vars[n] = self.wrap(self.types[n], i)
+
+    def _fields_of(self, e):
+        """flattened {suffix: key} of a STRUCT instance expression, or None."""
+        p = self._path(e)
+        if p is None or p in self.vars:
+            return None
+        pre = p + "."
+        f = {k[len(pre):]: k for k in self.vars if k.startswith(pre)}
+        return f or None
+
+    def _struct_copy(self, target, src):
+        """whole-STRUCT assignment `a := b` (same type); True if handled."""
+        tf = self._fields_of(target)
+        if tf is None:
+            return False
+        sf = self._fields_of(src)
+        if sf is None or set(sf) != set(tf):
+            raise STError("STRUCT assignment needs a STRUCT of the same type")
+        vals = {k: self.vars[sf[k]] for k in tf}
+        for k, dst in tf.items():
+            self.vars[dst] = vals[k]
+        return True
 
     def assign(self, target, value):
         if target[0] == "var":
