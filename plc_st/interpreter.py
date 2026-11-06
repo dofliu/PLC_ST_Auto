@@ -1,5 +1,6 @@
 """Tree-walking ST interpreter with scan-cycle semantics and standard FBs."""
 import math
+import re
 from .lexer import STError
 from .parser import parse
 from .profiles import get_profile
@@ -301,14 +302,14 @@ class VirtualPLC:
     # -- scopes (program / user FUNCTION / user FUNCTION_BLOCK instance)
     def _get_scope(self):
         return {"vars": self.vars, "types": self.types, "section": self.section,
-                "fbs": self.fbs, "arrays": self.arrays}
+                "fbs": self.fbs, "arrays": self.arrays, "sarr": self.sarr}
 
     def _set_scope(self, sc):
         self.vars, self.types, self.section = sc["vars"], sc["types"], sc["section"]
-        self.fbs, self.arrays = sc["fbs"], sc["arrays"]
+        self.fbs, self.arrays, self.sarr = sc["fbs"], sc["arrays"], sc["sarr"]
 
     def _build(self, decls):
-        sc = {"vars": {}, "types": {}, "section": {}, "fbs": {}, "arrays": {}}
+        sc = {"vars": {}, "types": {}, "section": {}, "fbs": {}, "arrays": {}, "sarr": {}}
         saved = self._get_scope() if hasattr(self, "vars") else None
         self._set_scope(sc)
         try:
@@ -323,6 +324,9 @@ class VirtualPLC:
                 if t.lower() in self.udefs:
                     self.fbs[n] = UserFB(self, self.udefs[t.lower()])
                     self.types[n] = t
+                    continue
+                if t.lower() in self.structs and d.get("array"):
+                    self._struct_array(d)
                     continue
                 if t.lower() in self.structs:
                     self._flatten(d["name"], t, d["init"], d["section"])
@@ -383,6 +387,43 @@ class VirtualPLC:
             self.types[n] = ft
             self.disp[n] = key
             self.vars[n] = self.wrap(ft, self.eval(fi)) if fi is not None else default(ft)
+
+    def _struct_array(self, d):
+        """ARRAY OF STRUCT -> one array per (flattened) field, key 'arr.field'."""
+        if d["init"] is not None:
+            raise STError(f"{d['name']}: initialiser for ARRAY OF STRUCT not supported")
+        dims, size = [], 1
+        for dl, dh in d.get("dims") or [d["array"]]:
+            lo, hi = self.eval(dl), self.eval(dh)
+            if hi < lo:
+                raise STError(f"array {d['name']}: upper bound {hi} < lower bound {lo}")
+            dims.append((lo, hi))
+            size *= hi - lo + 1
+        before = set(self.vars)
+        self._flatten(d["name"], d["type"], None, d["section"])
+        for k in set(self.vars) - before:
+            self.vars[k] = [self.vars[k]] * size
+            self.arrays[k] = dims
+        self.sarr[d["name"].lower()] = dims
+
+    def _sa_resolve(self, e):
+        """a[i].f / a[i].m.f on an ARRAY OF STRUCT -> (array key, [indexes]) or None."""
+        fields = []
+        while e[0] == "member":
+            fields.insert(0, e[2].lower())
+            e = e[1]
+        if e[0] != "index" or not fields:
+            return None
+        idx = []
+        while e[0] == "index":
+            idx.append(self.eval(e[2]))
+            e = e[1]
+        if e[0] != "var" or e[1].lower() not in self.sarr:
+            return None
+        key = e[1].lower() + "." + ".".join(fields)
+        if key not in self.arrays:
+            raise STError(f"unknown member {key}")
+        return key, idx[::-1]
 
     def _path(self, e):
         """var/member chain -> lowercase dotted name (None if not a plain chain)."""
@@ -455,7 +496,7 @@ class VirtualPLC:
     # -- external interface
     def _split_index(self, name):
         """'arr[3]' -> ('arr', 3); plain names -> (name, None)."""
-        n = name.lower()
+        n = re.sub(r"^(\w+)\[([^\]]*)\]\.(.+)$", r"\1.\3[\2]", name.lower())
         if n.endswith("]") and "[" in n:
             base, _, idx = n[:-1].partition("[")
             return base, [int(x) for x in idx.split(",")]
@@ -498,7 +539,7 @@ class VirtualPLC:
             self.vars[n] = self.wrap(self.types[n], value)
 
     def get(self, name):
-        n = name.lower()
+        n = re.sub(r"^(\w+)\[([^\]]*)\]\.(.+)$", r"\1.\3[\2]", name.lower())
         if n.endswith("]"):
             base, idx = self._split_index(n)
             if base not in self.vars:
@@ -522,7 +563,12 @@ class VirtualPLC:
                         w = hi - lo + 1
                         sub.append(lo + r % w)
                         r //= w
-                    out[f"{self.names[n]}[{','.join(map(str, sub[::-1]))}]"] = x
+                    ix = ",".join(map(str, sub[::-1]))
+                    base, dot, rest = n.partition(".")
+                    if dot and base in self.sarr:
+                        out[f"{self.names.get(base, base)}[{ix}].{self.disp.get(n, n).partition('.')[2]}"] = x
+                    else:
+                        out[f"{self.names[n]}[{ix}]"] = x
             else:
                 out[self.names.get(n) or self.disp.get(n, n)] = v
         return out
@@ -644,6 +690,10 @@ class VirtualPLC:
             n, ix = self._chain(target)
             self.vars[n][self._elem(n, ix)] = self.wrap(self.types[n], value)
         else:
+            r = self._sa_resolve(target)
+            if r:
+                self.vars[r[0]][self._elem(*r)] = self.wrap(self.types[r[0]], value)
+                return
             p = self._path(target)
             if p in self.vars:
                 self.vars[p] = self.wrap(self.types[p], value)
@@ -690,6 +740,9 @@ class VirtualPLC:
             n, ix = self._chain(e)
             return self.vars[n][self._elem(n, ix)]
         if k == "member":
+            r = self._sa_resolve(e)
+            if r:
+                return self.vars[r[0]][self._elem(*r)]
             p = self._path(e)
             if p in self.vars:
                 return self.vars[p]

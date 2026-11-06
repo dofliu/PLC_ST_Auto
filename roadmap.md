@@ -22,3 +22,4 @@
 - M20 ✅ VAR_IN_OUT 寫回、函式陳述式呼叫
 - M21 ✅ 多維陣列(解譯/檢查/PLCopen 匯出)
 - M22 ✅ STRUCT 整體賦值(解譯/檢查)
+- M23 ✅ ARRAY OF STRUCT(解譯/檢查)
