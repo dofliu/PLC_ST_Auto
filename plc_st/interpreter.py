@@ -390,8 +390,6 @@ class VirtualPLC:
 
     def _struct_array(self, d):
         """ARRAY OF STRUCT -> one array per (flattened) field, key 'arr.field'."""
-        if d["init"] is not None:
-            raise STError(f"{d['name']}: initialiser for ARRAY OF STRUCT not supported")
         dims, size = [], 1
         for dl, dh in d.get("dims") or [d["array"]]:
             lo, hi = self.eval(dl), self.eval(dh)
@@ -405,6 +403,20 @@ class VirtualPLC:
             self.vars[k] = [self.vars[k]] * size
             self.arrays[k] = dims
         self.sarr[d["name"].lower()] = dims
+        items = d["init"][1] if d["init"] else []
+        if d["init"] and d["init"][0] != "arrinit":
+            raise STError(f"{d['name']}: ARRAY OF STRUCT needs an initialiser like [(a := 1), (a := 2)]")
+        if len(items) > size:
+            raise STError(f"array {d['name']}: too many initial values")
+        tmp = "__init"
+        for pos, it in enumerate(items):
+            if it[0] != "structinit":
+                raise STError(f"{d['name']}: element initialiser must be a STRUCT value like (a := 1)")
+            self._flatten(tmp, d["type"], it, d["section"])
+            for k in [k for k in self.vars if k.startswith(tmp + ".")]:
+                self.vars[d["name"].lower() + k[len(tmp):]][pos] = self.vars.pop(k)
+                for tbl in (self.section, self.types, self.disp):
+                    tbl.pop(k, None)
 
     def _sa_resolve(self, e):
         """a[i].f / a[i].m.f on an ARRAY OF STRUCT -> (array key, [indexes]) or None."""
@@ -657,12 +669,31 @@ class VirtualPLC:
             self.vars[n] = self.wrap(self.types[n], i)
 
     def _fields_of(self, e):
-        """flattened {suffix: key} of a STRUCT instance expression, or None."""
+        """flattened {suffix: (key, flat index|None)} of a STRUCT value expression
+        (plain instance, or element / nested member of an ARRAY OF STRUCT), or None."""
         p = self._path(e)
-        if p is None or p in self.vars:
+        if p is not None:
+            if p in self.vars:
+                return None
+            pre = p + "."
+            f = {k[len(pre):]: (k, None) for k in self.vars if k.startswith(pre)}
+            return f or None
+        fields, b = [], e
+        while b[0] == "member":
+            fields.insert(0, b[2].lower())
+            b = b[1]
+        base = b
+        while base[0] == "index":
+            base = base[1]
+        if b[0] != "index" or base[0] != "var" or base[1].lower() not in self.sarr:
             return None
-        pre = p + "."
-        f = {k[len(pre):]: k for k in self.vars if k.startswith(pre)}
+        idx = []
+        while b[0] == "index":
+            idx.append(self.eval(b[2]))
+            b = b[1]
+        name, idx = b[1].lower(), idx[::-1]
+        pre = ".".join([name] + fields) + "."
+        f = {k[len(pre):]: (k, self._elem(k, idx)) for k in self.arrays if k.startswith(pre)}
         return f or None
 
     def _struct_copy(self, target, src):
@@ -673,9 +704,15 @@ class VirtualPLC:
         sf = self._fields_of(src)
         if sf is None or set(sf) != set(tf):
             raise STError("STRUCT assignment needs a STRUCT of the same type")
-        vals = {k: self.vars[sf[k]] for k in tf}
-        for k, dst in tf.items():
-            self.vars[dst] = vals[k]
+        def get(r):
+            return self.vars[r[0]] if r[1] is None else self.vars[r[0]][r[1]]
+
+        vals = {k: get(sf[k]) for k in tf}
+        for k, (key, pos) in tf.items():
+            if pos is None:
+                self.vars[key] = vals[k]
+            else:
+                self.vars[key][pos] = vals[k]
         return True
 
     def assign(self, target, value):

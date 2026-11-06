@@ -140,9 +140,9 @@ class Parser:
             init = None
             if self.accept("op", ":="):
                 if arr and self.accept("op", "["):
-                    init = ("arrinit", [self.expr()])
+                    init = ("arrinit", [self.init_value()])
                     while self.accept("op", ","):
-                        init[1].append(self.expr())
+                        init[1].append(self.init_value())
                     self.expect("op", "]")
                 else:
                     init = self.init_value()

@@ -69,7 +69,8 @@
 - [x] STRUCT 整體賦值(含巢狀)、檢查器同型別驗證;`tests/test_struct_copy.py`、`examples/struct_copy.st`、`docs/test_report_M22.md`
 ## M23 ✅
 - [x] `ARRAY OF STRUCT`(`a[i].f` 讀寫、檢查、外部存取);`tests/test_struct_array.py`、`examples/struct_array.st`、`docs/test_report_M23.md`
+## M24 ✅
+- [x] 陣列元素整體賦值 `ms[1] := x`、ARRAY OF STRUCT 初始值;`tests/test_struct_elem.py`、`examples/struct_elem.st`、`docs/test_report_M24.md`
 ## 下一步候選(≤2h)
-- [ ] 陣列元素整體賦值 `ms[1] := x`、ARRAY OF STRUCT 初始值
 - [ ] STRUCT 匯出(PLCopen dataType)
 - [ ] 自訂 POU 的 PLCopen/SCL 匯出

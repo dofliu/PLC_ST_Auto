@@ -23,3 +23,4 @@
 - M21 ✅ 多維陣列(解譯/檢查/PLCopen 匯出)
 - M22 ✅ STRUCT 整體賦值(解譯/檢查)
 - M23 ✅ ARRAY OF STRUCT(解譯/檢查)
+- M24 ✅ ARRAY OF STRUCT 初始值、元素整體賦值

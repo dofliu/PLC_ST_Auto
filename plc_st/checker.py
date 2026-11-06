@@ -224,8 +224,8 @@ def check(src, profile="iec"):
             d = env.get(x[1].lower())
             if d and not d.get("array") and d["type"].lower() in structs:
                 return d["type"].lower()
-        elif x[0] == "member":
-            t = member(x, ln)
+        elif x[0] in ("member", "index"):
+            t = member(x, ln) if x[0] == "member" else ty(x, ln)
             if t and t.lower() in structs:
                 return t.lower()
         return None
