@@ -191,6 +191,13 @@ def check(src, profile="iec"):
 
     def member(e, ln):
         base = e[1]
+        if base[0] == "index":
+            bt = ty(base, ln)
+            if bt and bt.lower() in structs:
+                return struct_field(bt, e[2], ln, "")
+            if bt:
+                err(ln, f"{bt} element has no member {e[2]}")
+            return None
         if base[0] == "member":
             bt = member(base, ln)
             return struct_field(bt, e[2], ln, "") if bt else None

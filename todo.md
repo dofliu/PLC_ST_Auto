@@ -67,6 +67,9 @@
 - [x] 多維陣列 `ARRAY[a..b, c..d]`(列優先、`m[i,j]`、檢查、PLCopen 多 dimension);`tests/test_multidim.py`、`examples/matrix.st`、`docs/test_report_M21.md`
 ## M22 ✅
 - [x] STRUCT 整體賦值(含巢狀)、檢查器同型別驗證;`tests/test_struct_copy.py`、`examples/struct_copy.st`、`docs/test_report_M22.md`
+## M23 ✅
+- [x] `ARRAY OF STRUCT`(`a[i].f` 讀寫、檢查、外部存取);`tests/test_struct_array.py`、`examples/struct_array.st`、`docs/test_report_M23.md`
 ## 下一步候選(≤2h)
-- [ ] STRUCT 陣列、STRUCT 匯出(PLCopen dataType)
+- [ ] 陣列元素整體賦值 `ms[1] := x`、ARRAY OF STRUCT 初始值
+- [ ] STRUCT 匯出(PLCopen dataType)
 - [ ] 自訂 POU 的 PLCopen/SCL 匯出
