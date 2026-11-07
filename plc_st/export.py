@@ -49,6 +49,77 @@ def _tc6_type(t):
     return f"<{u}/>" if u in _BASE else f"<derived name={quoteattr(t)}/>"
 
 
+_TYPEDEF = re.compile(r"TYPE\s+(\w+)\s*:\s*STRUCT(.*?)END_STRUCT\s*;?\s*END_TYPE", re.S | re.I)
+_ARR = re.compile(r"(?is)ARRAY\s*\[\s*(-?\d+\s*\.\.\s*-?\d+(?:\s*,\s*-?\d+\s*\.\.\s*-?\d+)*)\s*\]\s*OF\s+(\w+)$")
+
+
+def _split_top(text):
+    """依最外層逗號切分(括號/中括號/字串內不切)。"""
+    parts, depth, cur, q = [], 0, [], False
+    for ch in text:
+        if ch == "'":
+            q = not q
+        if not q:
+            if ch in "([":
+                depth += 1
+            elif ch in ")]":
+                depth -= 1
+            elif ch == "," and depth == 0:
+                parts.append("".join(cur).strip())
+                cur = []
+                continue
+        cur.append(ch)
+    if "".join(cur).strip():
+        parts.append("".join(cur).strip())
+    return parts
+
+
+def _tc6_value(v):
+    """ST 初始值文字 → TC6 value 元素(simpleValue / arrayValue / structValue)。"""
+    v = v.strip()
+    if v.startswith("[") and v.endswith("]"):
+        return "<arrayValue>" + "".join(f"<value>{_tc6_value(x)}</value>" for x in _split_top(v[1:-1])) + "</arrayValue>"
+    if v.startswith("(") and v.endswith(")"):
+        out = []
+        for item in _split_top(v[1:-1]):
+            k, _, val = item.partition(":=")
+            if not _:
+                raise STError(f"export: 無法解析 STRUCT 初始值 {item!r}")
+            out.append(f"<value member={quoteattr(k.strip())}>{_tc6_value(val)}</value>")
+        return "<structValue>" + "".join(out) + "</structValue>"
+    return f"<simpleValue value={quoteattr(v)}/>"
+
+
+def _tc6_vartype(t):
+    am = _ARR.match(t.strip())
+    if am:
+        dims = "".join(f'<dimension lower="{a}" upper="{b}"/>'
+                       for a, b in re.findall(r"(-?\d+)\s*\.\.\s*(-?\d+)", am.group(1)))
+        return f"<array>{dims}<baseType>{_tc6_type(am.group(2))}</baseType></array>"
+    return _tc6_type(t.strip())
+
+
+def _datatypes(src):
+    """TYPE ... STRUCT → TC6 <dataType>(欄位型別含 ARRAY / 巢狀 STRUCT / 初始值)。"""
+    clean = re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)
+    out = []
+    for m in _TYPEDEF.finditer(clean):
+        fields = []
+        for stmt in m.group(2).split(";"):
+            stmt = stmt.strip()
+            if not stmt:
+                continue
+            lhs, sep, rest = stmt.partition(":")
+            if not sep:
+                raise STError(f"export: 無法解析 STRUCT 欄位 {stmt!r}")
+            typ, _, init = rest.partition(":=")
+            iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init.strip() else ""
+            for n in lhs.split(","):
+                fields.append(f"<variable name={quoteattr(n.strip())}><type>{_tc6_vartype(typ)}</type>{iv}</variable>")
+        out.append(f"<dataType name={quoteattr(m.group(1))}><baseType><struct>{''.join(fields)}</struct></baseType></dataType>")
+    return out
+
+
 def to_plcopen(src, project="PLC_ST_Auto"):
     name, blocks, _, body = split_program(src)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
@@ -58,27 +129,15 @@ def to_plcopen(src, project="PLC_ST_Auto"):
          f'  <contentHeader name={quoteattr(project)}><coordinateInfo>'
          '<fbd><scaling x="1" y="1"/></fbd><ld><scaling x="1" y="1"/></ld><sfc><scaling x="1" y="1"/></sfc>'
          '</coordinateInfo></contentHeader>',
-         '  <types><dataTypes/><pous>',
+         '  <types><dataTypes>' + "".join(_datatypes(src)) + '</dataTypes><pous>',
          f'    <pou name={quoteattr(name)} pouType="program"><interface>']
     for kind, decls in blocks:
         if not decls:
             continue
         o.append(f"      <{_SECTION[kind]}>")
         for n, t, init in decls:
-            am = re.match(r"(?is)ARRAY\s*\[\s*(-?\d+\s*\.\.\s*-?\d+(?:\s*,\s*-?\d+\s*\.\.\s*-?\d+)*)\s*\]\s*OF\s+(\w+)$", t)
-            if am:
-                base = _tc6_type(am.group(2))
-                dims = "".join(f'<dimension lower="{a}" upper="{b}"/>'
-                               for a, b in re.findall(r"(-?\d+)\s*\.\.\s*(-?\d+)", am.group(1)))
-                typ = f"<array>{dims}<baseType>{base}</baseType></array>"
-                vals = [v.strip() for v in init.strip("[] ").split(",")] if init else []
-                # TC6: initialValue holds ONE value; arrays wrap elements in <arrayValue>
-                iv = ("<initialValue><arrayValue>"
-                      + "".join(f'<value><simpleValue value={quoteattr(v)}/></value>' for v in vals)
-                      + "</arrayValue></initialValue>") if vals else ""
-            else:
-                typ = _tc6_type(t)
-                iv = f'<initialValue><simpleValue value={quoteattr(init)}/></initialValue>' if init else ""
+            typ = _tc6_vartype(t)
+            iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init else ""
             o.append(f"        <variable name={quoteattr(n)}><type>{typ}</type>{iv}</variable>")
         o.append(f"      </{_SECTION[kind]}>")
     o += ["    </interface><body><ST>",
@@ -193,9 +252,12 @@ FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "l5x": ("L5X"
 
 _USERPOU = re.compile(r"^\s*(?:FUNCTION(?:_BLOCK)?\s+\w+|TYPE\s+\w+\s*:)", re.M | re.I)
 
+_FUNCPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
+
 
 def export(src, fmt):
-    if fmt in FORMATS and fmt != "st" and _USERPOU.search(re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)):
+    pat = _FUNCPOU if fmt == "plcopen" else _USERPOU
+    if fmt in FORMATS and fmt != "st" and pat.search(re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)):
         raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK/TYPE(STRUCT),此格式尚未支援(僅 st 格式可完整匯出)")
     try:
         return FORMATS[fmt][1](src)

@@ -71,6 +71,8 @@
 - [x] `ARRAY OF STRUCT`(`a[i].f` 讀寫、檢查、外部存取);`tests/test_struct_array.py`、`examples/struct_array.st`、`docs/test_report_M23.md`
 ## M24 ✅
 - [x] 陣列元素整體賦值 `ms[1] := x`、ARRAY OF STRUCT 初始值;`tests/test_struct_elem.py`、`examples/struct_elem.st`、`docs/test_report_M24.md`
+## M25 ✅
+- [x] STRUCT → PLCopen `dataType`(巢狀/ARRAY/初始值,TC6 XSD 驗證通過);`tests/test_struct_export.py`、`examples/struct_export.st`、`docs/test_report_M25.md`
 ## 下一步候選(≤2h)
-- [ ] STRUCT 匯出(PLCopen dataType)
+- [ ] 其他格式 STRUCT 匯出(SCL TYPE、L5X UDT)
 - [ ] 自訂 POU 的 PLCopen/SCL 匯出
