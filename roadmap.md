@@ -25,3 +25,4 @@
 - M23 ✅ ARRAY OF STRUCT(解譯/檢查)
 - M24 ✅ ARRAY OF STRUCT 初始值、元素整體賦值
 - M25 ✅ STRUCT PLCopen dataType 匯出(TC6 XSD 驗證)
+- M26 ✅ STRUCT → Siemens SCL UDT 匯出
