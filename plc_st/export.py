@@ -166,10 +166,38 @@ def validate_plcopen(xml_text, xsd=TC6_XSD):
     return [f"line {e.line}: {e.message}" for e in schema.error_log]
 
 
+def _scl_quote(text, names):
+    """把已定義的 STRUCT 型別名稱在型別位置加上雙引號(SCL UDT 引用語法)。"""
+    for n in names:
+        text = re.sub(rf'(:\s*|\bOF\s+){re.escape(n)}\b(?!")', lambda m: f'{m.group(1)}"{n}"', text, flags=re.I)
+    return text
+
+
+def _scl_types(src):
+    """TYPE ... STRUCT → SCL `TYPE "Name" ... END_TYPE`(UDT)。回傳 (名稱清單, 文字)。"""
+    clean = re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)
+    defs = list(_TYPEDEF.finditer(clean))
+    names = [m.group(1) for m in defs]
+    out = []
+    for m in defs:
+        fields = []
+        for stmt in m.group(2).split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                fields.append("      " + _scl_quote(stmt, names) + ";")
+        out.append(f'TYPE "{m.group(1)}"\nVERSION : 0.1\n   STRUCT\n' + "\n".join(fields)
+                   + "\n   END_STRUCT;\nEND_TYPE\n")
+    return names, "\n".join(out)
+
+
 def to_scl(src):
-    """Siemens TIA:PROGRAM → ORGANIZATION_BLOCK(SCL 外部來源檔 .scl)。"""
+    """Siemens TIA:PROGRAM → ORGANIZATION_BLOCK(SCL 外部來源檔 .scl);TYPE STRUCT → UDT(置於 OB 之前)。"""
     name, _, decl, body = split_program(src)
-    return (f'ORGANIZATION_BLOCK "{name}"\n{{ S7_Optimized_Access := \'TRUE\' }}\nVERSION : 0.1\n'
+    names, types = _scl_types(src)
+    decl = _scl_quote(decl, names)
+    if types:
+        types += "\n"
+    return (f'{types}ORGANIZATION_BLOCK "{name}"\n{{ S7_Optimized_Access := \'TRUE\' }}\nVERSION : 0.1\n'
             f"{decl}\nBEGIN\n{body}\nEND_ORGANIZATION_BLOCK\n")
 
 
@@ -256,7 +284,7 @@ _FUNCPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
 
 
 def export(src, fmt):
-    pat = _FUNCPOU if fmt == "plcopen" else _USERPOU
+    pat = _FUNCPOU if fmt in ("plcopen", "scl") else _USERPOU
     if fmt in FORMATS and fmt != "st" and pat.search(re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)):
         raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK/TYPE(STRUCT),此格式尚未支援(僅 st 格式可完整匯出)")
     try:
