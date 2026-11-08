@@ -60,7 +60,7 @@ class StructTests(unittest.TestCase):
 
     def test_non_st_export_rejected(self):
         with self.assertRaises(STError):
-            export(SRC, "l5x")
+            export(SRC, "gxworks")
         self.assertIn("TYPE", export(SRC, "scl"))
         self.assertIn("<struct>", export(SRC, "plcopen"))
         self.assertIn("STRUCT", export(SRC, "st"))

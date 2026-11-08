@@ -26,3 +26,4 @@
 - M24 ✅ ARRAY OF STRUCT 初始值、元素整體賦值
 - M25 ✅ STRUCT PLCopen dataType 匯出(TC6 XSD 驗證)
 - M26 ✅ STRUCT → Siemens SCL UDT 匯出
+- M27 ✅ STRUCT → Rockwell L5X UDT 匯出
