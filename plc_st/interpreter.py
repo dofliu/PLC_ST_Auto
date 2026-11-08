@@ -375,6 +375,9 @@ class VirtualPLC:
             key = f"{name}.{f['name']}"
             fi = given.get(f["name"].lower(), f["init"])
             ft = f["type"]
+            if f.get("array"):
+                self._array_field(key, f, fi, section)
+                continue
             if ft.lower() in self.structs:
                 self._flatten(key, ft, fi, section, stack + (tname.lower(),))
                 continue
@@ -388,6 +391,35 @@ class VirtualPLC:
             self.disp[n] = key
             self.vars[n] = self.wrap(ft, self.eval(fi)) if fi is not None else default(ft)
 
+    def _array_field(self, key, f, fi, section):
+        """STRUCT field `f : ARRAY[..] OF scalar` -> array variable 'inst.f'."""
+        ft = f["type"]
+        if ft.lower() in self.structs:
+            raise STError(f"field {key}: ARRAY OF STRUCT inside STRUCT is not supported")
+        if ft not in INT_RANGES and ft not in ("BOOL", "REAL", "LREAL", "TIME", "STRING"):
+            raise STError(f"unknown type {ft} for field {key}")
+        if ft not in self.profile.types:
+            raise STError(f"type {ft} of {key} not supported on profile {self.profile.name}")
+        if fi is not None and fi[0] != "arrinit":
+            raise STError(f"{key}: ARRAY field needs an initialiser like [1, 2, 3]")
+        dims, size = [], 1
+        for dl, dh in f.get("dims") or [f["array"]]:
+            lo, hi = self.eval(dl), self.eval(dh)
+            if hi < lo:
+                raise STError(f"array {key}: upper bound {hi} < lower bound {lo}")
+            dims.append((lo, hi))
+            size *= hi - lo + 1
+        init = fi[1] if fi else []
+        if len(init) > size:
+            raise STError(f"array {key}: too many initial values")
+        vals = [self.wrap(ft, self.eval(x)) for x in init]
+        n = key.lower()
+        self.section[n] = section
+        self.types[n] = ft
+        self.disp[n] = key
+        self.arrays[n] = dims
+        self.vars[n] = vals + [default(ft)] * (size - len(vals))
+
     def _struct_array(self, d):
         """ARRAY OF STRUCT -> one array per (flattened) field, key 'arr.field'."""
         dims, size = [], 1
@@ -398,6 +430,8 @@ class VirtualPLC:
             dims.append((lo, hi))
             size *= hi - lo + 1
         before = set(self.vars)
+        if self._has_array_field(d["type"]):
+            raise STError(f"{d['name']}: ARRAY OF STRUCT whose STRUCT has ARRAY fields is not supported")
         self._flatten(d["name"], d["type"], None, d["section"])
         for k in set(self.vars) - before:
             self.vars[k] = [self.vars[k]] * size
@@ -417,6 +451,13 @@ class VirtualPLC:
                 self.vars[d["name"].lower() + k[len(tmp):]][pos] = self.vars.pop(k)
                 for tbl in (self.section, self.types, self.disp):
                     tbl.pop(k, None)
+
+    def _has_array_field(self, tname, stack=()):
+        if tname.lower() in stack:
+            return False
+        return any(f.get("array") or (f["type"].lower() in self.structs and
+                   self._has_array_field(f["type"], stack + (tname.lower(),)))
+                   for f in self.structs[tname.lower()]["fields"])
 
     def _sa_resolve(self, e):
         """a[i].f / a[i].m.f on an ARRAY OF STRUCT -> (array key, [indexes]) or None."""
@@ -535,9 +576,10 @@ class VirtualPLC:
         while e[0] == "index":
             idx.append(self.eval(e[2]))
             e = e[1]
-        if e[0] != "var" or e[1].lower() not in self.arrays:
+        name = self._path(e)
+        if name is None or name not in self.arrays:
             raise STError("indexing a non-array expression")
-        return e[1].lower(), idx[::-1]
+        return name, idx[::-1]
 
     def set_input(self, name, value):
         n, idx = self._split_index(name)
@@ -580,7 +622,7 @@ class VirtualPLC:
                     if dot and base in self.sarr:
                         out[f"{self.names.get(base, base)}[{ix}].{self.disp.get(n, n).partition('.')[2]}"] = x
                     else:
-                        out[f"{self.names[n]}[{ix}]"] = x
+                        out[f"{self.names.get(n) or self.disp.get(n, n)}[{ix}]"] = x
             else:
                 out[self.names.get(n) or self.disp.get(n, n)] = v
         return out
@@ -707,7 +749,7 @@ class VirtualPLC:
         def get(r):
             return self.vars[r[0]] if r[1] is None else self.vars[r[0]][r[1]]
 
-        vals = {k: get(sf[k]) for k in tf}
+        vals = {k: (list(v) if isinstance(v, list) else v) for k, v in ((k, get(sf[k])) for k in tf)}
         for k, (key, pos) in tf.items():
             if pos is None:
                 self.vars[key] = vals[k]
@@ -781,6 +823,8 @@ class VirtualPLC:
             if r:
                 return self.vars[r[0]][self._elem(*r)]
             p = self._path(e)
+            if p in self.arrays:
+                raise STError(f"array {p} used without index")
             if p in self.vars:
                 return self.vars[p]
             if e[1][0] != "var" or e[1][1].lower() not in self.fbs:

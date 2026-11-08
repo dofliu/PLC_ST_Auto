@@ -118,6 +118,21 @@ def check(src, profile="iec"):
                 it = ty(ie, ln)
                 if it is not None and it not in INT_RANGES:
                     err(ln, f"array index must be an integer, got {it}")
+            if b[0] == "member":
+                f = field_of(b, ln)
+                if f is None:
+                    return None
+                if not f.get("array"):
+                    err(ln, f"{b[2]} is not an array")
+                    return None
+                dims = f.get("dims") or [f["array"]]
+                if len(chain) != len(dims):
+                    err(ln, f"{b[2]} needs {len(dims)} index(es), got {len(chain)}")
+                    return None
+                for (lo, hi), ie in zip(dims, chain):
+                    if ie[0] == "num" and lo[0] == hi[0] == "num" and not lo[1] <= ie[1] <= hi[1]:
+                        err(ln, f"array index {ie[1]} out of range [{lo[1]}..{hi[1]}] for {b[2]}")
+                return f["type"]
             d = env.get(b[1].lower()) if b[0] == "var" else None
             if d is None:
                 if b[0] == "var":
@@ -135,7 +150,12 @@ def check(src, profile="iec"):
                     err(ln, f"array index {ie[1]} out of range [{lo[1]}..{hi[1]}] for {b[1]}")
             return d["type"]
         if k == "member":
-            return member(e, ln)
+            t = member(e, ln)
+            f = field_of(e, ln, quiet=True)
+            if f is not None and f.get("array"):
+                err(ln, f"array {e[2]} used without index")
+                return None
+            return t
         if k == "not":
             return ty(e[1], ln)
         if k == "neg":
@@ -187,6 +207,33 @@ def check(src, profile="iec"):
             if f["name"].lower() == name.lower():
                 return f["type"]
         err(ln, f"STRUCT {sd['name']} has no field {name}")
+        return None
+
+    def field_of(e, ln, quiet=False):
+        """STRUCT field definition referenced by member expression `e` (None if unresolved)."""
+        base, st = e[1], None
+        if base[0] == "var":
+            d = env.get(base[1].lower())
+            if d and d["type"].lower() in structs:
+                st = d["type"]
+        elif base[0] == "member":
+            bf = field_of(base, ln, quiet=True)
+            if bf and not bf.get("array") and bf["type"].lower() in structs:
+                st = bf["type"]
+        elif base[0] == "index":
+            bt = ty(base, ln) if not quiet else None
+            if bt is None and quiet:
+                b = base
+                while b[0] == "index":
+                    b = b[1]
+                d = env.get(b[1].lower()) if b[0] == "var" else None
+                bt = d["type"] if d else None
+            st = bt if bt and bt.lower() in structs else None
+        if st is None:
+            return None
+        for f in structs[st.lower()]["fields"]:
+            if f["name"].lower() == e[2].lower():
+                return f
         return None
 
     def member(e, ln):
