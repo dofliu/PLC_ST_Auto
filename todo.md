@@ -75,6 +75,9 @@
 - [x] STRUCT → PLCopen `dataType`(巢狀/ARRAY/初始值,TC6 XSD 驗證通過);`tests/test_struct_export.py`、`examples/struct_export.st`、`docs/test_report_M25.md`
 ## M26 ✅
 - [x] STRUCT → Siemens SCL UDT(`TYPE "X"`)匯出、型別引用加引號;`tests/test_scl_struct.py`、`docs/test_report_M26.md`
+## M27 ✅
+- [x] STRUCT → Rockwell L5X UDT(DataType)匯出、標籤陣列 Dimensions;`tests/test_l5x_struct.py`、`examples/struct_l5x.st`、`docs/test_report_M27.md`
 ## 下一步候選(≤2h)
-- [ ] L5X UDT(DataType)STRUCT 匯出
+- [ ] 解析器支援 STRUCT 內含 ARRAY 欄位
+- [ ] GX Works3 / Sysmac STRUCT 匯出
 - [ ] 自訂 POU 的 PLCopen/SCL 匯出

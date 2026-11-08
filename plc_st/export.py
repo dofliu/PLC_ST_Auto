@@ -206,21 +206,83 @@ _L5X_TYPE = {"TON": "TIMER", "TOF": "TIMER", "TP": "TIMER", "CTU": "COUNTER", "C
              "BYTE": "SINT", "WORD": "INT", "DWORD": "DINT", "LREAL": "REAL"}
 
 
+def _l5x_datatypes(src):
+    """TYPE ... STRUCT → L5X <DataType>(UDT)。BOOL 欄位依 Logix 慣例打包進隱藏 SINT 主機成員。
+    限制:Logix 成員陣列為一維且從 0 起算;STRUCT 欄位初始值無對應(UDT 不帶預設值)。"""
+    clean = re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)
+    out = []
+    for m in _TYPEDEF.finditer(clean):
+        tname = m.group(1)
+        members = []  # (name, dtype, dim, bit_target)
+        for stmt in m.group(2).split(";"):
+            stmt = stmt.strip()
+            if not stmt:
+                continue
+            lhs, sep, rest = stmt.partition(":")
+            if not sep:
+                raise STError(f"export l5x: 無法解析 STRUCT 欄位 {stmt!r}")
+            typ = rest.partition(":=")[0].strip()
+            dim = 0
+            am = re.match(r"ARRAY\s*\[(.*?)\]\s*OF\s+(\w+)", typ, re.I | re.S)
+            if am:
+                ranges = re.findall(r"(-?\d+)\s*\.\.\s*(-?\d+)", am.group(1))
+                if len(ranges) != 1:
+                    raise STError(f"export l5x: {tname} 欄位 {lhs.strip()} 為多維陣列,Logix UDT 成員僅支援一維")
+                lo, hi = int(ranges[0][0]), int(ranges[0][1])
+                if lo != 0:
+                    raise STError(f"export l5x: {tname} 欄位 {lhs.strip()} 陣列下界須為 0(Logix 陣列從 0 起算)")
+                dim, typ = hi + 1, am.group(2)
+            dt = _L5X_TYPE.get(typ.upper(), typ.upper() if typ.upper() in _BASE else typ)
+            for n in lhs.split(","):
+                members.append((n.strip(), dt, dim))
+        host = f"ZZZZZZZZZZ{tname}0"
+        bools = [x for x in members if x[1] == "BOOL" and not x[2]]
+        rows, hidden = [], bool(bools)
+        if hidden:
+            rows.append(f'<Member Name={quoteattr(host)} DataType="SINT" Dimension="0" Radix="Decimal" '
+                        f'Hidden="true" ExternalAccess="Read/Write"/>')
+        bit = 0
+        for n, dt, dim in members:
+            if dt == "BOOL" and not dim:
+                rows.append(f'<Member Name={quoteattr(n)} DataType="BIT" Dimension="0" Radix="Decimal" '
+                            f'Hidden="false" Target={quoteattr(host)} BitNumber="{bit}" ExternalAccess="Read/Write"/>')
+                bit += 1
+                if bit > 7:
+                    raise STError(f"export l5x: {tname} 的 BOOL 欄位超過 8 個,尚未支援多個隱藏主機")
+            else:
+                rows.append(f'<Member Name={quoteattr(n)} DataType={quoteattr(dt)} Dimension="{dim}" '
+                            f'Radix="{"Float" if dt == "REAL" else "Decimal"}" Hidden="false" ExternalAccess="Read/Write"/>')
+        out.append(f'<DataType Name={quoteattr(tname)} Family="NoFamily" Class="User"><Members>'
+                   + "".join(rows) + "</Members></DataType>")
+    return out
+
+
 def to_l5x(src, project="PLC_ST_Auto"):
     """Rockwell Studio 5000:Program(Tags + ST Routine)L5X 匯入檔。
     型別對映:TON/TOF→TIMER、CTU/CTD→COUNTER、TIME→DINT 等;函式塊呼叫語法需在 Logix 端人工調整(見 dialect 警告)。"""
     name, blocks, _, body = split_program(src)
+    dts = _l5x_datatypes(src)
     now = datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y")
     o = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
          f'<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="32.00" TargetName={quoteattr(name)} '
          f'TargetType="Program" ContainsContext="false" ExportDate={quoteattr(now)}>',
-         f'<Controller Use="Context" Name={quoteattr(project)}><Programs>',
+         f'<Controller Use="Context" Name={quoteattr(project)}>',
+         *(["<DataTypes>" + "".join(dts) + "</DataTypes>"] if dts else []),
+         "<Programs>",
          f'<Program Use="Target" Name={quoteattr(name)} MainRoutineName="MainRoutine"><Tags>']
     for kind, decls in blocks:
         usage = {"VAR_INPUT": "Input", "VAR_OUTPUT": "Output", "VAR_IN_OUT": "InOut"}.get(kind, "Local")
         for n, t, init in decls:
+            dimattr = ""
+            am = re.match(r"ARRAY\s*\[(.*?)\]\s*OF\s+(\w+)", t, re.I | re.S)
+            if am:
+                rs = re.findall(r"(-?\d+)\s*\.\.\s*(-?\d+)", am.group(1))
+                if len(rs) > 3 or any(int(a) != 0 for a, _ in rs):
+                    raise STError(f"export l5x: 標籤 {n} 陣列須 ≤3 維且下界為 0(Logix 陣列從 0 起算)")
+                dimattr = ' Dimensions="' + " ".join(str(int(b) + 1) for _, b in rs) + '"'
+                t = am.group(2)
             dt = _L5X_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)
-            o.append(f'<Tag Name={quoteattr(n)} TagType="Base" DataType={quoteattr(dt)} '
+            o.append(f'<Tag Name={quoteattr(n)} TagType="Base" DataType={quoteattr(dt)}{dimattr} '
                      f'Usage={quoteattr(usage)} Constant="false" ExternalAccess="Read/Write"/>')
     o += ["</Tags><Routines>", '<Routine Name="MainRoutine" Type="ST"><STContent>']
     for i, line in enumerate(body.splitlines()):
@@ -284,7 +346,7 @@ _FUNCPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
 
 
 def export(src, fmt):
-    pat = _FUNCPOU if fmt in ("plcopen", "scl") else _USERPOU
+    pat = _FUNCPOU if fmt in ("plcopen", "scl", "l5x") else _USERPOU
     if fmt in FORMATS and fmt != "st" and pat.search(re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)):
         raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK/TYPE(STRUCT),此格式尚未支援(僅 st 格式可完整匯出)")
     try:

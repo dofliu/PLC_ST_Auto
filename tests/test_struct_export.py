@@ -40,7 +40,7 @@ class StructExport(unittest.TestCase):
         self.assertEqual(len(ps.findall("p:initialValue/p:arrayValue/p:value/p:structValue", NS)), 2)
 
     def test_other_formats_still_reject(self):
-        for fmt in ("l5x", "gxworks", "sysmac"):
+        for fmt in ("gxworks", "sysmac"):
             with self.assertRaises(STError):
                 export(SRC, fmt)
 
