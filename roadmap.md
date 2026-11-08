@@ -27,3 +27,4 @@
 - M25 ✅ STRUCT PLCopen dataType 匯出(TC6 XSD 驗證)
 - M26 ✅ STRUCT → Siemens SCL UDT 匯出
 - M27 ✅ STRUCT → Rockwell L5X UDT 匯出
+- M28 ✅ STRUCT 內含 ARRAY 欄位(解譯/檢查)

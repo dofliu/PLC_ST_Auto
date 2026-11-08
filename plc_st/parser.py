@@ -62,13 +62,33 @@ class Parser:
             while self.accept("op", ","):
                 names.append(self.expect("id")[1])
             self.expect("op", ":")
-            if self.is_("kw", "ARRAY"):
-                raise STError("ARRAY inside STRUCT not supported")
+            arr, dims = None, None
+            if self.accept("kw", "ARRAY"):
+                self.expect("op", "[")
+                dims = []
+                while True:
+                    lo = self.expr()
+                    self.expect("op", "..")
+                    hi = self.expr()
+                    dims.append((lo, hi))
+                    if not self.accept("op", ","):
+                        break
+                self.expect("op", "]")
+                self.expect("kw", "OF")
+                arr = dims[0]
             tname = self.expect("id")[1].upper()
-            init = self.init_value() if self.accept("op", ":=") else None
+            init = None
+            if self.accept("op", ":="):
+                if arr and self.accept("op", "["):
+                    init = ("arrinit", [self.init_value()])
+                    while self.accept("op", ","):
+                        init[1].append(self.init_value())
+                    self.expect("op", "]")
+                else:
+                    init = self.init_value()
             self.expect("op", ";")
             for n in names:
-                fields.append({"name": n, "type": tname, "init": init})
+                fields.append({"name": n, "type": tname, "init": init, "array": arr, "dims": dims})
         self.accept("op", ";")
         self.expect("kw", "END_TYPE")
         self.accept("op", ";")
