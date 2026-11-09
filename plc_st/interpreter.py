@@ -25,12 +25,22 @@ class _Return(Exception):
 MAX_DEPTH = 32
 
 
+def rnd(x):
+    """REAL→整數捨入:四捨五入、.5 遠離零(IEC/多數 PLC),非 Python 的銀行家捨入。"""
+    if isinstance(x, float):
+        if x != x or x in (float("inf"), float("-inf")):
+            raise STError("cannot convert NaN/Inf to integer")
+        return int(math.floor(x + 0.5)) if x >= 0 else -int(math.floor(-x + 0.5))
+    return int(x)
+
+
 def wrap(tname, v, overflow="wrap"):
     """Coerce value to declared type; overflow: wrap | saturate | fault."""
     if tname == "BOOL":
         return bool(v)
     if tname in INT_RANGES:
         lo, hi = INT_RANGES[tname]
+        v = rnd(v)
         if overflow != "wrap" and not lo <= int(v) <= hi:
             if overflow == "fault":
                 raise STError(f"integer overflow: {int(v)} does not fit {tname}")
@@ -43,7 +53,7 @@ def wrap(tname, v, overflow="wrap"):
     if tname in ("REAL", "LREAL"):
         return float(v)
     if tname == "TIME":
-        return int(v)
+        return rnd(v)
     if tname == "STRING":
         return str(v)
     return v
@@ -272,14 +282,14 @@ FUNCS = {
     "ABS": abs, "SQRT": math.sqrt, "SIN": math.sin, "COS": math.cos, "TAN": math.tan,
     "LN": math.log, "LOG": math.log10, "EXP": math.exp,
     "MIN": min, "MAX": max,
-    "TRUNC": lambda x: int(x), "REAL_TO_INT": lambda x: int(round(x)),
+    "TRUNC": lambda x: int(x), "REAL_TO_INT": lambda x: rnd(x),
     "INT_TO_REAL": float, "DINT_TO_REAL": float, "INT_TO_DINT": int, "DINT_TO_INT": int,
     "BOOL_TO_INT": int, "INT_TO_BOOL": bool,
     "LIMIT": lambda mn, x, mx: max(mn, min(x, mx)),
     "SEL": lambda g, a, b: b if g else a,
     "ASIN": math.asin, "ACOS": math.acos, "ATAN": math.atan,
     "FLOOR": lambda x: int(math.floor(x)), "CEIL": lambda x: int(math.ceil(x)),
-    "REAL_TO_DINT": lambda x: int(round(x)), "DINT_TO_BOOL": bool, "BOOL_TO_DINT": int,
+    "REAL_TO_DINT": lambda x: rnd(x), "DINT_TO_BOOL": bool, "BOOL_TO_DINT": int,
     "WORD_TO_INT": int, "INT_TO_WORD": lambda x: x & 0xFFFF,
     "SHL": lambda x, n: x << n, "SHR": lambda x, n: x >> n,
     "ROL": lambda x, n: ((x << n) | (x >> (16 - n))) & 0xFFFF,
@@ -293,13 +303,13 @@ def _make_conv(dst):
     if dst in INT_RANGES:
         lo, hi = INT_RANGES[dst]
         span = hi - lo + 1
-        return lambda x: (int(round(x)) - lo) % span + lo if not isinstance(x, str) else int(float(x))
+        return lambda x: (rnd(x) - lo) % span + lo if not isinstance(x, str) else int(float(x))
     if dst in ("REAL", "LREAL"):
         return float
     if dst == "BOOL":
         return bool
     if dst == "TIME":
-        return lambda x: int(round(x))
+        return lambda x: rnd(x)
     return None
 
 
@@ -681,8 +691,10 @@ class VirtualPLC:
         for _ in range(cycles):
             try:
                 self.run(self.ast["body"])
-            except (_Exit, _Return):
+            except _Return:
                 pass
+            except _Exit:
+                raise STError("EXIT used outside of a loop")
             self.cycles += 1
             self.time_ms += self.scan_ms
 

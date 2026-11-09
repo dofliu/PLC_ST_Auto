@@ -306,33 +306,35 @@ def check(src, profile="iec"):
         elif tt in INT_RANGES and et in ("REAL", "LREAL"):
             err(ln, f"REAL assigned to {tt} needs explicit conversion", "warning")
 
-    def stmts(body):
+    def stmts(body, depth=0):
         for s in body:
             k = s[0]
             if k == "assign":
                 assign(s[1], s[2], s[3])
             elif k == "call":
                 call(s)
+            elif k == "exit" and depth == 0:
+                err(0, "EXIT used outside of a loop")
             elif k == "if":
                 for c, b in s[1]:
                     cond(c)
-                    stmts(b)
-                stmts(s[2])
+                    stmts(b, depth)
+                stmts(s[2], depth)
             elif k == "case":
                 ty(s[1], 0)
                 for _, b in s[2]:
-                    stmts(b)
-                stmts(s[3])
+                    stmts(b, depth)
+                stmts(s[3], depth)
             elif k == "for":
                 ty(("var", s[1]), 0)
                 for x in s[2:5]:
                     ty(x, 0)
-                stmts(s[5])
+                stmts(s[5], depth + 1)
             elif k == "while":
                 cond(s[1])
-                stmts(s[2])
+                stmts(s[2], depth + 1)
             elif k == "repeat":
-                stmts(s[1])
+                stmts(s[1], depth + 1)
                 cond(s[2])
 
     def cond(c):
