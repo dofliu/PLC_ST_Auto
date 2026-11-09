@@ -1,4 +1,23 @@
 # TODO
+
+## 📌 排程備忘(每次排程先讀這裡)
+- **2026-11-09 起使用者暫時無法在本機執行**:排程自行往下推進,只做不需要使用者的工作。
+- 雲端環境目前**沒有** LLM API 金鑰(`ANTHROPIC_API_KEY` 等),無法實際呼叫 LLM;若某次排程偵測到金鑰已設定,
+  就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
+  並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
+- **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
+- 建議順序:M31 → M32 → UI1 → UI2 → UI3 → UI4 → UI6 → UI5 → UI7(其餘候選穿插)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+
+## M31(下一個)檢查器補合法 IEC 語法 + 評測保存每輪程式碼
+- [ ] lexer:型別前綴常數 `INT#5` `REAL#1.5` `BOOL#1`、進位常數 `16#FF` `8#17` `2#1010`、底線分隔 `1_000`
+- [ ] 標準轉換函式:`*_TO_TIME`、`TIME_TO_*`、其餘缺少的 `*_TO_*`(依 profile 型別)
+- [ ] 陣列重複初值 `[5(0.0)]`、`[2(1), 3(0)]`
+- [ ] `llm_eval`:`rounds_log` 保存每輪程式碼,輸出各輪 .st
+- [ ] 以 2026-11-09 的錯誤訊息建立回歸測試;報告 `docs/test_report_M31.md`
+## M32 執行期/語法發現(來自全專案測試 F1–F3)
+- [ ] F1 `EXIT` 在迴圈外:檢查器報 error、解譯器拋錯
+- [ ] F2 字串 `$` 跳脫字元(`$'` `$$` `$N` `$T` `$L` `$R`)
+- [ ] F3 REAL→INT 捨入依 profile 定義,隱式/顯式一致;API `cycles` 型別錯誤訊息友善化
 ## M1 ✅
 - [x] lexer / parser / interpreter / FB 標準庫 / 測試
 ## M2 ✅
@@ -93,7 +112,7 @@
 - [x] `python -m plc_st eval`(多模型、重複、token、對照報告);修補原腳本判定漏洞(TC-09 XSD 結果被忽略等)
 - [x] Rockwell 方言訊息:R_TRIG→OSRI 等逐一對應
 - [x] 修正虛擬 PLC 計時器提早一個掃描週期觸發(TON/TOF/TP)
-- [ ] **待執行**:本機或設定雲端金鑰後跑 Haiku / Sonnet 對照(`--repeat 3`)
+- [x] Haiku / Sonnet 對照已由使用者本機執行,結果與分析:`docs/eval_report_20261109_haiku_vs_sonnet.md`
 ## UI 改版(規劃中,詳見 `docs/ui_redesign_plan.md`)
 目標:一個畫面看完不用捲動、頁籤切換、重要資訊(檢查/模擬/情境/LLM 狀態)常駐、更有質感
 - [ ] UI1 100vh 外框 + 常駐狀態列 + 左側頁籤 + 程式碼常駐 + 底部問題抽屜(功能不變)
@@ -104,9 +123,6 @@
 - [ ] UI5 產生流程時間軸、修正輪 diff、點位表預覽
 - [ ] UI7 響應式(手機底部導覽)、可拖曳分欄、設定記憶、無障礙、README 截圖
 ## 下一步候選(≤2h)
-- [ ] F1 EXIT 在迴圈外應報錯;F2 字串 `$` 跳脫字元(`$'` `$$` `$N`)
-- [ ] F3 依 profile 定義 REAL→INT 捨入,統一隱式/顯式轉換
-- [ ] API `cycles` 型別錯誤訊息友善化
 - [ ] 匯出時展開 VAR CONSTANT 陣列邊界
 - [ ] 波形圖:多訊號標籤重疊、STRING 顯示 NaN
 - [ ] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位
