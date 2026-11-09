@@ -79,7 +79,12 @@
 - [x] STRUCT → Rockwell L5X UDT(DataType)匯出、標籤陣列 Dimensions;`tests/test_l5x_struct.py`、`examples/struct_l5x.st`、`docs/test_report_M27.md`
 ## M28 ✅
 - [x] STRUCT 內含 ARRAY 欄位(一/多維、初始值、整體賦值深拷貝、檢查);`tests/test_struct_arrfield.py`、`examples/struct_arrfield.st`、`docs/test_report_M28.md`
+## M29 ✅ PR #31/#32 審查修正
+- [x] L5X:8 個 BOOL、邊界運算式完整解析、字串感知解析、隱藏 host 不撞名;執行期拒絕未索引陣列寫入;實例陣列初值
+- [ ] **待實機**:Studio 5000 匯入確認多維 Tag `Dimensions` 分隔符(空白 vs 逗號)
 ## 下一步候選(≤2h)
+- [ ] 匯出時展開 VAR CONSTANT 陣列邊界
+- [ ] 波形圖:多訊號標籤重疊、STRING 顯示 NaN
 - [ ] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位
 - [ ] GX Works3 / Sysmac STRUCT 匯出
 - [ ] 自訂 POU 的 PLCopen/SCL 匯出
