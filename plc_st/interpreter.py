@@ -106,16 +106,20 @@ class TON(FB):
 
     def __init__(self):
         super().__init__()
-        self.el = 0
+        self.el, self.prev = 0, False
 
     def call(self, dt):
         v = self.v
         if v["IN"]:
-            self.el = min(self.el + dt, v["PT"]) if self.el < v["PT"] else self.el
+            if self.prev:  # 上升緣那次 ET=0,之後每次呼叫才累加經過時間
+                self.el = min(self.el + dt, v["PT"])
+            else:
+                self.el = 0
             v["Q"] = self.el >= v["PT"]
         else:
             self.el, v["Q"] = 0, False
         v["ET"] = self.el
+        self.prev = v["IN"]
 
 
 class TOF(FB):
@@ -124,14 +128,16 @@ class TOF(FB):
 
     def __init__(self):
         super().__init__()
-        self.el = 0
+        self.el, self.fell = 0, False
 
     def call(self, dt):
         v = self.v
         if v["IN"]:
-            self.el, v["Q"] = 0, True
+            self.el, v["Q"], self.fell = 0, True, False
         elif v["Q"]:
-            self.el += dt
+            if self.fell:  # 下降緣那次 ET=0
+                self.el += dt
+            self.fell = True
             if self.el >= v["PT"]:
                 v["Q"] = False
                 self.el = v["PT"]
@@ -148,10 +154,12 @@ class TP(FB):
 
     def call(self, dt):
         v = self.v
+        started = False
         if v["IN"] and not self.prev and not self.run:
-            self.run, self.el = True, 0
+            self.run, self.el, started = True, 0, True
         if self.run:
-            self.el += dt
+            if not started:
+                self.el += dt
             if self.el >= v["PT"]:
                 self.el, self.run = v["PT"], False
         v["Q"] = self.run

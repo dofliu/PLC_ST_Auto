@@ -61,6 +61,14 @@ python -m plc_st generate @req.txt --scenario examples/motor_scenario.json --pro
 ```
 靜態檢查通過後在虛擬 PLC 跑情境,不符的步驟會回饋 LLM 修正(受 `--max-rounds` 限制)。
 
+## LLM 評測 (M30)
+```
+python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3
+```
+14 個案例(工控原語、點位表、RAG、方言、TC6 XSD、多廠牌匯出、情境修正、防溢位、安全假設、Web API),
+判定條件固定寫在 `plc_st/llm_eval.py`。輸出 `eval_out/<時間>/report.md`(通過率、一次正確率、修正輪數、
+耗時、token;加 `--price 模型=輸入,輸出` 可估算費用)與每次產生的 `.st`。`--cases TC-01,TC-04` 可只跑部分案例。
+
 ## 注意:「無警告」不等於相容
 `check` 的廠牌方言檢查(`plc_st/dialect.py`)是保守的啟發式規則,只涵蓋少數已知差異。
 未出現警告不能視為通過該廠牌 IDE/PLC 的編譯或相容性驗證,上傳實機前請以廠牌官方工具再驗證。

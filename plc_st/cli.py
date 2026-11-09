@@ -134,6 +134,15 @@ def main(argv=None):
     e.add_argument("--format", default="plcopen")
     e.add_argument("-o", "--output")
     e.add_argument("--validate", action="store_true", help="plcopen:以 TC6 XSD 驗證(需 lxml),失敗 exit 1")
+    ev = sub.add_parser("eval", help="LLM 產生 ST 評測(14 案例,可多模型對照、重複執行),輸出 results JSON + report.md")
+    ev.add_argument("--provider", default="claude", help="gemini|openai|claude|ollama")
+    ev.add_argument("--model", action="append", help="可重複指定以對照多個模型,例:--model claude-haiku-5-5 --model claude-sonnet-5-5")
+    ev.add_argument("--repeat", type=int, default=1, help="每個案例重複次數(LLM 輸出不固定,建議 ≥3)")
+    ev.add_argument("--cases", help="只跑部分案例,逗號分隔,例:TC-01,TC-04")
+    ev.add_argument("--max-rounds", type=int, default=2)
+    ev.add_argument("--price", action="append", default=[],
+                    help="估算費用:模型=輸入USD/百萬token,輸出USD/百萬token(依官方價目自行填入),可重複")
+    ev.add_argument("--out", default="eval_out", help="輸出資料夾(會建立時間戳子資料夾)")
     sub.add_parser("profiles", help="列出可用的廠牌 profile")
     sv = sub.add_parser("serve", help="啟動 Web UI(僅 127.0.0.1)")
     sv.add_argument("--port", type=int, default=8765)
@@ -204,6 +213,26 @@ def main(argv=None):
             return 1 if fails else 0
         if a.cmd == "generate":
             return gen(a)
+        if a.cmd == "eval":
+            from .llm_eval import CASES, main_eval
+            if a.repeat < 1:
+                raise STError("--repeat must be >= 1")
+            ids = [c.strip().upper() for c in a.cases.split(",")] if a.cases else None
+            unknown = set(ids or []) - {c.id for c in CASES}
+            if unknown:
+                raise STError(f"unknown case(s): {', '.join(sorted(unknown))}")
+            prices = {}
+            for item in a.price:
+                m, _, v = item.partition("=")
+                pin, _, pout = v.partition(",")
+                prices[m] = (float(pin), float(pout))
+            results, path = main_eval(a.provider, a.model, a.repeat, ids, a.max_rounds, a.out, prices,
+                                      log=lambda s: print(s, file=sys.stderr))
+            for r in results:
+                ok = sum(x["status"] == "PASS" for x in r["runs"])
+                print(f"{r['model']}: {ok}/{len(r['runs'])} PASS")
+            print(f"report: {path}")
+            return 0 if all(x["status"] == "PASS" for r in results for x in r["runs"]) else 1
         if a.cmd == "run":
             return run(a)
         with open(a.file, encoding="utf-8") as f:

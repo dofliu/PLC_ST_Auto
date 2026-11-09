@@ -89,6 +89,11 @@
 ## Claude LLM 真實產生與全功能評測 2026-11-09 ✅
 - [x] 14 項專屬評測案例 (`run_claude_eval.py`):工控原語、CSV 點位約束、RAG、方言、TC6 XSD、多廠牌匯出、情境閉環、邊界安全、Web API
 - [x] 通過率 14/14 (100%),詳細評測報告與數據: `docs/test_report_claude_st_generation.md`、`docs/claude_eval_results.json`、`docs/claude_eval_artifacts/`
+## M30 ✅ LLM 評測整合
+- [x] `python -m plc_st eval`(多模型、重複、token、對照報告);修補原腳本判定漏洞(TC-09 XSD 結果被忽略等)
+- [x] Rockwell 方言訊息:R_TRIG→OSRI 等逐一對應
+- [x] 修正虛擬 PLC 計時器提早一個掃描週期觸發(TON/TOF/TP)
+- [ ] **待執行**:本機或設定雲端金鑰後跑 Haiku / Sonnet 對照(`--repeat 3`)
 ## UI 改版(規劃中,詳見 `docs/ui_redesign_plan.md`)
 目標:一個畫面看完不用捲動、頁籤切換、重要資訊(檢查/模擬/情境/LLM 狀態)常駐、更有質感
 - [ ] UI1 100vh 外框 + 常駐狀態列 + 左側頁籤 + 程式碼常駐 + 底部問題抽屜(功能不變)
