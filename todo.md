@@ -82,7 +82,13 @@
 ## M29 ✅ PR #31/#32 審查修正
 - [x] L5X:8 個 BOOL、邊界運算式完整解析、字串感知解析、隱藏 host 不撞名;執行期拒絕未索引陣列寫入;實例陣列初值
 - [ ] **待實機**:Studio 5000 匯入確認多維 Tag `Dimensions` 分隔符(空白 vs 逗號)
+## 全專案測試 2026-11-09 ✅
+- [x] 204 單元測試、CLI 矩陣、API 健全性、UI E2E 24/24(`tests/ui_e2e.js`)、報告 `docs/test_report_full_20261109.md`
+- [x] 修正:手機版水平捲動、執行狀態顏色殘留
 ## 下一步候選(≤2h)
+- [ ] F1 EXIT 在迴圈外應報錯;F2 字串 `$` 跳脫字元(`$'` `$$` `$N`)
+- [ ] F3 依 profile 定義 REAL→INT 捨入,統一隱式/顯式轉換
+- [ ] API `cycles` 型別錯誤訊息友善化
 - [ ] 匯出時展開 VAR CONSTANT 陣列邊界
 - [ ] 波形圖:多訊號標籤重疊、STRING 顯示 NaN
 - [ ] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位

@@ -107,5 +107,21 @@ class WebHttpTests(unittest.TestCase):
         self.assertEqual(json.load(urllib.request.urlopen(req))["issues"], [])
 
 
+class UiLayout(unittest.TestCase):
+    """2026-11-09 全專案測試發現的 UI 問題(回歸)。"""
+
+    def setUp(self):
+        import os
+        with open(os.path.join(os.path.dirname(__file__), "..", "plc_st", "web", "index.html"), encoding="utf-8") as f:
+            self.html = f.read()
+
+    def test_grid_fits_phone_width(self):
+        # minmax(420px,1fr) 在 390px 手機上會產生水平捲動
+        self.assertIn("minmax(min(420px,100%),1fr)", self.html)
+
+    def test_run_status_resets_error_class(self):
+        self.assertIn("週期`;$('runst').className=''", self.html)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,7 @@
 @media(prefers-color-scheme:dark){:root{--bg:#14181f;--fg:#e4e8ef;--card:#1d232d;--bd:#323b4a;--ac:#6c9bff;--ok:#4cc27f;--er:#ff7070;--wn:#e0a030}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,"Noto Sans TC",sans-serif}
 header{padding:10px 16px;border-bottom:1px solid var(--bd);font-weight:600}
-main{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px;padding:12px}
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:12px;padding:12px}
 section{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;min-width:0}
 h2{margin:0 0 8px;font-size:15px}
 textarea,input,select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:6px;font:13px ui-monospace,monospace}
@@ -110,7 +110,7 @@ async function ragSearch(){try{const j=await api('/api/rag/search',{query:$('rag
 function parseEv(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\d+):([\w.]+)=(.+)$/);if(!m)throw new Error('事件格式錯誤: '+l);
  const v=m[3].toLowerCase()=='true'?true:m[3].toLowerCase()=='false'?false:Number(m[3]);return{cycle:+m[1],name:m[2],value:v}})}
 async function runPlc(){try{const j=await api('/api/run',{code:$('code').value,profile:$('profile').value,cycles:+$('cycles').value,scan_ms:+$('scan').value,events:parseEv($('events').value)});
- $('runst').textContent=` ${j.rows.length} 週期`;draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er'}}
+ $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er'}}
 function draw(j){const c=$('wave'),g=c.getContext('2d'),cs=getComputedStyle(document.body);g.clearRect(0,0,c.width,c.height);
  const cols=j.columns.slice(2),n=j.rows.length,lh=c.height/Math.max(cols.length,1),lm=110,w=c.width-lm-10;
  g.font='13px sans-serif';cols.forEach((name,k)=>{const vals=j.rows.map(r=>r[k+2]),y0=k*lh+lh-8,h=lh-18;
