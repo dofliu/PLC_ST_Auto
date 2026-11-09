@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from plc_st import STError
 from plc_st.cli import main
@@ -42,8 +43,9 @@ class TestEmbed(unittest.TestCase):
     def test_errors(self):
         with self.assertRaises(STError):
             make_embedder("nope")
-        with self.assertRaises(STError):
-            OpenAIEmbedder(api_key="")
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": ""}):
+            with self.assertRaises(STError):
+                OpenAIEmbedder(api_key="")
         with self.assertRaises(STError):
             OllamaEmbedder(transport=lambda *a: {}).embed(["x"])
 

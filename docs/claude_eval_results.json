@@ -1,0 +1,199 @@
+{
+  "model": "claude-sonnet-5-5",
+  "timestamp": "2026-11-09 14:11:52",
+  "total_tests": 14,
+  "passed": 14,
+  "total_time_sec": 85.5,
+  "results": [
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "sim_results": {
+        "idle_is_false": true,
+        "start_is_true": true,
+        "holding_is_true": true,
+        "stop_is_false": true,
+        "stop_priority_is_false": true
+      },
+      "code_snippet": "PROGRAM MotorStartStop\nVAR_INPUT\n    start : BOOL; (* Start pushbutton, normally-open contact, TRUE = pressed *)\n    stop  : BOOL; (* Stop pushbutton, TRUE = pressed *)\n                  (* Assumption: stop is wired as a normally-open signal.\n                     If a normally-closed stop button is used (the usual\n                     fail-safe wiring), invert this signal before it is\n            ",
+      "id": "TC-01",
+      "name": "基本馬達啟停自保持與停止優先",
+      "duration_sec": 3.41,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "sim_results": {
+        "phase1_star_active": true,
+        "phase2_delta_active": true,
+        "interlock_safe": true
+      },
+      "code_snippet": "PROGRAM StarDeltaStarter\nVAR_INPUT\n    start : BOOL;   (* Start pushbutton, momentary NO *)\n    stop  : BOOL;   (* Stop input, TRUE = stop request; stop has priority *)\nEND_VAR\nVAR_OUTPUT\n    km_main  : BOOL; (* Main contactor *)\n    km_star  : BOOL; (* Star contactor *)\n    km_delta : BOOL; (* Delta contactor *)\nEND_VAR\nVAR\n    running   : BOOL;  (* Latched run command *)\n    tmr_star  : TON;   (",
+      "id": "TC-02",
+      "name": "星三角延遲降壓啟動與互鎖控制",
+      "duration_sec": 9.3,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "sim_results": {
+        "ready_at_9_is_false": true,
+        "ready_at_10_is_true": true,
+        "reset_clears_ready": true
+      },
+      "code_snippet": "PROGRAM PackageCounter\nVAR_INPUT\n    sensor    : BOOL;   (* Photoelectric sensor: TRUE while a workpiece is detected *)\n    reset_btn : BOOL;   (* Reset pushbutton: TRUE while pressed *)\nEND_VAR\nVAR_OUTPUT\n    package_ready : BOOL;  (* TRUE when the count reaches the package quantity *)\n    count_value   : INT;   (* Current accumulated count, for display/monitoring *)\nEND_VAR\nVAR\n    cnt_ctu : CTU",
+      "id": "TC-03",
+      "name": "工件計數與批量打包 (CTU & R_TRIG)",
+      "duration_sec": 4.38,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "sim_results": {
+        "initial_green": true,
+        "emergency_all_red_override": true
+      },
+      "code_snippet": "PROGRAM TrafficLight\nVAR_INPUT\n    emergency : BOOL;   (* TRUE = force all-red mode immediately *)\nEND_VAR\nVAR_OUTPUT\n    green  : BOOL;\n    yellow : BOOL;\n    red    : BOOL;\nEND_VAR\nVAR\n    State      : INT := 0;      (* 0=green, 1=yellow, 2=red *)\n    tGreen     : TON;\n    tYellow    : TON;\n    tRed       : TON;\nEND_VAR\n\n(* Assumptions:\n   - While emergency is TRUE: only red is ON, all timers ar",
+      "id": "TC-04",
+      "name": "交通號誌循環狀態機 (CASE Statement)",
+      "duration_sec": 5.22,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "all_tags_declared": true,
+      "sim_results": {
+        "inlet_valve_on_low_level": true,
+        "emergency_safe_shutdown": true
+      },
+      "code_snippet": "PROGRAM water_tank_control\nVAR_INPUT\n  emergency_stop : BOOL := false; (* 現場急停開關 *)\n  high_level_sw : BOOL := false; (* 水槽高水位浮球 *)\n  low_level_sw : BOOL := false; (* 水槽低水位浮球 *)\nEND_VAR\nVAR_OUTPUT\n  inlet_valve : BOOL := false; (* 進水電磁閥 *)\n  drain_pump : BOOL := false; (* 排水泵浦 *)\n  alarm_lamp : BOOL := false; (* 水位警報燈 *)\nEND_VAR\nVAR\n  fill_time : TIME := T#0s; (* 進水累計時間 *)\n  fill_timer : TON;\nEND_V",
+      "id": "TC-05",
+      "name": "嚴格點位表 (CSV) 綁定與一致性",
+      "duration_sec": 11.38,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "rag_context_injected": true,
+      "used_rag_spec": true,
+      "sim_output": 10.0,
+      "code_snippet": "PROGRAM AnalogMovingAvg5\nVAR_INPUT\n    raw_in : REAL;                      (* raw analog value *)\nEND_VAR\nVAR_OUTPUT\n    filter_out : REAL;                  (* filtered output *)\nEND_VAR\nVAR\n    buf : ARRAY[0..4] OF REAL := [0.0, 0.0, 0.0, 0.0, 0.0];  (* last 5 samples *)\n    idx : INT := 0;                     (* write index 0..4 *)\n    i   : INT;\n    sum : REAL;\nEND_VAR\n\n(* Assumption: the buffe",
+      "id": "TC-06",
+      "name": "RAG 專用規範檢索增強生成",
+      "duration_sec": 4.98,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "sim_results": {
+        "heater_on_when_cold": true,
+        "cooler_on_when_hot": true,
+        "heater_off_when_hot": true
+      },
+      "code_snippet": "PROGRAM TempControl\nVAR_INPUT\n    temp_pv : REAL;   (* Process value (analog input, engineering units) *)\n    temp_sp : REAL;   (* Setpoint *)\nEND_VAR\nVAR_OUTPUT\n    heater : BOOL;    (* Heater output *)\n    cooler : BOOL;    (* Cooler output *)\nEND_VAR\nVAR\n    hyst : REAL := 2.0;   (* Hysteresis band +/- 2.0 around setpoint *)\nEND_VAR\n\n(* Assumptions:\n   - Inside the dead band (sp-2.0 <= pv <= sp",
+      "id": "TC-07",
+      "name": "Siemens S7-1200 Profile 方言相容性",
+      "duration_sec": 4.33,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [
+        "warning: line 14: dialect: Logix has no IEC R_TRIG block; use TIMER/COUNTER tags with TONR/CTU instructions"
+      ],
+      "code_snippet": "PROGRAM Conveyor_Control\nVAR_INPUT\n    start        : BOOL;   (* 啟動按鈕 (常開, 按下=TRUE) *)\n    stop         : BOOL;   (* 停止按鈕 (假設為常開, 按下=TRUE; 若為常閉接線請於輸入映射時反相) *)\n    item_trigger : BOOL;   (* 光電開關, 物件通過時為 TRUE *)\n    count_reset  : BOOL;   (* 產量歸零按鈕 (額外提供, 非必要) *)\nEND_VAR\nVAR_OUTPUT\n    conveyor     : BOOL;   (* 輸送帶馬達運轉輸出 *)\n    item_count   : DINT;   (* 累計產量 *)\nEND_VAR\nVAR\n    run_latch    : BOOL;  ",
+      "id": "TC-08",
+      "name": "Rockwell ControlLogix Profile 規範檢查",
+      "duration_sec": 7.95,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "xml_length": 1787,
+      "tc6_xsd_validated": true,
+      "code_snippet": "PROGRAM DualMotorSequentialStart\nVAR_INPUT\n    start : BOOL;   (* Start pushbutton, assumed normally-open momentary *)\n    stop  : BOOL;   (* Stop pushbutton, assumed normally-open momentary; stop has priority over start *)\nEND_VAR\nVAR_OUTPUT\n    motor1 : BOOL;  (* Motor 1 run command *)\n    motor2 ",
+      "id": "TC-09",
+      "name": "PLCopen TC6 XML 匯出與官方 XSD 嚴格校驗",
+      "duration_sec": 3.33,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "formats_exported": {
+        "plcopen": true,
+        "scl": true,
+        "l5x": true,
+        "gxworks": true,
+        "sysmac": true,
+        "st": true
+      },
+      "rounds": 0,
+      "code_snippet": "PROGRAM PumpStartStop\nVAR_INPUT\n    start : BOOL;   (* Start pushbutton, normally open: TRUE = pressed *)\n    stop  : BOOL;   (* Stop pushbutton: TRUE = pressed (assumption: NO contact, no fail-safe wiring) *)\nEND_VAR\nVAR_OUTPUT\n    pump      : BOOL;  (* Pump contactor command *)\n    run_hours : INT",
+      "id": "TC-10",
+      "name": "多廠牌格式匯出驗證 (SCL/L5X/GXWorks/Sysmac/ST)",
+      "duration_sec": 8.18,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "scenario_failures": [],
+      "code_snippet": "PROGRAM FireAlarmSystem\nVAR_INPUT\n    fire_sensor : BOOL;   (* TRUE = fire detected *)\n    ack_btn     : BOOL;   (* acknowledge push button *)\nEND_VAR\nVAR_OUTPUT\n    alarm : BOOL;         (* alarm output, latched *)\n    siren : BOOL;         (* buzzer output, latched *)\nEND_VAR\nVAR\n    tmr_siren : TON;\n    ack_edge  : R_TRIG;\nEND_VAR\n\n(* Assumptions:\n   - alarm and siren are latched: they stay TRU",
+      "id": "TC-11",
+      "name": "情境時序驅動驗證與自動修復閉環",
+      "duration_sec": 5.14,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 1,
+      "issues": [],
+      "overflow_safe_val": 32767,
+      "code_snippet": "PROGRAM HighSpeedProductionCounter\nVAR_INPUT\n    pulse : BOOL;   (* Sensor pulse input *)\n    clear : BOOL;   (* Reset button: clears total_count to 0 *)\nEND_VAR\nVAR_OUTPUT\n    total_count : INT := 0;        (* Total production count, saturates at 32767 *)\n    at_limit    : BOOL := FALSE;   (* TRUE when counter has reached the upper limit *)\nEND_VAR\nVAR\n    pulse_trig : R_TRIG;   (* Rising edge de",
+      "id": "TC-12",
+      "name": "數值邊界防溢位與運算安全防護",
+      "duration_sec": 9.17,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "rounds": 0,
+      "issues": [],
+      "safety_stop_priority": true,
+      "has_engineering_assumptions": true,
+      "code_snippet": "PROGRAM FAN_CONTROL\nVAR_INPUT\n    run_cmd  : BOOL; (* Start pushbutton, normally open *)\n    stop_cmd : BOOL; (* Stop command; assumption: TRUE = stop requested *)\nEND_VAR\nVAR_OUTPUT\n    fan_out  : BOOL; (* Fan contactor output *)\nEND_VAR\nVAR\n    fan_latch : BOOL; (* Internal seal-in memory *)\nEND_VAR\n\n(* Assumptions:\n   - Stop has priority over run (safety): if both buttons are pressed\n     at th",
+      "id": "TC-13",
+      "name": "模糊/衝突需求之安全假設與優先原則",
+      "duration_sec": 4.3,
+      "status": "PASS"
+    },
+    {
+      "passed": true,
+      "http_status": 200,
+      "issues": [],
+      "rounds": 0,
+      "code_length": 335,
+      "id": "TC-14",
+      "name": "Web API 端到端整合驗證 (/api/generate)",
+      "duration_sec": 4.42,
+      "status": "PASS"
+    }
+  ]
+}

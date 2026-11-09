@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="32.00" TargetName="PumpStartStop" TargetType="Program" ContainsContext="false" ExportDate="Mon Nov 09 06:11:29 2026">
+<Controller Use="Context" Name="PLC_ST_Auto">
+<Programs>
+<Program Use="Target" Name="PumpStartStop" MainRoutineName="MainRoutine"><Tags>
+<Tag Name="start" TagType="Base" DataType="BOOL" Usage="Input" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="stop" TagType="Base" DataType="BOOL" Usage="Input" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="pump" TagType="Base" DataType="BOOL" Usage="Output" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="run_hours" TagType="Base" DataType="INT" Usage="Output" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="pump_latch" TagType="Base" DataType="BOOL" Usage="Local" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="hour_timer" TagType="Base" DataType="TIMER" Usage="Local" Constant="false" ExternalAccess="Read/Write"/>
+</Tags><Routines>
+<Routine Name="MainRoutine" Type="ST"><STContent>
+<Line Number="0"><![CDATA[(* Classic seal-in circuit; stop has priority over start *)]]></Line>
+<Line Number="1"><![CDATA[pump_latch := (start OR pump_latch) AND NOT stop;]]></Line>
+<Line Number="2"><![CDATA[pump := pump_latch;]]></Line>
+<Line Number="3"><![CDATA[]]></Line>
+<Line Number="4"><![CDATA[(* Run-hour counter: 1 h timer runs only while pump is on.]]></Line>
+<Line Number="5"><![CDATA[   Assumption: partial hours are lost when the pump stops (timer resets);]]></Line>
+<Line Number="6"><![CDATA[   run_hours is not retentive across power cycles unless the vendor makes it so. *)]]></Line>
+<Line Number="7"><![CDATA[hour_timer(IN := pump_latch AND NOT hour_timer.Q, PT := T#1h);]]></Line>
+<Line Number="8"><![CDATA[]]></Line>
+<Line Number="9"><![CDATA[IF hour_timer.Q THEN]]></Line>
+<Line Number="10"><![CDATA[    IF run_hours < 32767 THEN]]></Line>
+<Line Number="11"><![CDATA[        run_hours := run_hours + 1;]]></Line>
+<Line Number="12"><![CDATA[    END_IF;]]></Line>
+<Line Number="13"><![CDATA[END_IF;]]></Line>
+</STContent></Routine></Routines></Program></Programs></Controller></RSLogix5000Content>

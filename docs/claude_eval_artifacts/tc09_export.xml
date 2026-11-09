@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project xmlns="http://www.plcopen.org/xml/tc6_0201">
+  <fileHeader companyName="" productName="PLC_ST_Auto" productVersion="1.0" creationDateTime="2026-11-09T06:11:21"/>
+  <contentHeader name="PLC_ST_Auto"><coordinateInfo><fbd><scaling x="1" y="1"/></fbd><ld><scaling x="1" y="1"/></ld><sfc><scaling x="1" y="1"/></sfc></coordinateInfo></contentHeader>
+  <types><dataTypes></dataTypes><pous>
+    <pou name="DualMotorSequentialStart" pouType="program"><interface>
+      <inputVars>
+        <variable name="start"><type><BOOL/></type></variable>
+        <variable name="stop"><type><BOOL/></type></variable>
+      </inputVars>
+      <outputVars>
+        <variable name="motor1"><type><BOOL/></type></variable>
+        <variable name="motor2"><type><BOOL/></type></variable>
+      </outputVars>
+      <localVars>
+        <variable name="run_latch"><type><BOOL/></type></variable>
+        <variable name="delay_tmr"><type><derived name="TON"/></type></variable>
+      </localVars>
+    </interface><body><ST>
+      <xhtml xmlns="http://www.w3.org/1999/xhtml">(* Assumption: stop is a normally-open button (TRUE = pressed). *)
+(* Start/stop latch with stop dominant *)
+run_latch := (start OR run_latch) AND NOT stop;
+
+(* Motor1 starts immediately when latched *)
+motor1 := run_latch;
+
+(* Motor2 starts after 3 s of motor1 running *)
+delay_tmr(IN := run_latch, PT := T#3s);
+motor2 := delay_tmr.Q AND run_latch;</xhtml>
+    </ST></body></pou>
+  </pous></types>
+  <instances><configurations><configuration name="Config"><resource name="Res"><task name="MainTask" interval="T#10ms" priority="1"><pouInstance name="DualMotorSequentialStart_inst" typeName="DualMotorSequentialStart"/></task></resource></configuration></configurations></instances>
+</project>

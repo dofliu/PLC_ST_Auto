@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project xmlns="http://www.plcopen.org/xml/tc6_0201">
+  <fileHeader companyName="" productName="PLC_ST_Auto" productVersion="1.0" creationDateTime="2026-11-09T06:11:29"/>
+  <contentHeader name="PLC_ST_Auto"><coordinateInfo><fbd><scaling x="1" y="1"/></fbd><ld><scaling x="1" y="1"/></ld><sfc><scaling x="1" y="1"/></sfc></coordinateInfo></contentHeader>
+  <types><dataTypes></dataTypes><pous>
+    <pou name="PumpStartStop" pouType="program"><interface>
+      <inputVars>
+        <variable name="start"><type><BOOL/></type></variable>
+        <variable name="stop"><type><BOOL/></type></variable>
+      </inputVars>
+      <outputVars>
+        <variable name="pump"><type><BOOL/></type></variable>
+        <variable name="run_hours"><type><INT/></type></variable>
+      </outputVars>
+      <localVars>
+        <variable name="pump_latch"><type><BOOL/></type><initialValue><simpleValue value="FALSE"/></initialValue></variable>
+        <variable name="hour_timer"><type><derived name="TON"/></type></variable>
+      </localVars>
+    </interface><body><ST>
+      <xhtml xmlns="http://www.w3.org/1999/xhtml">(* Classic seal-in circuit; stop has priority over start *)
+pump_latch := (start OR pump_latch) AND NOT stop;
+pump := pump_latch;
+
+(* Run-hour counter: 1 h timer runs only while pump is on.
+   Assumption: partial hours are lost when the pump stops (timer resets);
+   run_hours is not retentive across power cycles unless the vendor makes it so. *)
+hour_timer(IN := pump_latch AND NOT hour_timer.Q, PT := T#1h);
+
+IF hour_timer.Q THEN
+    IF run_hours &lt; 32767 THEN
+        run_hours := run_hours + 1;
+    END_IF;
+END_IF;</xhtml>
+    </ST></body></pou>
+  </pous></types>
+  <instances><configurations><configuration name="Config"><resource name="Res"><task name="MainTask" interval="T#10ms" priority="1"><pouInstance name="PumpStartStop_inst" typeName="PumpStartStop"/></task></resource></configuration></configurations></instances>
+</project>

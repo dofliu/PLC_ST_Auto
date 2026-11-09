@@ -29,7 +29,7 @@ def read_pdf(path):
     try:
         from pypdf import PdfReader
         return "\n\n".join((pg.extract_text() or "") for pg in PdfReader(path).pages)
-    except ImportError:
+    except (ImportError, Exception):
         pass
     # stdlib fallback:解 FlateDecode 串流,抽 (..) Tj / [..] TJ 字串(僅支援簡單編碼的 PDF)
     with open(path, "rb") as f:

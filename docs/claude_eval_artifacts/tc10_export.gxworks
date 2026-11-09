@@ -1,0 +1,24 @@
+(* GX Works3 export: PLC_ST_Auto / PumpStartStop *)
+(* === Label Setting(Tab 分隔:Class / Label Name / Data Type / Initial Value)=== *)
+Class	Label Name	Data Type	Initial Value
+VAR_GLOBAL	start	Bit	
+VAR_GLOBAL	stop	Bit	
+VAR_GLOBAL	pump	Bit	
+VAR_GLOBAL	run_hours	Word [Signed]	
+VAR	pump_latch	Bit	FALSE
+VAR	hour_timer	TON	
+(* === ST Program Body === *)
+(* Classic seal-in circuit; stop has priority over start *)
+pump_latch := (start OR pump_latch) AND NOT stop;
+pump := pump_latch;
+
+(* Run-hour counter: 1 h timer runs only while pump is on.
+   Assumption: partial hours are lost when the pump stops (timer resets);
+   run_hours is not retentive across power cycles unless the vendor makes it so. *)
+hour_timer(IN := pump_latch AND NOT hour_timer.Q, PT := T#1h);
+
+IF hour_timer.Q THEN
+    IF run_hours < 32767 THEN
+        run_hours := run_hours + 1;
+    END_IF;
+END_IF;

@@ -1,0 +1,24 @@
+(* Sysmac Studio export: PLC_ST_Auto / PumpStartStop *)
+(* === Variable Table(Tab 分隔:Name / Data Type / Initial Value / Class)=== *)
+Name	Data Type	Initial Value	Class
+start	BOOL		Input
+stop	BOOL		Input
+pump	BOOL		Output
+run_hours	INT		Output
+pump_latch	BOOL	FALSE	Internal
+hour_timer	TON		Internal
+(* === ST Program Body === *)
+(* Classic seal-in circuit; stop has priority over start *)
+pump_latch := (start OR pump_latch) AND NOT stop;
+pump := pump_latch;
+
+(* Run-hour counter: 1 h timer runs only while pump is on.
+   Assumption: partial hours are lost when the pump stops (timer resets);
+   run_hours is not retentive across power cycles unless the vendor makes it so. *)
+hour_timer(IN := pump_latch AND NOT hour_timer.Q, PT := T#1h);
+
+IF hour_timer.Q THEN
+    IF run_hours < 32767 THEN
+        run_hours := run_hours + 1;
+    END_IF;
+END_IF;

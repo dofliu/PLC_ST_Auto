@@ -85,6 +85,10 @@
 ## 全專案測試 2026-11-09 ✅
 - [x] 204 單元測試、CLI 矩陣、API 健全性、UI E2E 24/24(`tests/ui_e2e.js`)、報告 `docs/test_report_full_20261109.md`
 - [x] 修正:手機版水平捲動、執行狀態顏色殘留
+- [x] 修復環境干擾:read_pdf fallback 支援 pypdf 異常轉 stdlib、OpenAIEmbedder 隔離環境變數測試
+## Claude LLM 真實產生與全功能評測 2026-11-09 ✅
+- [x] 14 項專屬評測案例 (`run_claude_eval.py`):工控原語、CSV 點位約束、RAG、方言、TC6 XSD、多廠牌匯出、情境閉環、邊界安全、Web API
+- [x] 通過率 14/14 (100%),詳細評測報告與數據: `docs/test_report_claude_st_generation.md`、`docs/claude_eval_results.json`、`docs/claude_eval_artifacts/`
 ## UI 改版(規劃中,詳見 `docs/ui_redesign_plan.md`)
 目標:一個畫面看完不用捲動、頁籤切換、重要資訊(檢查/模擬/情境/LLM 狀態)常駐、更有質感
 - [ ] UI1 100vh 外框 + 常駐狀態列 + 左側頁籤 + 程式碼常駐 + 底部問題抽屜(功能不變)

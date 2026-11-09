@@ -93,7 +93,7 @@ lxml 已安裝,過去因缺 lxml 略過的 6 項 PLCopen TC6 XSD 測試本次全
 2. **執行狀態顏色殘留**:虛擬 PLC 執行出錯後狀態變紅,下一次成功仍維持紅色(只改了文字沒清 class)。成功時改為重設 class。
 
 ## 6. 未涵蓋 / 待驗證
-- **LLM 真實呼叫**:環境無 Gemini / OpenAI / Claude 金鑰與 Ollama,只以注入 transport 的單元測試驗證四家 provider 的請求格式與自動修正迴圈;建議有金鑰時跑一次真實產生。
+- **LLM 真實呼叫 (已於 2026-11-09 評測完成 ✅)**:使用 Claude API (`claude-sonnet-5-5`) 執行 14 項專屬測試案例(涵蓋基礎工控、點位表約束、RAG 增強、方言檢查、TC6 XSD 驗證、多廠牌匯出、情境閉環與防溢位),**14/14 通過 (100%)**,詳細報告見 `docs/test_report_claude_st_generation.md`。Gemini / OpenAI / Ollama 仍以注入 transport 的單元測試為主。
 - **實機匯入**:PLCopen 已通過 TC6 XSD;L5X、SCL、GX Works3、Sysmac 匯出都**未**在 Studio 5000 / TIA Portal / GX Works3 / Sysmac Studio 實機匯入。L5X 多維 `Dimensions` 分隔符(空白或逗號)仍待確認(見 M29)。
 - **RAG**:只測 TF-IDF 與 hash embedder;OpenAI / Ollama / Gemini embedder 只有 mock 測試。
 - **已知 UI 問題**:訊號很多時波形左側標籤重疊,STRING 訊號顯示 NaN。
