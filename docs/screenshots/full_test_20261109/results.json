@@ -1,0 +1,122 @@
+[
+ {
+  "n": "01 頁面載入 + 廠牌 profile 清單",
+  "pass": true,
+  "d": "9 profiles, 99ms"
+ },
+ {
+  "n": "02 點位表 CSV → VAR 宣告",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "03 LLM 產生(無 API key)顯示錯誤而非當機",
+  "pass": true,
+  "d": "STError: LLM request failed: <urlopen error [Errno 111] Connection refused>"
+ },
+ {
+  "n": "04 RAG 上傳文件 + 檢索",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "05 靜態檢查抓到未宣告變數",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "06 motor.st 靜態檢查無問題",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "07 匯出 plcopen",
+  "pass": true,
+  "d": "program.xml 1454 chars"
+ },
+ {
+  "n": "07 匯出 scl",
+  "pass": true,
+  "d": "program.scl 368 chars"
+ },
+ {
+  "n": "07 匯出 l5x",
+  "pass": true,
+  "d": "program.L5X 1353 chars"
+ },
+ {
+  "n": "07 匯出 gxworks",
+  "pass": true,
+  "d": "program.txt 450 chars"
+ },
+ {
+  "n": "07 匯出 sysmac",
+  "pass": true,
+  "d": "program.txt 432 chars"
+ },
+ {
+  "n": "08 虛擬 PLC 執行 80 週期",
+  "pass": true,
+  "d": "75ms"
+ },
+ {
+  "n": "09 波形圖有繪製",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "10 情境測試 PASS",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "11 情境測試能偵測錯誤預期(FAIL)",
+  "pass": true,
+  "d": "FAIL step wrong: motor expected false got true"
+ },
+ {
+  "n": "12 profile iec 溢位行為",
+  "pass": true,
+  "d": " 80 週期"
+ },
+ {
+  "n": "12 profile strict 溢位行為",
+  "pass": true,
+  "d": " STError: integer overflow: 32768 does not fit INT"
+ },
+ {
+  "n": "12 profile saturate 溢位行為",
+  "pass": true,
+  "d": " 80 週期"
+ },
+ {
+  "n": "12b 錯誤後再成功,狀態不再顯示紅色",
+  "pass": true,
+  "d": "class="
+ },
+ {
+  "n": "13 範例 struct_arrfield.st 於 UI 執行",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "13 範例 review_m29.st 於 UI 執行",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "13 範例 matrix.st 於 UI 執行",
+  "pass": true,
+  "d": ""
+ },
+ {
+  "n": "14 手機寬度 390px 無水平捲動",
+  "pass": true,
+  "d": "overflow 0px"
+ },
+ {
+  "n": "15 全程無 JS 錯誤",
+  "pass": true,
+  "d": ""
+ }
+]
