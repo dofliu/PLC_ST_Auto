@@ -168,9 +168,10 @@ def _scenario_issues(code, scenario, vendor):
 
 
 def generate_checked(provider, requirement, tags_text="", vendor="iec", context=None, max_rounds=3,
-                     scenario=None):
+                     scenario=None, on_round=None):
     """產生 → check(+情境驗證)→ 把 error 回饋 LLM 修正,最多 max_rounds 次修正。
     scenario 為 JSON 字串/dict(見 scenario.py);靜態檢查通過後才執行情境。
+    on_round(round_no, code, issues) 於每一輪(含第 0 輪)評估後呼叫,供評測記錄每輪錯誤。
     回傳 (code, issues, rounds);issues 為最後一輪結果(含 warning)。"""
     system, user = build_prompt(requirement, tags_text, vendor, context)
 
@@ -183,9 +184,13 @@ def generate_checked(provider, requirement, tags_text="", vendor="iec", context=
     code = extract_st(provider.complete(system, user))
     issues = evaluate(code)
     rounds = 0
+    if on_round:
+        on_round(rounds, code, issues)
     while rounds < max_rounds and any(i.severity == "error" for i in issues):
         rounds += 1
         errors = [i for i in issues if i.severity == "error"]
         code = extract_st(provider.complete(system, build_repair_prompt(user, code, errors)))
         issues = evaluate(code)
+        if on_round:
+            on_round(rounds, code, issues)
     return code, issues, rounds
