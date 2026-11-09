@@ -77,15 +77,7 @@ class Parser:
                 self.expect("kw", "OF")
                 arr = dims[0]
             tname = self.expect("id")[1].upper()
-            init = None
-            if self.accept("op", ":="):
-                if arr and self.accept("op", "["):
-                    init = ("arrinit", [self.init_value()])
-                    while self.accept("op", ","):
-                        init[1].append(self.init_value())
-                    self.expect("op", "]")
-                else:
-                    init = self.init_value()
+            init = self.init_value() if self.accept("op", ":=") else None
             self.expect("op", ";")
             for n in names:
                 fields.append({"name": n, "type": tname, "init": init, "array": arr, "dims": dims})
@@ -95,7 +87,14 @@ class Parser:
         return {"name": name, "fields": fields}
 
     def init_value(self):
-        """expression, or struct initialiser (a := 1, b := 2)."""
+        """expression, array initialiser [1, 2, 3], or struct initialiser (a := 1, b := 2);
+        nests freely, e.g. (buf := [1, 2], m := (x := 3))."""
+        if self.accept("op", "["):
+            items = [self.init_value()]
+            while self.accept("op", ","):
+                items.append(self.init_value())
+            self.expect("op", "]")
+            return ("arrinit", items)
         if self.is_("op", "(") and self.t[self.i + 1][0] == "id" and self.t[self.i + 2][1] == ":=":
             self.next()
             items = []
@@ -157,15 +156,7 @@ class Parser:
                 self.expect("kw", "OF")
                 arr = dims[0]
             tname = self.expect("id")[1].upper()
-            init = None
-            if self.accept("op", ":="):
-                if arr and self.accept("op", "["):
-                    init = ("arrinit", [self.init_value()])
-                    while self.accept("op", ","):
-                        init[1].append(self.init_value())
-                    self.expect("op", "]")
-                else:
-                    init = self.init_value()
+            init = self.init_value() if self.accept("op", ":=") else None
             self.expect("op", ";")
             for n in names:
                 out.append({"name": n, "type": tname, "section": section, "init": init, "array": arr, "dims": dims if arr else None})

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from xml.sax.saxutils import escape, quoteattr
 
 from .lexer import STError
+from .parser import Parser
 
 _PROG = re.compile(r"PROGRAM\s+(\w+)(.*?)END_PROGRAM", re.S | re.I)
 _BLOCK = re.compile(r"(VAR(?:_INPUT|_OUTPUT|_IN_OUT)?)\b(.*?)END_VAR", re.S | re.I)
@@ -15,30 +16,109 @@ _BASE = {"BOOL", "SINT", "INT", "DINT", "LINT", "USINT", "UINT", "UDINT", "ULINT
 _SECTION = {"VAR": "localVars", "VAR_INPUT": "inputVars", "VAR_OUTPUT": "outputVars", "VAR_IN_OUT": "inOutVars"}
 
 
+_LIT = re.compile(r"'[^']*'|\(\*.*?\*\)|//[^\n]*", re.S)
+
+
+def _views(src):
+    """同長度的兩份文字:nocom = 註解換成空白(字串保留);masked = 再把字串內容換成 '_'。
+    結構判斷(找 TYPE/VAR 區塊、切 ';'、找 ':'/':=')一律在 masked 上做,取值時切 nocom 同位置,
+    因此字串內的 ';'、'(*'、'//'、':=' 不會被誤判。"""
+    nocom, masked = list(src), list(src)
+    for m in _LIT.finditer(src):
+        a, b = m.span()
+        if m.group().startswith("'"):
+            for i in range(a + 1, b - 1):
+                masked[i] = "\n" if src[i] == "\n" else "_"
+        else:
+            for i in range(a, b):
+                nocom[i] = masked[i] = "\n" if src[i] == "\n" else " "
+    return "".join(nocom), "".join(masked)
+
+
+def _decls(nocom, masked, a, b, what="宣告"):
+    """把 [a, b) 區間依頂層 ';' 切成 [(names, type, init|None)]。"""
+    out, start = [], a
+    for i in range(a, b + 1):
+        if i < b and masked[i] != ";":
+            continue
+        ms, ns, start = masked[start:i], nocom[start:i], i + 1
+        if not ms.strip():
+            continue
+        c = ms.find(":")
+        if c < 0 or ms.startswith(":=", c):
+            raise STError(f"export: 無法解析{what} {ns.strip()!r}")
+        ce = ms.find(":=", c + 1)
+        typ = ns[c + 1:ce] if ce >= 0 else ns[c + 1:]
+        init = ns[ce + 2:].strip() if ce >= 0 else ""
+        names = [n.strip() for n in ns[:c].split(",")]
+        out.append((names, " ".join(typ.split()), init or None))
+    return out
+
+
 def split_program(src):
     """回傳 (name, [(kind, [(name,type,init)])], decl_text, body_text)。"""
-    src = re.sub(r"\(\*.*?\*\)", lambda m: m.group(0), src, flags=re.S)
-    m = _PROG.search(src)
+    nocom, masked = _views(src)
+    m = _PROG.search(masked)
     if not m:
         raise STError("export: 找不到 PROGRAM ... END_PROGRAM")
-    name, inner = m.group(1), m.group(2)
-    blocks, last = [], 0
-    for b in _BLOCK.finditer(inner):
+    name, (i0, i1) = m.group(1), m.span(2)
+    blocks, last = [], i0
+    for b in _BLOCK.finditer(masked, i0, i1):
         decls = []
-        for stmt in b.group(2).split(";"):
-            stmt = stmt.strip()
-            if not stmt:
-                continue
-            lhs, _, rest = stmt.partition(":")
-            if not _:
-                raise STError(f"export: 無法解析宣告 {stmt!r}")
-            typ, _, init = rest.partition(":=")
-            for n in lhs.split(","):
-                decls.append((n.strip(), typ.strip(), init.strip() or None))
+        for names, typ, init in _decls(nocom, masked, *b.span(2)):
+            decls += [(n, typ, init) for n in names]
         blocks.append((b.group(1).upper(), decls))
         last = b.end()
-    decl_text = inner[:last].strip()
-    return name, blocks, decl_text, inner[last:].strip()
+    return name, blocks, src[i0:last].strip(), src[last:i1].strip()
+
+
+def _const_int(text, where):
+    """陣列邊界:完整解析並計算整數常數運算式(+ - * / MOD、括號、負號)。
+    無法完整解析或含變數/實數時明確報錯,不做部分比對。"""
+    try:
+        p = Parser(text)
+        e = p.expr()
+        p.expect("eof")
+    except STError:
+        raise STError(f"export: {where} 陣列邊界 {text.strip()!r} 無法解析") from None
+
+    def ev(e):
+        if e[0] == "num" and isinstance(e[1], int):
+            return e[1]
+        if e[0] == "neg":
+            return -ev(e[1])
+        if e[0] == "bin" and e[1] in ("+", "-", "*", "/", "MOD"):
+            a, b = ev(e[2]), ev(e[3])
+            if e[1] in ("/", "MOD") and b == 0:
+                raise STError(f"export: {where} 陣列邊界 {text.strip()!r} 除以 0")
+            if e[1] == "/":
+                return int(a / b)
+            if e[1] == "MOD":
+                return a - b * int(a / b)
+            return {"+": a + b, "-": a - b, "*": a * b}[e[1]]
+        raise STError(f"export: {where} 陣列邊界 {text.strip()!r} 須為整數常數運算式"
+                      "(不支援變數/常數名稱/實數)")
+    return ev(e)
+
+
+def _array_type(t, where):
+    """'ARRAY[lo..hi, ...] OF T' → ([(lo, hi), ...], 'T');非陣列回傳 None。"""
+    t = t.strip()
+    if not re.match(r"(?i)ARRAY\b", t):
+        return None
+    m = re.fullmatch(r"(?is)ARRAY\s*\[(.*)\]\s*OF\s+(\w+)", t)
+    if not m:
+        raise STError(f"export: {where} 陣列型別 {t!r} 無法解析")
+    dims = []
+    for part in _split_top(m.group(1)):
+        lo, sep, hi = part.partition("..")
+        if not sep:
+            raise STError(f"export: {where} 陣列範圍 {part!r} 須為 lo..hi")
+        a, b = _const_int(lo, where), _const_int(hi, where)
+        if b < a:
+            raise STError(f"export: {where} 陣列上界 {b} < 下界 {a}")
+        dims.append((a, b))
+    return dims, m.group(2)
 
 
 def _tc6_type(t):
@@ -50,7 +130,6 @@ def _tc6_type(t):
 
 
 _TYPEDEF = re.compile(r"TYPE\s+(\w+)\s*:\s*STRUCT(.*?)END_STRUCT\s*;?\s*END_TYPE", re.S | re.I)
-_ARR = re.compile(r"(?is)ARRAY\s*\[\s*(-?\d+\s*\.\.\s*-?\d+(?:\s*,\s*-?\d+\s*\.\.\s*-?\d+)*)\s*\]\s*OF\s+(\w+)$")
 
 
 def _split_top(text):
@@ -90,32 +169,24 @@ def _tc6_value(v):
     return f"<simpleValue value={quoteattr(v)}/>"
 
 
-def _tc6_vartype(t):
-    am = _ARR.match(t.strip())
-    if am:
-        dims = "".join(f'<dimension lower="{a}" upper="{b}"/>'
-                       for a, b in re.findall(r"(-?\d+)\s*\.\.\s*(-?\d+)", am.group(1)))
-        return f"<array>{dims}<baseType>{_tc6_type(am.group(2))}</baseType></array>"
+def _tc6_vartype(t, where=""):
+    arr = _array_type(t, where)
+    if arr:
+        dims = "".join(f'<dimension lower="{a}" upper="{b}"/>' for a, b in arr[0])
+        return f"<array>{dims}<baseType>{_tc6_type(arr[1])}</baseType></array>"
     return _tc6_type(t.strip())
 
 
 def _datatypes(src):
     """TYPE ... STRUCT → TC6 <dataType>(欄位型別含 ARRAY / 巢狀 STRUCT / 初始值)。"""
-    clean = re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)
+    nocom, masked = _views(src)
     out = []
-    for m in _TYPEDEF.finditer(clean):
+    for m in _TYPEDEF.finditer(masked):
         fields = []
-        for stmt in m.group(2).split(";"):
-            stmt = stmt.strip()
-            if not stmt:
-                continue
-            lhs, sep, rest = stmt.partition(":")
-            if not sep:
-                raise STError(f"export: 無法解析 STRUCT 欄位 {stmt!r}")
-            typ, _, init = rest.partition(":=")
-            iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init.strip() else ""
-            for n in lhs.split(","):
-                fields.append(f"<variable name={quoteattr(n.strip())}><type>{_tc6_vartype(typ)}</type>{iv}</variable>")
+        for names, typ, init in _decls(nocom, masked, *m.span(2), what=" STRUCT 欄位"):
+            iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init else ""
+            for n in names:
+                fields.append(f"<variable name={quoteattr(n)}><type>{_tc6_vartype(typ, f'{m.group(1)}.{n}')}</type>{iv}</variable>")
         out.append(f"<dataType name={quoteattr(m.group(1))}><baseType><struct>{''.join(fields)}</struct></baseType></dataType>")
     return out
 
@@ -136,7 +207,7 @@ def to_plcopen(src, project="PLC_ST_Auto"):
             continue
         o.append(f"      <{_SECTION[kind]}>")
         for n, t, init in decls:
-            typ = _tc6_vartype(t)
+            typ = _tc6_vartype(t, n)
             iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init else ""
             o.append(f"        <variable name={quoteattr(n)}><type>{typ}</type>{iv}</variable>")
         o.append(f"      </{_SECTION[kind]}>")
@@ -175,16 +246,15 @@ def _scl_quote(text, names):
 
 def _scl_types(src):
     """TYPE ... STRUCT → SCL `TYPE "Name" ... END_TYPE`(UDT)。回傳 (名稱清單, 文字)。"""
-    clean = re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)
-    defs = list(_TYPEDEF.finditer(clean))
+    nocom, masked = _views(src)
+    defs = list(_TYPEDEF.finditer(masked))
     names = [m.group(1) for m in defs]
     out = []
     for m in defs:
         fields = []
-        for stmt in m.group(2).split(";"):
-            stmt = stmt.strip()
-            if stmt:
-                fields.append("      " + _scl_quote(stmt, names) + ";")
+        for fnames, typ, init in _decls(nocom, masked, *m.span(2), what=" STRUCT 欄位"):
+            stmt = f"{', '.join(fnames)} : {_scl_quote(': ' + typ, names)[2:]}" + (f" := {init}" if init else "")
+            fields.append("      " + stmt + ";")
         out.append(f'TYPE "{m.group(1)}"\nVERSION : 0.1\n   STRUCT\n' + "\n".join(fields)
                    + "\n   END_STRUCT;\nEND_TYPE\n")
     return names, "\n".join(out)
@@ -209,33 +279,30 @@ _L5X_TYPE = {"TON": "TIMER", "TOF": "TIMER", "TP": "TIMER", "CTU": "COUNTER", "C
 def _l5x_datatypes(src):
     """TYPE ... STRUCT → L5X <DataType>(UDT)。BOOL 欄位依 Logix 慣例打包進隱藏 SINT 主機成員。
     限制:Logix 成員陣列為一維且從 0 起算;STRUCT 欄位初始值無對應(UDT 不帶預設值)。"""
-    clean = re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)
+    nocom, masked = _views(src)
     out = []
-    for m in _TYPEDEF.finditer(clean):
+    for m in _TYPEDEF.finditer(masked):
         tname = m.group(1)
-        members = []  # (name, dtype, dim, bit_target)
-        for stmt in m.group(2).split(";"):
-            stmt = stmt.strip()
-            if not stmt:
-                continue
-            lhs, sep, rest = stmt.partition(":")
-            if not sep:
-                raise STError(f"export l5x: 無法解析 STRUCT 欄位 {stmt!r}")
-            typ = rest.partition(":=")[0].strip()
+        members = []  # (name, dtype, dim)
+        for names, typ, _ in _decls(nocom, masked, *m.span(2), what=" STRUCT 欄位"):
+            where = f"{tname}.{names[0]}"
             dim = 0
-            am = re.match(r"ARRAY\s*\[(.*?)\]\s*OF\s+(\w+)", typ, re.I | re.S)
-            if am:
-                ranges = re.findall(r"(-?\d+)\s*\.\.\s*(-?\d+)", am.group(1))
-                if len(ranges) != 1:
-                    raise STError(f"export l5x: {tname} 欄位 {lhs.strip()} 為多維陣列,Logix UDT 成員僅支援一維")
-                lo, hi = int(ranges[0][0]), int(ranges[0][1])
+            arr = _array_type(typ, where)
+            if arr:
+                if len(arr[0]) != 1:
+                    raise STError(f"export l5x: {where} 為多維陣列,Logix UDT 成員僅支援一維")
+                lo, hi = arr[0][0]
                 if lo != 0:
-                    raise STError(f"export l5x: {tname} 欄位 {lhs.strip()} 陣列下界須為 0(Logix 陣列從 0 起算)")
-                dim, typ = hi + 1, am.group(2)
+                    raise STError(f"export l5x: {where} 陣列下界須為 0(Logix 陣列從 0 起算)")
+                dim, typ = hi + 1, arr[1]
             dt = _L5X_TYPE.get(typ.upper(), typ.upper() if typ.upper() in _BASE else typ)
-            for n in lhs.split(","):
-                members.append((n.strip(), dt, dim))
-        host = f"ZZZZZZZZZZ{tname}0"
+            members += [(n, dt, dim) for n in names]
+        # 隱藏主機名稱不可與任何欄位撞名(Logix 名稱不分大小寫)
+        taken = {n.lower() for n, _, _ in members}
+        k = 0
+        while f"zzzzzzzzzz{tname.lower()}{k}" in taken:
+            k += 1
+        host = f"ZZZZZZZZZZ{tname}{k}"
         bools = [x for x in members if x[1] == "BOOL" and not x[2]]
         rows, hidden = [], bool(bools)
         if hidden:
@@ -244,11 +311,11 @@ def _l5x_datatypes(src):
         bit = 0
         for n, dt, dim in members:
             if dt == "BOOL" and not dim:
+                if bit > 7:
+                    raise STError(f"export l5x: {tname} 的 BOOL 欄位超過 8 個,尚未支援多個隱藏主機")
                 rows.append(f'<Member Name={quoteattr(n)} DataType="BIT" Dimension="0" Radix="Decimal" '
                             f'Hidden="false" Target={quoteattr(host)} BitNumber="{bit}" ExternalAccess="Read/Write"/>')
                 bit += 1
-                if bit > 7:
-                    raise STError(f"export l5x: {tname} 的 BOOL 欄位超過 8 個,尚未支援多個隱藏主機")
             else:
                 rows.append(f'<Member Name={quoteattr(n)} DataType={quoteattr(dt)} Dimension="{dim}" '
                             f'Radix="{"Float" if dt == "REAL" else "Decimal"}" Hidden="false" ExternalAccess="Read/Write"/>')
@@ -274,13 +341,13 @@ def to_l5x(src, project="PLC_ST_Auto"):
         usage = {"VAR_INPUT": "Input", "VAR_OUTPUT": "Output", "VAR_IN_OUT": "InOut"}.get(kind, "Local")
         for n, t, init in decls:
             dimattr = ""
-            am = re.match(r"ARRAY\s*\[(.*?)\]\s*OF\s+(\w+)", t, re.I | re.S)
-            if am:
-                rs = re.findall(r"(-?\d+)\s*\.\.\s*(-?\d+)", am.group(1))
-                if len(rs) > 3 or any(int(a) != 0 for a, _ in rs):
+            arr = _array_type(t, n)
+            if arr:
+                rs, t = arr
+                if len(rs) > 3 or any(lo != 0 for lo, _ in rs):
                     raise STError(f"export l5x: 標籤 {n} 陣列須 ≤3 維且下界為 0(Logix 陣列從 0 起算)")
-                dimattr = ' Dimensions="' + " ".join(str(int(b) + 1) for _, b in rs) + '"'
-                t = am.group(2)
+                # Tag 的 Dimensions 以空白分隔(例 "2 3");尚未以 Studio 5000 實機匯入確認,見 docs/test_report_M29.md
+                dimattr = ' Dimensions="' + " ".join(str(hi + 1) for _, hi in rs) + '"'
             dt = _L5X_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)
             o.append(f'<Tag Name={quoteattr(n)} TagType="Base" DataType={quoteattr(dt)}{dimattr} '
                      f'Usage={quoteattr(usage)} Constant="false" ExternalAccess="Read/Write"/>')
@@ -347,7 +414,7 @@ _FUNCPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
 
 def export(src, fmt):
     pat = _FUNCPOU if fmt in ("plcopen", "scl", "l5x") else _USERPOU
-    if fmt in FORMATS and fmt != "st" and pat.search(re.sub(r"\(\*.*?\*\)|//[^\n]*", "", src, flags=re.S)):
+    if fmt in FORMATS and fmt != "st" and pat.search(_views(src)[1]):
         raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK/TYPE(STRUCT),此格式尚未支援(僅 st 格式可完整匯出)")
     try:
         return FORMATS[fmt][1](src)

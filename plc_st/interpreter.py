@@ -344,6 +344,8 @@ class VirtualPLC:
                             raise STError(f"array {d['name']}: upper bound {hi} < lower bound {lo}")
                         dims.append((lo, hi))
                         size *= hi - lo + 1
+                    if d["init"] is not None and d["init"][0] != "arrinit":
+                        raise STError(f"array {d['name']} needs an initialiser like [1, 2, 3]")
                     init = d["init"][1] if d["init"] else []
                     if len(init) > size:
                         raise STError(f"array {d['name']}: too many initial values")
@@ -351,6 +353,7 @@ class VirtualPLC:
                     self.arrays[n] = dims
                     self.vars[n] = vals + [default(t)] * (size - len(vals))
                 else:
+                    self._scalar_init(d["name"], d["init"])
                     self.vars[n] = self.wrap(t, self.eval(d["init"])) if d["init"] else default(t)
         finally:
             if saved is not None:
@@ -385,11 +388,19 @@ class VirtualPLC:
                 raise STError(f"unknown type {ft} for field {key}")
             if ft not in self.profile.types:
                 raise STError(f"type {ft} of {key} not supported on profile {self.profile.name}")
+            self._scalar_init(key, fi)
             n = key.lower()
             self.section[n] = section
             self.types[n] = ft
             self.disp[n] = key
             self.vars[n] = self.wrap(ft, self.eval(fi)) if fi is not None else default(ft)
+
+    @staticmethod
+    def _scalar_init(name, init):
+        if init is not None and init[0] in ("arrinit", "structinit"):
+            kind = "array" if init[0] == "arrinit" else "STRUCT"
+            raise STError(f"{name} is not {'an array' if kind == 'array' else 'a STRUCT'}; "
+                          f"{kind} initialiser not allowed")
 
     def _array_field(self, key, f, fi, section):
         """STRUCT field `f : ARRAY[..] OF scalar` -> array variable 'inst.f'."""
@@ -762,6 +773,8 @@ class VirtualPLC:
             n = target[1].lower()
             if n not in self.vars:
                 raise STError(f"assignment to unknown variable {target[1]}")
+            if n in self.arrays:
+                raise STError(f"cannot assign whole array {target[1]}; use {target[1]}[i]")
             if self.section[n] == "input":
                 pass  # allowed for testing; real PLCs forbid it (see validator, M4)
             self.vars[n] = self.wrap(self.types[n], value)
@@ -774,6 +787,8 @@ class VirtualPLC:
                 self.vars[r[0]][self._elem(*r)] = self.wrap(self.types[r[0]], value)
                 return
             p = self._path(target)
+            if p in self.arrays:
+                raise STError(f"cannot assign whole array {self.disp.get(p, p)}; use {self.disp.get(p, p)}[i]")
             if p in self.vars:
                 self.vars[p] = self.wrap(self.types[p], value)
                 return
