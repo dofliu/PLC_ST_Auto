@@ -16,6 +16,19 @@ _RESERVED = {
     "siemens": {"DB", "FC", "FB", "OB", "DATE", "TOD", "DT", "ANY", "VARIANT", "REGION"},
     "rockwell": {"TIMER", "COUNTER", "CONTROL", "MESSAGE", "AXIS"},
 }
+# Logix 5000 Structured Text equivalents of IEC function blocks (used in rockwell warnings)
+_LOGIX_EQUIV = {
+    "TON": "use a TIMER tag with the TONR instruction",
+    "TOF": "use a TIMER tag with the TOFR instruction",
+    "TP": "no pulse-timer instruction; build it from TONR plus a one-shot (OSRI)",
+    "CTU": "use a COUNTER tag with the CTUD instruction (CUEnable)",
+    "CTD": "use a COUNTER tag with the CTUD instruction (CDEnable)",
+    "CTUD": "use a COUNTER tag with the CTUD instruction",
+    "R_TRIG": "use the OSRI (one shot rising with input) instruction with a FBD_ONESHOT tag",
+    "F_TRIG": "use the OSFI (one shot falling with input) instruction with a FBD_ONESHOT tag",
+    "RS": "write the latch as boolean logic, e.g. q := NOT reset1 AND (set OR q)",
+    "SR": "write the latch as boolean logic, e.g. q := set1 OR (NOT reset AND q)",
+}
 _DEVICE = re.compile(r"^[XYMDLFVBSTCRZW][0-9A-F]+$", re.I)  # MELSEC device labels like X0, D100
 
 
@@ -61,7 +74,7 @@ def dialect_issues(src, profile):
             elif k == "id" and not after_colon:
                 names.append((v, ln))
             elif k == "id" and fam == "rockwell" and v.upper() in fb_names:
-                warn(ln, f"Logix has no IEC {v.upper()} block; use TIMER/COUNTER tags with TONR/CTU instructions")
+                warn(ln, f"Logix has no IEC {v.upper()} block; {_LOGIX_EQUIV[v.upper()]}")
         if fam == "rockwell":
             if k == "time":
                 warn(ln, "Logix has no T# literal; use DINT milliseconds")

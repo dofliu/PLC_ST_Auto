@@ -1,6 +1,7 @@
 import unittest
 
 from plc_st.checker import check
+from plc_st.dialect import dialect_issues
 
 
 def warns(src, profile):
@@ -67,6 +68,30 @@ class TestDialect(unittest.TestCase):
         # documented limitation: dialect checks are heuristics
         import plc_st.dialect as d
         self.assertIn("approximations", d.__doc__)
+
+
+class LogixEquivalents(unittest.TestCase):
+    """Rockwell 警告須給出各 FB 對應的 Logix ST 指令(先前 R_TRIG 被誤導向 TONR/CTU)。"""
+
+    def msg(self, fb):
+        src = f"PROGRAM P VAR x : {fb}; b : BOOL; END_VAR END_PROGRAM"
+        return " ".join(m for _, m in dialect_issues(src, "rockwell"))
+
+    def test_edge_triggers_map_to_one_shots(self):
+        self.assertIn("OSRI", self.msg("R_TRIG"))
+        self.assertIn("OSFI", self.msg("F_TRIG"))
+        self.assertNotIn("TONR", self.msg("R_TRIG"))
+
+    def test_timers_and_counters(self):
+        self.assertIn("TONR", self.msg("TON"))
+        self.assertIn("TOFR", self.msg("TOF"))
+        for fb in ("CTU", "CTD", "CTUD"):
+            self.assertIn("CTUD", self.msg(fb), fb)
+
+    def test_every_fb_has_specific_advice(self):
+        from plc_st.interpreter import FB_TYPES
+        for fb in FB_TYPES:
+            self.assertIn(f"no IEC {fb.upper()} block;", self.msg(fb), fb)
 
 
 if __name__ == "__main__":
