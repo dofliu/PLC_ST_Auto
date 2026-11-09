@@ -29,3 +29,4 @@
 - M27 ✅ STRUCT → Rockwell L5X UDT 匯出
 - M28 ✅ STRUCT 內含 ARRAY 欄位(解譯/檢查)
 - M29 ✅ PR #31/#32 審查意見修正(L5X 匯出健全性、陣列寫入/初值);Dimensions 分隔符待實機確認
+- UI1–UI7 (規劃)Web UI 改版:單一畫面 + 頁籤 + 常駐狀態列 + 視覺系統,見 `docs/ui_redesign_plan.md`
