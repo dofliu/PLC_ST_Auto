@@ -19,8 +19,11 @@ _TOKEN = re.compile(r"""
   | (?P<bcomment>\(\*.*?\*\))
   | (?P<lcomment>//[^\n]*)
   | (?P<time>[Tt](?:[Ii][Mm][Ee])?\#(?:-?\d+(?:\.\d+)?(?:ms|d|h|m|s))+)
-  | (?P<real>\d+\.\d+(?:[eE][+-]?\d+)?)
-  | (?P<int>\d+)
+  | (?P<typed>(?:SINT|USINT|UINT|UDINT|ULINT|DINT|LINT|INT|LREAL|REAL|BOOL|BYTE|WORD|DWORD|LWORD)\#
+      (?:TRUE|FALSE|(?:2|8|16)\#[0-9A-Fa-f_]+|-?\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)(?![A-Za-z_0-9]))
+  | (?P<based>(?:2|8|16)\#[0-9A-Fa-f][0-9A-Fa-f_]*)
+  | (?P<real>\d[\d_]*\.\d[\d_]*(?:[eE][+-]?\d+)?)
+  | (?P<int>\d[\d_]*)
   | (?P<str>'[^']*')
   | (?P<id>[A-Za-z_][A-Za-z_0-9]*)
   | (?P<op>:=|=>|<>|<=|>=|\*\*|\.\.|[-+*/=<>():;,.\[\]])
@@ -33,6 +36,22 @@ def parse_time(text):
     for num, unit in re.findall(r"(-?\d+(?:\.\d+)?)(ms|d|h|m|s)", body):
         total += float(num) * _TIME_UNITS[unit]
     return int(round(total))
+
+
+def _based(text):
+    base, digits = text.split("#", 1)
+    return int(digits.replace("_", ""), int(base))
+
+
+def _num(text, real=False):
+    """數值字面量文字(整數/實數/進位 16#FF)轉成 int 或 float。"""
+    t = text.replace("_", "")
+    if "#" in t:
+        v = _based(t)
+        return float(v) if real else v
+    if real or "." in t or "e" in t.lower():
+        return float(t)
+    return int(t)
 
 
 def tokenize(src):
@@ -49,9 +68,19 @@ def tokenize(src):
             else:
                 toks.append(("id", text, line))
         elif kind == "int":
-            toks.append(("num", int(text), line))
+            toks.append(("num", _num(text), line))
+        elif kind == "based":
+            toks.append(("num", _based(text), line))
         elif kind == "real":
-            toks.append(("num", float(text), line))
+            toks.append(("num", _num(text), line))
+        elif kind == "typed":
+            prefix, val = text.split("#", 1)
+            if prefix.upper() == "BOOL" and val in ("0", "1"):
+                toks.append(("kw", "TRUE" if val == "1" else "FALSE", line))
+            elif val.upper() in ("TRUE", "FALSE"):
+                toks.append(("kw", val.upper(), line))
+            else:
+                toks.append(("num", _num(val, real=prefix.upper() in ("REAL", "LREAL")), line))
         elif kind == "time":
             toks.append(("time", parse_time(text), line))
         elif kind == "str":

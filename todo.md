@@ -6,15 +6,15 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:M31 → M32 → UI1 → UI2 → UI3 → UI4 → UI6 → UI5 → UI7(其餘候選穿插)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31 已完成)M32 → UI1 → UI2 → UI3 → UI4 → UI6 → UI5 → UI7(其餘候選穿插)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
-## M31(下一個)檢查器補合法 IEC 語法 + 評測保存每輪程式碼
-- [ ] lexer:型別前綴常數 `INT#5` `REAL#1.5` `BOOL#1`、進位常數 `16#FF` `8#17` `2#1010`、底線分隔 `1_000`
-- [ ] 標準轉換函式:`*_TO_TIME`、`TIME_TO_*`、其餘缺少的 `*_TO_*`(依 profile 型別)
-- [ ] 陣列重複初值 `[5(0.0)]`、`[2(1), 3(0)]`
-- [ ] `llm_eval`:`rounds_log` 保存每輪程式碼,輸出各輪 .st
-- [ ] 以 2026-11-09 的錯誤訊息建立回歸測試;報告 `docs/test_report_M31.md`
-## M32 執行期/語法發現(來自全專案測試 F1–F3)
+## M31 ✅ 檢查器補合法 IEC 語法 + 評測保存每輪程式碼(`docs/test_report_M31.md`)
+- [x] lexer:型別前綴常數 `INT#5` `REAL#1.5` `BOOL#1`、進位常數 `16#FF` `8#17` `2#1010`、底線分隔 `1_000`
+- [x] 標準轉換函式:`*_TO_TIME`、`TIME_TO_*`、其餘缺少的 `*_TO_*`(依 profile 型別)
+- [x] 陣列重複初值 `[5(0.0)]`、`[2(1), 3(0)]`
+- [x] `llm_eval`:`rounds_log` 保存每輪程式碼,輸出各輪 .st
+- [x] 以 2026-11-09 的錯誤訊息建立回歸測試;報告 `docs/test_report_M31.md`
+## M32(下一個)執行期/語法發現(來自全專案測試 F1–F3;另查既有失敗 test_llm_eval TC-09 tc6_xsd_valid)
 - [ ] F1 `EXIT` 在迴圈外:檢查器報 error、解譯器拋錯
 - [ ] F2 字串 `$` 跳脫字元(`$'` `$$` `$N` `$T` `$L` `$R`)
 - [ ] F3 REAL→INT 捨入依 profile 定義,隱式/顯式一致;API `cycles` 型別錯誤訊息友善化

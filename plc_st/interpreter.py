@@ -289,6 +289,37 @@ FUNCS = {
 }
 
 
+def _make_conv(dst):
+    if dst in INT_RANGES:
+        lo, hi = INT_RANGES[dst]
+        span = hi - lo + 1
+        return lambda x: (int(round(x)) - lo) % span + lo if not isinstance(x, str) else int(float(x))
+    if dst in ("REAL", "LREAL"):
+        return float
+    if dst == "BOOL":
+        return bool
+    if dst == "TIME":
+        return lambda x: int(round(x))
+    return None
+
+
+def _build_conversions():
+    """標準 *_TO_* 轉換函式(整數型別、REAL/LREAL、BOOL、TIME)。TIME 以毫秒整數表示。
+    已在 FUNCS 明確定義者不覆蓋。"""
+    names = list(INT_RANGES) + ["REAL", "LREAL", "BOOL", "TIME"]
+    out = {}
+    for src in names:
+        for dst in names:
+            if src != dst and not (src == "TIME" and dst == "BOOL") and not (src == "BOOL" and dst == "TIME"):
+                out[f"{src}_TO_{dst}"] = _make_conv(dst)
+    out.update({f"{t}_TO_STRING": str for t in names})
+    return out
+
+
+for _k, _v in _build_conversions().items():
+    FUNCS.setdefault(_k, _v)
+
+
 class VirtualPLC:
     def __init__(self, source, scan_ms=10, profile="iec"):
         self.profile = get_profile(profile)
