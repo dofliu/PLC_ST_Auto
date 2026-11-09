@@ -90,9 +90,17 @@ class Parser:
         """expression, array initialiser [1, 2, 3], or struct initialiser (a := 1, b := 2);
         nests freely, e.g. (buf := [1, 2], m := (x := 3))."""
         if self.accept("op", "["):
-            items = [self.init_value()]
-            while self.accept("op", ","):
-                items.append(self.init_value())
+            items = []
+            while True:
+                v = self.init_value()
+                if self.is_("op", "(") and v[0] == "num" and isinstance(v[1], int):
+                    self.next()  # 重複初值 n(v)
+                    items.extend([self.init_value()] * v[1])
+                    self.expect("op", ")")
+                else:
+                    items.append(v)
+                if not self.accept("op", ","):
+                    break
             self.expect("op", "]")
             return ("arrinit", items)
         if self.is_("op", "(") and self.t[self.i + 1][0] == "id" and self.t[self.i + 2][1] == ":=":

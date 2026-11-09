@@ -412,7 +412,7 @@ def run_case(c, provider, max_rounds=2, vendor="iec"):
     rounds_log = []
 
     def on_round(n, code, issues):
-        rounds_log.append({"round": n, "errors": [str(i) for i in _errors(issues)]})
+        rounds_log.append({"round": n, "code": code, "errors": [str(i) for i in _errors(issues)]})
 
     def gen(req, tags_text="", vendor=vendor, context=None, scenario=None, max_rounds=max_rounds):
         return generate_checked(provider, req, tags_text, vendor, context, max_rounds, scenario, on_round)
@@ -473,11 +473,17 @@ def run_eval(provider, repeat=1, case_ids=None, max_rounds=2, out_dir=None, log=
             runs.append(res)
             log(f"[{provider.model}] run {r}/{repeat} {c.id} {res['status']} "
                 f"rounds={res.get('rounds', '-')} {res['seconds']}s" + (f"  {res.get('error', '')}" if res.get("error") else ""))
-            if out_dir and res.get("code"):
+            if out_dir and (res.get("code") or res.get("rounds_log")):
                 d = os.path.join(out_dir, _safe(provider.model), f"run{r}")
                 os.makedirs(d, exist_ok=True)
-                with open(os.path.join(d, f"{c.id.lower().replace('-', '')}.st"), "w", encoding="utf-8") as f:
-                    f.write(res["code"])
+                base = c.id.lower().replace("-", "")
+                final = res.get("code") or (res["rounds_log"][-1].get("code") if res.get("rounds_log") else "")
+                with open(os.path.join(d, f"{base}.st"), "w", encoding="utf-8") as f:
+                    f.write(final or "")
+                for rl in res.get("rounds_log", []):  # 每輪(含被修正前的)程式碼,供事後檢視
+                    if rl.get("code"):
+                        with open(os.path.join(d, f"{base}_round{rl['round']}.st"), "w", encoding="utf-8") as f:
+                            f.write(rl["code"])
     return {"provider": provider.name, "model": provider.model, "repeat": repeat, "max_rounds": max_rounds,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "runs": runs}
 
