@@ -24,7 +24,7 @@ _TOKEN = re.compile(r"""
   | (?P<based>(?:2|8|16)\#[0-9A-Fa-f][0-9A-Fa-f_]*)
   | (?P<real>\d[\d_]*\.\d[\d_]*(?:[eE][+-]?\d+)?)
   | (?P<int>\d[\d_]*)
-  | (?P<str>'[^']*')
+  | (?P<str>'(?:\$.|[^'$])*')
   | (?P<id>[A-Za-z_][A-Za-z_0-9]*)
   | (?P<op>:=|=>|<>|<=|>=|\*\*|\.\.|[-+*/=<>():;,.\[\]])
 """, re.X | re.S)
@@ -52,6 +52,30 @@ def _num(text, real=False):
     if real or "." in t or "e" in t.lower():
         return float(t)
     return int(t)
+
+
+_ESC = {"$": "$", "'": "'", "L": "\n", "N": "\n", "P": "\f", "R": "\r", "T": "\t"}
+
+
+def _unescape(body, line=0):
+    """IEC 字串跳脫:$$ $' $L $N $P $R $T 與 $HH(十六進位字元)。"""
+    out, i = [], 0
+    while i < len(body):
+        c = body[i]
+        if c != "$":
+            out.append(c)
+            i += 1
+            continue
+        nxt = body[i + 1:i + 2]
+        if nxt.upper() in _ESC:
+            out.append(_ESC[nxt.upper()])
+            i += 2
+        elif re.fullmatch(r"[0-9A-Fa-f]{2}", body[i + 1:i + 3]):
+            out.append(chr(int(body[i + 1:i + 3], 16)))
+            i += 3
+        else:
+            raise STError(f"line {line}: invalid string escape ${nxt}")
+    return "".join(out)
 
 
 def tokenize(src):
@@ -84,7 +108,7 @@ def tokenize(src):
         elif kind == "time":
             toks.append(("time", parse_time(text), line))
         elif kind == "str":
-            toks.append(("str", text[1:-1], line))
+            toks.append(("str", _unescape(text[1:-1], line), line))
         elif kind == "op":
             toks.append(("op", text, line))
         line += text.count("\n")

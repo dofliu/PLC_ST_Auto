@@ -38,7 +38,10 @@ def _need(p, key):
 
 def _run(p):
     plc = VirtualPLC(_need(p, "code"), scan_ms=int(p.get("scan_ms", 10)), profile=p.get("profile", "iec"))
-    cycles = int(p.get("cycles", 50))
+    try:
+        cycles = int(p.get("cycles", 50))
+    except (TypeError, ValueError):
+        raise STError(f"cycles must be an integer 1..{MAX_CYCLES}, got {p.get('cycles')!r}")
     if not 0 < cycles <= MAX_CYCLES:
         raise STError(f"cycles must be 1..{MAX_CYCLES}")
     events = [(int(e.get("cycle", 0)), e["name"], e["value"]) for e in p.get("events", [])]
