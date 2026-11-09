@@ -61,7 +61,8 @@ c(CU := pulse, PV := 2);
 r(CLK := pulse);
 IF r.Q THEN hits := hits + 1; END_IF;
 """), )
-        p.scan(4)
+        # 呼叫時刻 0,10,20,30,40,50 ms:上升緣那次 ET=0,第 6 次呼叫 ET=50 才 Q(舊版提早一個週期)
+        p.scan(5)
         self.assertFalse(p.get("t.Q"))
         p.scan(1)
         self.assertTrue(p.get("t.Q"))
