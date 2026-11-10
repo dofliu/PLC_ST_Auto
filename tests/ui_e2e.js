@@ -13,9 +13,11 @@ fs.mkdirSync(S, { recursive: true });
   const pg = await b.newPage({ viewport: { width: 1280, height: 1000 }, deviceScaleFactor: 2, acceptDownloads: true });
   const errs = []; pg.on('pageerror', e => errs.push(String(e)));
   const res = []; const ok = (n, c, d = '') => { res.push({ n, pass: !!c, d }); console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '  [' + d + ']' : '')); };
-  const card = async (h, file) => { const el = pg.locator('section, .card, div').filter({ has: pg.locator(`h2:has-text("${h}")`) }).last(); await el.screenshot({ path: S + file }); };
+  const T = async t => { await pg.click(`#nav button[data-t=${t}]`); };
+  const card = async (h, file) => { await pg.screenshot({ path: S + file }); };
   const t0 = Date.now();
   await pg.goto(URL0);
+  await pg.setViewportSize({ width: 1280, height: 800 });
   await pg.waitForFunction("document.querySelectorAll('#profile option').length>3");
   const nprof = await pg.locator('#profile option').count();
   ok('01 頁面載入 + 廠牌 profile 清單', nprof === 9, nprof + ' profiles, ' + (Date.now() - t0) + 'ms');
@@ -26,11 +28,13 @@ fs.mkdirSync(S, { recursive: true });
   ok('02 點位表 CSV → VAR 宣告', hasCsv && (await pg.inputValue('#code')).includes('VAR_INPUT'));
   await card('1. 需求輸入', '01_input.png').catch(e => console.log('shot', e.message));
   // 2. LLM 無金鑰 -> 錯誤需顯示
+  await T('set'); await card('', '02_llm.png'); await T('gen');
   await pg.click('text=產生 ST');
   await pg.waitForFunction("document.getElementById('genout').className=='er'", null, { timeout: 30000 });
   ok('03 LLM 產生(無 API key)顯示錯誤而非當機', true, (await pg.innerText('#genout')).slice(0, 80));
   await card('2. LLM 設定', '02_llm.png').catch(() => {});
   // 3. RAG
+  await T('rag');
   await pg.setInputFiles('#ragfile', { name: 'ton.md', mimeType: 'text/markdown', buffer: Buffer.from('TON on-delay timer PT preset Q output 計時器') });
   await pg.click('text=加入索引');
   await pg.waitForFunction("document.getElementById('ragst').textContent.includes('片段')");
@@ -39,6 +43,7 @@ fs.mkdirSync(S, { recursive: true });
   ok('04 RAG 上傳文件 + 檢索', (await pg.innerText('#ragout')).includes('ton.md'));
   await card('3. RAG', '03_rag.png').catch(() => {});
   // 4. check: error then clean
+  await T('gen');
   await pg.fill('#code', 'PROGRAM X\nVAR a:INT; END_VAR\nb := 1;\nEND_PROGRAM');
   await pg.click('text=靜態檢查');
   await pg.waitForFunction("document.getElementById('chkout').textContent.includes('error')");
@@ -49,14 +54,16 @@ fs.mkdirSync(S, { recursive: true });
   await pg.click('text=靜態檢查'); await pg.waitForFunction("document.getElementById('chkout').textContent.includes('無問題')");
   ok('06 motor.st 靜態檢查無問題', true);
   // 5. exports
+  await T('exp');
   const fmts = { plcopen: ['program.xml', '<pou'], scl: ['.scl', 'ORGANIZATION_BLOCK'], l5x: ['.L5X', '<Routine'], gxworks: ['.txt', 'Label Name'], sysmac: ['.txt', 'Data Type'] };
   for (const [f, [ext, needle]] of Object.entries(fmts)) {
     await pg.selectOption('#expfmt', f);
-    const [d] = await Promise.all([pg.waitForEvent('download'), pg.click('button:has-text("匯出")')]);
+    const [d] = await Promise.all([pg.waitForEvent('download'), pg.click('#tab_exp button')]);
     const txt = fs.readFileSync(await d.path(), 'utf8');
     ok('07 匯出 ' + f, d.suggestedFilename().endsWith(ext) && txt.includes(needle), d.suggestedFilename() + ' ' + txt.length + ' chars');
   }
   // 6. virtual PLC
+  await T('sim');
   await pg.fill('#events', '2:start=true\n40:start=false');
   const t1 = Date.now();
   await pg.click('text=執行並繪製波形');
@@ -65,6 +72,7 @@ fs.mkdirSync(S, { recursive: true });
   ok('09 波形圖有繪製', await pg.evaluate("[...document.getElementById('wave').getContext('2d').getImageData(0,0,900,380).data].some(v=>v>0)"));
   await card('5. 虛擬 PLC', '05_vplc.png').catch(() => {});
   // 7. scenario
+  await T('test');
   await pg.click('text=執行情境'); await pg.waitForSelector('#tstout:not([hidden])');
   ok('10 情境測試 PASS', (await pg.innerText('#tstout')).trim() === 'PASS');
   await pg.fill('#scn', '{"scan_ms":100,"steps":[{"name":"wrong","set":{"start":true},"ms":600,"expect":{"motor":false}}]}').catch(() => {});
@@ -74,6 +82,7 @@ fs.mkdirSync(S, { recursive: true });
     await card('6. 情境測試', '06_scenario_fail.png').catch(() => {});
   }
   // 8. profiles: strict overflow
+  await T('sim');
   await pg.fill('#code', 'PROGRAM P\nVAR x : INT := 32767; END_VAR\nx := x + 1;\nEND_PROGRAM');
   await pg.fill('#events', '');
   for (const [p, exp] of [['iec', '週期'], ['strict', 'overflow'], ['saturate', '週期']]) {
@@ -91,6 +100,12 @@ fs.mkdirSync(S, { recursive: true });
     ok('13 範例 ' + ex + ' 於 UI 執行', (await pg.innerText('#runst')).includes('週期'));
   }
   await pg.screenshot({ path: S + '00_full_page.png', fullPage: true });
+  // 10. no-scroll layout + status bar
+  const noscroll = await pg.evaluate('document.documentElement.scrollHeight <= window.innerHeight && document.body.scrollHeight <= window.innerHeight');
+  ok('13b 1280x800 整頁無垂直捲動', noscroll);
+  for (const [w, h] of [[1920, 1080], [1280, 800]]) { await pg.setViewportSize({ width: w, height: h }); ok('13c ' + w + 'x' + h + ' 無垂直捲動', await pg.evaluate('document.documentElement.scrollHeight <= window.innerHeight')); }
+  ok('13d 狀態列顯示檢查/模擬/情境結果', /情境 (PASS|FAIL)/.test(await pg.innerText('#st_tst')) && /模擬/.test(await pg.innerText('#st_run')) && /檢查/.test(await pg.innerText('#st_chk')), (await pg.innerText('#statusbar')).replace(/\n/g, ' | '));
+  for (const t of ['gen','sim','test','exp','rag','set']) { await T(t); await pg.screenshot({ path: S + 'tab_' + t + '.png' }); }
   // 10. mobile width
   await pg.setViewportSize({ width: 390, height: 844 });
   const overflow = await pg.evaluate('document.documentElement.scrollWidth - window.innerWidth');
