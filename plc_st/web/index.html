@@ -1,59 +1,180 @@
 <!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PLC ST 開發介面</title>
+<title>PLC ST Studio</title>
+<script>/* 主題在繪製前套用,避免閃爍;只記住主題偏好(不含任何金鑰) */
+try{const t=localStorage.getItem('plcst.theme');if(t=='light'||t=='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <style>
-:root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--bd:#d5dae2;--ac:#2557d6;--ok:#1b8a4b;--er:#c62828;--wn:#b26a00}
-@media(prefers-color-scheme:dark){:root{--bg:#14181f;--fg:#e4e8ef;--card:#1d232d;--bd:#323b4a;--ac:#6c9bff;--ok:#4cc27f;--er:#ff7070;--wn:#e0a030}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,"Noto Sans TC",sans-serif}
-h2{margin:0 0 8px;font-size:15px}
-textarea,input,select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:6px;font:13px ui-monospace,monospace}
-textarea{min-height:130px;resize:vertical}
-label{display:block;margin:6px 0 2px;font-size:12px;opacity:.8}
-.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:110px}
-button{background:var(--ac);color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;margin:6px 6px 0 0}
-button.s{background:transparent;color:var(--ac);border:1px solid var(--ac)}
-pre{background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:8px;overflow:auto;max-height:220px;margin:6px 0 0;white-space:pre-wrap}
-.er{color:var(--er)}.wn{color:var(--wn)}.ok{color:var(--ok)}
-canvas{width:100%;height:190px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;margin-top:6px}
-table{border-collapse:collapse;font-size:12px}td,th{border:1px solid var(--bd);padding:2px 6px}
-.wide{grid-column:1/-1}
+/* ===== UI2 設計 token ===== */
+:root{
+ --font-ui:system-ui,-apple-system,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+ --font-code:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,"Noto Sans Mono CJK TC",monospace;
+ --fs-xs:11px;--fs-sm:12px;--fs-md:13px;--fs-lg:15px;
+ --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;
+ --r-sm:6px;--r-md:8px;--r-lg:12px;--r-pill:999px;
+ --dur:.15s;
+ color-scheme:light;
+ --bg:#f3f5f8;--surface:#ffffff;--surface-2:#eef1f5;--fg:#17202c;--fg-muted:#525d6c;--bd:#d7dce4;--bd-strong:#b9c1cd;
+ --ac:#1f4fd1;--ac-hover:#1a43b3;--ac-fg:#ffffff;--ac-bg:#e8eefc;
+ --ok:#16703d;--ok-bg:#e6f4ec;--er:#b42318;--er-bg:#fdecea;--wn:#8a5100;--wn-bg:#fcf1de;--info:#1f4fd1;--info-bg:#e8eefc;
+ --shadow-1:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);--shadow-2:0 8px 24px rgba(16,24,40,.16);
+ --wave:#1f4fd1;--wave-grid:#e3e7ee;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+ --bg:#0e1218;--surface:#161b23;--surface-2:#1e242e;--fg:#e5e9ef;--fg-muted:#9ca6b4;--bd:#2b3340;--bd-strong:#3d4757;
+ --ac:#7ea6ff;--ac-hover:#9bb9ff;--ac-fg:#0a1020;--ac-bg:#1c2944;
+ --ok:#56c98a;--ok-bg:#15291f;--er:#ff8077;--er-bg:#331a19;--wn:#e8ad48;--wn-bg:#30251a;--info:#7ea6ff;--info-bg:#1c2944;
+ --shadow-1:0 1px 2px rgba(0,0,0,.4);--shadow-2:0 8px 24px rgba(0,0,0,.5);--wave:#7ea6ff;--wave-grid:#252c37}}
+:root[data-theme="dark"]{color-scheme:dark;
+ --bg:#0e1218;--surface:#161b23;--surface-2:#1e242e;--fg:#e5e9ef;--fg-muted:#9ca6b4;--bd:#2b3340;--bd-strong:#3d4757;
+ --ac:#7ea6ff;--ac-hover:#9bb9ff;--ac-fg:#0a1020;--ac-bg:#1c2944;
+ --ok:#56c98a;--ok-bg:#15291f;--er:#ff8077;--er-bg:#331a19;--wn:#e8ad48;--wn-bg:#30251a;--info:#7ea6ff;--info-bg:#1c2944;
+ --shadow-1:0 1px 2px rgba(0,0,0,.4);--shadow-2:0 8px 24px rgba(0,0,0,.5);--wave:#7ea6ff;--wave-grid:#252c37}
 
-html,body{height:100%}body{display:flex;flex-direction:column;overflow:hidden}
-header{display:flex;align-items:center;gap:12px;padding:6px 14px;border-bottom:1px solid var(--bd);font-weight:600;background:var(--card);flex:none}
-header .sub{font-weight:400;opacity:.65;font-size:12px}header select{width:auto;margin-left:auto}
-#statusbar{display:flex;gap:6px;flex-wrap:wrap;padding:4px 10px;border-bottom:1px solid var(--bd);background:var(--card);flex:none;font-size:12px}
-.pill{border:1px solid var(--bd);border-radius:12px;padding:1px 10px;cursor:pointer;background:var(--bg);color:var(--fg);margin:0}
-.pill.ok{color:var(--ok);border-color:var(--ok)}.pill.er{color:var(--er);border-color:var(--er)}.pill.wn{color:var(--wn);border-color:var(--wn)}
+/* ===== 基礎 ===== */
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:var(--fs-md)/1.5 var(--font-ui);display:flex;flex-direction:column;overflow:hidden;font-variant-numeric:tabular-nums}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+h2{margin:0 0 var(--sp-2);font-size:var(--fs-lg);font-weight:600;display:flex;align-items:center;gap:var(--sp-2)}
+h3{margin:0;font-size:var(--fs-sm);font-weight:600;color:var(--fg-muted);text-transform:none;letter-spacing:.02em}
+code{font-family:var(--font-code);background:var(--surface-2);padding:0 4px;border-radius:4px}
+label{display:block;margin:var(--sp-2) 0 var(--sp-1);font-size:var(--fs-sm);color:var(--fg-muted);font-weight:500}
+label.chk{display:flex;align-items:center;gap:var(--sp-2);color:var(--fg);cursor:pointer}
+label.chk input{width:16px;height:16px;margin:0;accent-color:var(--ac)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+
+/* ===== 輸入元件 ===== */
+textarea,input,select{width:100%;background:var(--surface);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-sm);padding:7px 9px;font:var(--fs-md) var(--font-ui);transition:border-color var(--dur),box-shadow var(--dur)}
+textarea{min-height:130px;resize:vertical;font-family:var(--font-code);line-height:1.55}
+textarea:hover,input:hover,select:hover{border-color:var(--bd-strong)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
+input[type=file]{padding:5px;font-size:var(--fs-sm);background:var(--surface-2);border-style:dashed;cursor:pointer}
+input[type=file]::file-selector-button{font:inherit;border:1px solid var(--bd);background:var(--surface);color:var(--fg);border-radius:var(--r-sm);padding:3px 10px;margin-right:8px;cursor:pointer}
+.row{display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:flex-end}.row>*{flex:1;min-width:110px}
+
+/* ===== 按鈕 ===== */
+button{font:500 var(--fs-md) var(--font-ui);display:inline-flex;align-items:center;gap:6px;background:var(--ac);color:var(--ac-fg);border:1px solid var(--ac);border-radius:var(--r-sm);padding:6px 13px;cursor:pointer;margin:var(--sp-2) var(--sp-1) 0 0;transition:background var(--dur),border-color var(--dur),color var(--dur),box-shadow var(--dur)}
+button:hover{background:var(--ac-hover);border-color:var(--ac-hover)}
+button.s{background:var(--surface);color:var(--ac);border-color:var(--bd-strong)}
+button.s:hover{background:var(--ac-bg);border-color:var(--ac)}
+button.ghost{background:transparent;color:var(--fg-muted);border-color:transparent;margin:0;padding:5px 8px}
+button.ghost:hover{background:var(--surface-2);color:var(--fg)}
+button:disabled{opacity:.6;cursor:progress}
+button.busy::before{content:"";width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== 訊息/輸出 ===== */
+pre{background:var(--surface-2);border:1px solid var(--bd);border-radius:var(--r-sm);padding:var(--sp-2) var(--sp-3);overflow:auto;max-height:220px;margin:var(--sp-2) 0 0;white-space:pre-wrap;font:var(--fs-sm)/1.55 var(--font-code)}
+.er{color:var(--er)}.wn{color:var(--wn)}.ok{color:var(--ok)}
+pre.er{background:var(--er-bg);border-color:color-mix(in srgb,var(--er) 35%,transparent)}
+pre.ok{background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.hint{color:var(--fg-muted);font-size:var(--fs-sm)}
+.inline{font-size:var(--fs-sm);margin-left:var(--sp-1)}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg-muted);font-size:var(--fs-sm);border:1px dashed var(--bd-strong);border-radius:var(--r-md);padding:var(--sp-4);margin-top:var(--sp-2);text-align:center}
+.empty .ico{width:22px;height:22px}
+canvas{width:100%;height:190px;background:var(--surface);border:1px solid var(--bd);border-radius:var(--r-md);margin-top:var(--sp-2)}
+table{border-collapse:collapse;font-size:var(--fs-sm)}td,th{border:1px solid var(--bd);padding:2px 6px}
+
+/* ===== 卡片 ===== */
+.card{background:var(--surface);border:1px solid var(--bd);border-radius:var(--r-lg);padding:var(--sp-3) var(--sp-4) var(--sp-4);box-shadow:var(--shadow-1);margin-bottom:var(--sp-3)}
+.card>h2 .ico{color:var(--ac)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);font-weight:600;padding:1px 8px;border-radius:var(--r-pill);background:var(--surface-2);color:var(--fg-muted);border:1px solid var(--bd)}
+
+/* ===== 外框 ===== */
+header{display:flex;align-items:center;gap:var(--sp-3);padding:7px var(--sp-4);border-bottom:1px solid var(--bd);background:var(--surface);flex:none}
+.brand{display:flex;align-items:center;gap:var(--sp-2);font-weight:700;font-size:var(--fs-lg);letter-spacing:.01em}
+.logo{width:26px;height:26px;border-radius:7px;background:var(--ac);color:var(--ac-fg);display:grid;place-items:center}
+.logo .ico{width:16px;height:16px}
+header .sub{font-weight:400;color:var(--fg-muted);font-size:var(--fs-sm)}
+header .tools{margin-left:auto;display:flex;align-items:center;gap:var(--sp-2)}
+header select{width:auto;padding:5px 8px}
+#statusbar{display:flex;gap:6px;flex-wrap:wrap;padding:6px var(--sp-3);border-bottom:1px solid var(--bd);background:var(--surface);flex:none}
+.pill{font-size:var(--fs-sm);font-weight:500;border:1px solid var(--bd);border-radius:var(--r-pill);padding:2px 11px;background:var(--surface-2);color:var(--fg-muted);margin:0}
+.pill:hover{background:var(--surface-2);border-color:var(--bd-strong);color:var(--fg)}
+.pill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:var(--ok-bg)}
+.pill.er{color:var(--er);border-color:color-mix(in srgb,var(--er) 45%,transparent);background:var(--er-bg)}
+.pill.wn{color:var(--wn);border-color:color-mix(in srgb,var(--wn) 45%,transparent);background:var(--wn-bg)}
 #app{flex:1;min-height:0;display:grid;grid-template-columns:84px minmax(0,1fr) minmax(0,1fr)}
-nav{display:flex;flex-direction:column;gap:2px;padding:6px;border-right:1px solid var(--bd);background:var(--card)}
-nav button{background:transparent;color:var(--fg);margin:0;padding:8px 4px;text-align:center;font-size:12px;border-radius:6px}
-nav button b{display:block;font-size:18px;font-weight:400}
-nav button.on{background:var(--ac);color:#fff}
-#codepane{display:flex;flex-direction:column;padding:8px;min-width:0;min-height:0;border-right:1px solid var(--bd)}
-#codepane h2{flex:none}#code{flex:1;min-height:0;resize:none}
-#tabpane{overflow:auto;padding:10px;min-width:0;min-height:0}
-.tab{display:none}.tab.on{display:block}
-#drawer{flex:none;border-top:1px solid var(--bd);background:var(--card)}
-#drawer>div{display:flex;align-items:center;gap:8px;padding:3px 10px;cursor:pointer;font-size:12px}
-#drawer pre{margin:0;border:0;border-radius:0;max-height:22vh}
-.tab h2{margin-top:14px}.tab h2:first-child{margin-top:0}
+nav{display:flex;flex-direction:column;gap:2px;padding:var(--sp-2) 6px;border-right:1px solid var(--bd);background:var(--surface)}
+nav button{flex-direction:column;gap:3px;background:transparent;border-color:transparent;color:var(--fg-muted);margin:0;padding:8px 4px;font-size:var(--fs-sm);border-radius:var(--r-md)}
+nav button .ico{width:20px;height:20px}
+nav button:hover{background:var(--surface-2);border-color:transparent;color:var(--fg)}
+nav button.on{background:var(--ac-bg);color:var(--ac);border-color:transparent;font-weight:600}
+#codepane{display:flex;flex-direction:column;padding:var(--sp-3);min-width:0;min-height:0;border-right:1px solid var(--bd);background:var(--surface)}
+#codepane h2{flex:none}#code{flex:1;min-height:0;resize:none;background:var(--surface-2);border-color:var(--bd)}
+.codebar{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;flex:none}
+.codebar input[type=file]{width:auto;max-width:230px;margin-top:var(--sp-2)}
+#tabpane{overflow:auto;padding:var(--sp-3);min-width:0;min-height:0}
+.tab{display:none}.tab.on{display:block;animation:fade var(--dur) ease-out}
+@keyframes fade{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+#drawer{flex:none;border-top:1px solid var(--bd);background:var(--surface)}
+#drawer>div{display:flex;align-items:center;gap:var(--sp-2);padding:4px var(--sp-3);cursor:pointer;font-size:var(--fs-sm)}
+#drawer>div:hover{background:var(--surface-2)}
+#drawer pre{margin:0;border:0;border-radius:0;max-height:22vh;border-top:1px solid var(--bd)}
+
+/* ===== Toast ===== */
+#toasts{position:fixed;right:var(--sp-4);bottom:44px;display:flex;flex-direction:column;gap:var(--sp-2);z-index:50;pointer-events:none;max-width:min(360px,calc(100vw - 32px))}
+.toast{pointer-events:auto;display:flex;align-items:flex-start;gap:var(--sp-2);background:var(--surface);color:var(--fg);border:1px solid var(--bd);border-left:4px solid var(--info);border-radius:var(--r-md);padding:var(--sp-2) var(--sp-3);box-shadow:var(--shadow-2);font-size:var(--fs-md);animation:tin .18s ease-out}
+.toast.ok{border-left-color:var(--ok)}.toast.er{border-left-color:var(--er)}.toast.wn{border-left-color:var(--wn)}
+.toast .ico{margin-top:2px}.toast.ok .ico{color:var(--ok)}.toast.er .ico{color:var(--er)}.toast.wn .ico{color:var(--wn)}.toast.info .ico{color:var(--info)}
+.toast.out{opacity:0;transform:translateX(12px);transition:opacity .2s,transform .2s}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*,*::before{animation-duration:.001s!important;transition-duration:.001s!important}}
+
 @media(max-width:820px){body{overflow:auto}#app{display:flex;flex-direction:column;flex:none}nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--bd)}
- nav button{flex:1;min-width:64px}#codepane{border-right:0;height:60vh}#tabpane{overflow:visible}}
+ nav button{flex:1;min-width:64px}#codepane{border-right:0;height:60vh}#tabpane{overflow:visible}header .sub{display:none}}
 </style></head><body>
-<header>◆ PLC ST Studio <span class="sub">輸入 → LLM/RAG 產生 → 檢查 → 虛擬 PLC 驗證</span><select id="profile" title="廠牌 Profile"></select></header>
-<div id="statusbar">
+<!-- 內嵌 SVG 圖示(離線,無外部 CDN) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="i-logo" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3M9 9h6v6H9z"/></symbol>
+ <symbol id="i-gen" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+ <symbol id="i-sim" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+ <symbol id="i-test" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4.5 18.5A2 2 0 0 0 6.2 21.5h11.6a2 2 0 0 0 1.7-3L14 9V3"/><path d="M7.5 15h9"/></symbol>
+ <symbol id="i-exp" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
+ <symbol id="i-rag" viewBox="0 0 24 24"><path d="M4 4h10l6 6v10a1 1 0 0 1-1 1H4z"/><path d="M14 4v6h6M8 14h8M8 17h5"/></symbol>
+ <symbol id="i-set" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+ <symbol id="i-code" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></symbol>
+ <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
+ <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+ <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+ <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+ <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></symbol>
+ <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/></symbol>
+ <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+ <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+ <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+ <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+ <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></symbol>
+ <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+ <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M10 2v4M14 2v4M10 18v4M14 18v4M2 10h4M2 14h4M18 10h4M18 14h4"/></symbol>
+</svg>
+<header>
+ <div class="brand"><span class="logo"><svg class="ico"><use href="#i-logo"/></svg></span>PLC ST Studio</div>
+ <span class="sub">輸入 → LLM/RAG 產生 → 檢查 → 虛擬 PLC 驗證</span>
+ <div class="tools">
+  <select id="profile" title="廠牌 Profile" aria-label="廠牌 Profile"></select>
+  <button class="ghost" id="themebtn" onclick="cycleTheme()" title="切換主題" aria-label="切換主題"><svg class="ico"><use href="#i-auto"/></svg><span id="themelbl">自動</span></button>
+ </div>
+</header>
+<div id="statusbar" role="status">
  <button class="pill" id="st_chk" onclick="openDrawer(true)">● 檢查:尚未執行</button>
  <button class="pill" id="st_run" onclick="tab('sim')">▶ 模擬:尚未執行</button>
  <button class="pill" id="st_tst" onclick="tab('test')">✔ 情境:尚未執行</button>
  <button class="pill" id="st_llm" onclick="tab('set')">LLM:ollama</button>
 </div>
 <div id="app">
-<nav id="nav">
- <button data-t="gen" class="on"><b>✎</b>產生</button><button data-t="sim"><b>▶</b>模擬</button><button data-t="test"><b>✔</b>測試</button>
- <button data-t="exp"><b>⇪</b>匯出</button><button data-t="rag"><b>❏</b>文件</button><button data-t="set"><b>⚙</b>設定</button>
+<nav id="nav" aria-label="功能頁籤">
+ <button data-t="gen" class="on" title="Alt+1"><svg class="ico"><use href="#i-gen"/></svg>產生</button>
+ <button data-t="sim" title="Alt+2"><svg class="ico"><use href="#i-sim"/></svg>模擬</button>
+ <button data-t="test" title="Alt+3"><svg class="ico"><use href="#i-test"/></svg>測試</button>
+ <button data-t="exp" title="Alt+4"><svg class="ico"><use href="#i-exp"/></svg>匯出</button>
+ <button data-t="rag" title="Alt+5"><svg class="ico"><use href="#i-rag"/></svg>文件</button>
+ <button data-t="set" title="Alt+6"><svg class="ico"><use href="#i-set"/></svg>設定</button>
 </nav>
-<section id="codepane"><h2>ST 程式碼</h2>
- <textarea id="code" spellcheck="false">PROGRAM Motor
+<section id="codepane"><h2><svg class="ico"><use href="#i-code"/></svg>ST 程式碼</h2>
+ <textarea id="code" spellcheck="false" aria-label="ST 程式碼">PROGRAM Motor
 VAR_INPUT start : BOOL; stop : BOOL; END_VAR
 VAR_OUTPUT motor : BOOL; END_VAR
 VAR t : TON; cnt : INT; END_VAR
@@ -62,62 +183,81 @@ IF stop THEN motor := FALSE; END_IF;
 t(IN := motor, PT := T#500ms);
 IF t.Q THEN cnt := cnt + 1; END_IF;
 END_PROGRAM</textarea>
- <div><input type="file" id="codefile" accept=".st,.txt" style="width:auto"> <button onclick="chk()">靜態檢查</button><button class="s" onclick="dl()">下載 .st</button></div>
+ <div class="codebar"><input type="file" id="codefile" accept=".st,.txt" aria-label="載入 .st 檔"> <button onclick="chk()"><svg class="ico"><use href="#i-check"/></svg>靜態檢查</button><button class="s" onclick="dl()"><svg class="ico"><use href="#i-dl"/></svg>下載 .st</button></div>
 </section>
 <div id="tabpane">
-<div class="tab on" id="tab_gen"><h2>需求輸入</h2>
- <label>需求文字(或上傳 .txt/.md 檔)</label><textarea id="req">按下 start 後馬達啟動,按 stop 停止;馬達連續運轉 500ms 後計數器加 1。</textarea>
- <input type="file" id="reqfile" accept=".txt,.md">
- <label>點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,comment"></textarea>
- <input type="file" id="tagsfile" accept=".csv,.txt">
- <button class="s" onclick="tagsToVar()">點位表 → VAR 宣告</button>
- <h2>LLM 產生</h2>
- <label><input type="checkbox" id="userag" style="width:auto"> 使用 RAG 文件檢索</label>
- <button onclick="gen()">產生 ST</button><span id="genst"></span>
- <pre id="genout" hidden></pre>
+<div class="tab on" id="tab_gen">
+ <div class="card"><h2><svg class="ico"><use href="#i-rag"/></svg>需求輸入</h2>
+  <label for="req">需求文字(或上傳 .txt/.md 檔)</label><textarea id="req">按下 start 後馬達啟動,按 stop 停止;馬達連續運轉 500ms 後計數器加 1。</textarea>
+  <input type="file" id="reqfile" accept=".txt,.md" aria-label="上傳需求檔">
+  <label for="tags">點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,comment"></textarea>
+  <input type="file" id="tagsfile" accept=".csv,.txt" aria-label="上傳點位表">
+  <button class="s" onclick="tagsToVar()"><svg class="ico"><use href="#i-table"/></svg>點位表 → VAR 宣告</button>
+ </div>
+ <div class="card"><h2><svg class="ico"><use href="#i-gen"/></svg>LLM 產生</h2>
+  <label class="chk"><input type="checkbox" id="userag"> 使用 RAG 文件檢索</label>
+  <button onclick="gen()"><svg class="ico"><use href="#i-gen"/></svg>產生 ST</button><span id="genst" class="inline"></span>
+  <pre id="genout" hidden></pre>
+ </div>
 </div>
-<div class="tab" id="tab_sim"><h2>虛擬 PLC</h2>
- <div class="row"><div><label>週期數</label><input id="cycles" type="number" value="80"></div>
- <div><label>掃描週期 ms</label><input id="scan" type="number" value="10"></div></div>
- <label>輸入事件(每行 <code>週期:變數=值</code>)</label>
- <textarea id="events" style="min-height:70px">2:start=true
+<div class="tab" id="tab_sim">
+ <div class="card"><h2><svg class="ico"><use href="#i-cpu"/></svg>虛擬 PLC</h2>
+  <div class="row"><div><label for="cycles">週期數</label><input id="cycles" type="number" value="80"></div>
+  <div><label for="scan">掃描週期 ms</label><input id="scan" type="number" value="10"></div></div>
+  <label for="events">輸入事件(每行 <code>週期:變數=值</code>)</label>
+  <textarea id="events" style="min-height:70px">2:start=true
 40:start=false
 60:stop=true</textarea>
- <button onclick="runPlc()">執行並繪製波形</button><span id="runst"></span>
- <canvas id="wave" width="900" height="380"></canvas>
+  <button onclick="runPlc()"><svg class="ico"><use href="#i-play"/></svg>執行並繪製波形</button><span id="runst" class="inline"></span>
+  <div class="empty" id="waveempty"><svg class="ico"><use href="#i-sim"/></svg>尚未執行模擬 — 執行後在此顯示各變數時序波形</div>
+  <canvas id="wave" width="900" height="380" hidden></canvas>
+ </div>
 </div>
-<div class="tab" id="tab_test"><h2>情境測試</h2>
- <textarea id="scn" style="min-height:190px">{"scan_ms": 100, "steps": [
+<div class="tab" id="tab_test">
+ <div class="card"><h2><svg class="ico"><use href="#i-test"/></svg>情境測試</h2>
+  <textarea id="scn" style="min-height:190px" aria-label="情境 JSON">{"scan_ms": 100, "steps": [
  {"name": "start", "set": {"start": true}, "ms": 600, "expect": {"motor": true, "t.Q": true}},
  {"name": "stop", "set": {"start": false, "stop": true}, "cycles": 1, "expect": {"motor": false}}
 ]}</textarea>
- <input type="file" id="scnfile" accept=".json">
- <button onclick="tst()">執行情境</button>
- <pre id="tstout" hidden></pre>
+  <input type="file" id="scnfile" accept=".json" aria-label="上傳情境 JSON">
+  <button onclick="tst()"><svg class="ico"><use href="#i-play"/></svg>執行情境</button>
+  <pre id="tstout" hidden></pre>
+ </div>
 </div>
-<div class="tab" id="tab_exp"><h2>匯出</h2>
- <select id="expfmt"><option value="plcopen">PLCopen XML</option><option value="scl">Siemens SCL</option><option value="l5x">Rockwell L5X</option><option value="gxworks">Mitsubishi GX Works3</option><option value="sysmac">Omron Sysmac Studio</option></select>
- <button class="s" onclick="exp()">匯出</button>
+<div class="tab" id="tab_exp">
+ <div class="card"><h2><svg class="ico"><use href="#i-exp"/></svg>匯出</h2>
+  <p class="hint">將 ST 轉成各廠牌工程軟體可匯入的格式。</p>
+  <select id="expfmt" aria-label="匯出格式"><option value="plcopen">PLCopen XML</option><option value="scl">Siemens SCL</option><option value="l5x">Rockwell L5X</option><option value="gxworks">Mitsubishi GX Works3</option><option value="sysmac">Omron Sysmac Studio</option></select>
+  <button class="s" onclick="exp()"><svg class="ico"><use href="#i-dl"/></svg>匯出</button>
+ </div>
 </div>
-<div class="tab" id="tab_rag"><h2>RAG 文件庫</h2>
- <div class="row"><select id="embsel"><option value="tfidf">TF-IDF(離線)</option><option value="hash">hash 向量(離線)</option><option value="ollama">Ollama embedding</option><option value="openai">OpenAI embedding</option><option value="gemini">Gemini embedding</option></select><input id="embkey" type="password" placeholder="Embedding API Key(可空)"></div>
- <input type="file" id="ragfile" multiple accept=".txt,.md,.st,.csv,.json,.docx,.pdf">
- <button onclick="ragAdd()">加入索引</button><button class="s" onclick="ragClear()">清空</button><span id="ragst"></span>
- <div class="row"><input id="ragq" placeholder="測試查詢…"><button style="flex:0" onclick="ragSearch()">搜尋</button></div>
- <pre id="ragout" hidden></pre>
+<div class="tab" id="tab_rag">
+ <div class="card"><h2><svg class="ico"><use href="#i-rag"/></svg>RAG 文件庫</h2>
+  <div class="row"><select id="embsel" aria-label="Embedder"><option value="tfidf">TF-IDF(離線)</option><option value="hash">hash 向量(離線)</option><option value="ollama">Ollama embedding</option><option value="openai">OpenAI embedding</option><option value="gemini">Gemini embedding</option></select><input id="embkey" type="password" placeholder="Embedding API Key(可空)" aria-label="Embedding API Key"></div>
+  <label for="ragfile">參考文件(.txt .md .st .csv .json .docx .pdf)</label>
+  <input type="file" id="ragfile" multiple accept=".txt,.md,.st,.csv,.json,.docx,.pdf">
+  <button onclick="ragAdd()"><svg class="ico"><use href="#i-plus"/></svg>加入索引</button><button class="s" onclick="ragClear()"><svg class="ico"><use href="#i-trash"/></svg>清空</button><span id="ragst" class="inline"></span>
+ </div>
+ <div class="card"><h2><svg class="ico"><use href="#i-search"/></svg>檢索測試</h2>
+  <div class="row"><input id="ragq" placeholder="測試查詢…" aria-label="測試查詢"><button style="flex:0" onclick="ragSearch()"><svg class="ico"><use href="#i-search"/></svg>搜尋</button></div>
+  <pre id="ragout" hidden></pre>
+ </div>
 </div>
-<div class="tab" id="tab_set"><h2>LLM 設定</h2>
- <div class="row"><div><label>Provider</label><select id="prov"><option>ollama</option><option>gemini</option><option>openai</option><option>claude</option></select></div>
- <div><label>Model(空=預設)</label><input id="model"></div></div>
- <div class="row"><div><label>API Key(僅送至本機伺服器,不儲存)</label><input id="key" type="password" autocomplete="off"></div>
- <div><label>Base URL(可選)</label><input id="base"></div></div>
- <label>自動修正輪數</label><input id="rounds" type="number" value="3" min="0" max="10">
+<div class="tab" id="tab_set">
+ <div class="card"><h2><svg class="ico"><use href="#i-set"/></svg>LLM 設定</h2>
+  <div class="row"><div><label for="prov">Provider</label><select id="prov"><option>ollama</option><option>gemini</option><option>openai</option><option>claude</option></select></div>
+  <div><label for="model">Model(空=預設)</label><input id="model"></div></div>
+  <div class="row"><div><label for="key">API Key(僅送至本機伺服器,不儲存)</label><input id="key" type="password" autocomplete="off"></div>
+  <div><label for="base">Base URL(可選)</label><input id="base"></div></div>
+  <label for="rounds">自動修正輪數</label><input id="rounds" type="number" value="3" min="0" max="10">
+ </div>
 </div>
 </div></div>
-<div id="drawer"><div onclick="openDrawer()"><b>問題 / 輸出</b><span id="drawerinfo" class="wn"></span><span style="margin-left:auto">▴▾</span></div><pre id="chkout" hidden></pre></div>
+<div id="drawer"><div onclick="openDrawer()"><b>問題 / 輸出</b><span id="drawerinfo" class="wn"></span><svg class="ico" style="margin-left:auto"><use href="#i-chev"/></svg></div><pre id="chkout" hidden></pre></div>
+<div id="toasts" aria-live="polite"></div>
 <script>
 const $=id=>document.getElementById(id);
-function tab(t){document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id=='tab_'+t));document.querySelectorAll('#nav button').forEach(e=>e.classList.toggle('on',e.dataset.t==t))}
+function tab(t){document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id=='tab_'+t));document.querySelectorAll('#nav button').forEach(e=>{const on=e.dataset.t==t;e.classList.toggle('on',on);e.setAttribute('aria-current',on?'page':'false')})}
 document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 document.addEventListener('keydown',e=>{if(e.altKey&&/^[1-6]$/.test(e.key)){tab(['gen','sim','test','exp','rag','set'][e.key-1]);e.preventDefault()}});
 function openDrawer(v){const p=$('chkout');p.hidden=v===true?false:!p.hidden}
@@ -125,43 +265,67 @@ function pill(id,txt,cls){const e=$(id);e.textContent=txt;e.className='pill '+(c
 function llmPill(){pill('st_llm','LLM:'+$('prov').value+($('model').value?'·'+$('model').value:''))}
 $('prov').onchange=$('model').oninput=llmPill;
 
+// ---- 主題:自動 → 亮 → 暗(只記住主題偏好) ----
+const THEMES=['auto','light','dark'],TLBL={auto:'自動',light:'亮色',dark:'暗色'},TICO={auto:'i-auto',light:'i-sun',dark:'i-moon'};
+function setTheme(t){const r=document.documentElement;if(t=='auto')delete r.dataset.theme;else r.dataset.theme=t;
+ $('themelbl').textContent=TLBL[t];$('themebtn').querySelector('use').setAttribute('href','#'+TICO[t]);
+ try{localStorage.setItem('plcst.theme',t)}catch(e){}if(lastWave)draw(lastWave)}
+function cycleTheme(){const cur=document.documentElement.dataset.theme||'auto';setTheme(THEMES[(THEMES.indexOf(cur)+1)%3])}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(lastWave)draw(lastWave)});
+
+// ---- toast 與按鈕載入狀態 ----
+const TIC={ok:'i-check',er:'i-x',wn:'i-warn',info:'i-info'};
+function toast(msg,kind='info',ms=3200){const t=document.createElement('div');t.className='toast '+kind;t.setAttribute('role',kind=='er'?'alert':'status');
+ t.innerHTML=`<svg class="ico"><use href="#${TIC[kind]}"/></svg><span>${esc(msg)}</span>`;$('toasts').appendChild(t);
+ const n=$('toasts').children;while(n.length>4)n[0].remove();
+ setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),220)},ms)}
+function busy(){const ev=window.event,b=ev&&ev.target&&ev.target.closest&&ev.target.closest('button');if(b){b.classList.add('busy');b.disabled=true}
+ return()=>{if(b){b.classList.remove('busy');b.disabled=false}}}
+
 async function api(p,b){const r=await fetch(p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
  const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
 function show(id,html,cls){const e=$(id);e.hidden=false;e.className=cls||'';e.innerHTML=html}
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if(f)$(target).value=await f.text()}}
+function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if(f){$(target).value=await f.text();toast('已載入 '+f.name,'info')}}}
 fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');fileTo('scnfile','scn');
 api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('')});
 const issuesHtml=l=>l.length?l.map(i=>`<div class="${i.severity=='error'?'er':'wn'}">${i.severity}${i.line?' line '+i.line:''}: ${esc(i.msg)}</div>`).join(''):'<span class="ok">✔ 無問題</span>';
-async function tagsToVar(){try{const j=await api('/api/tags',{csv:$('tags').value});$('code').value=j.code}catch(e){show('chkout',esc(e.message),'er')}}
-async function exp(){try{const f=$('expfmt').value,j=await api('/api/export',{code:$('code').value,format:f});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j.text],{type:'text/plain'}));a.download='program.'+j.ext;a.click();show('chkout','已匯出 '+esc(a.download)+'('+j.text.length+' 字元)')}catch(e){show('chkout',esc(e.message),'er')}}
-async function chk(){try{const l=(await api('/api/check',{code:$('code').value,profile:$('profile').value})).issues,ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;show('chkout',issuesHtml(l));
- pill('st_chk',`${ne?'✘':'✔'} 檢查 ${ne} 錯 / ${nw} 警告`,ne?'er':nw?'wn':'ok')}catch(e){show('chkout',esc(e.message),'er');pill('st_chk','✘ 檢查失敗','er')}}
+function drawerInfo(l){const ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;const d=$('drawerinfo');d.textContent=l.length?`${ne} 錯誤 · ${nw} 警告`:'';d.className=ne?'er':'wn'}
+async function tagsToVar(){const done=busy();try{const j=await api('/api/tags',{csv:$('tags').value});$('code').value=j.code;toast('已由點位表產生 VAR 宣告','ok')}catch(e){show('chkout',esc(e.message),'er');toast(e.message,'er')}finally{done()}}
+async function exp(){const done=busy();try{const f=$('expfmt').value,j=await api('/api/export',{code:$('code').value,format:f});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j.text],{type:'text/plain'}));a.download='program.'+j.ext;a.click();show('chkout','已匯出 '+esc(a.download)+'('+j.text.length+' 字元)');toast('已匯出 '+a.download,'ok')}catch(e){show('chkout',esc(e.message),'er');toast('匯出失敗:'+e.message,'er')}finally{done()}}
+async function chk(){const done=busy();try{const l=(await api('/api/check',{code:$('code').value,profile:$('profile').value})).issues,ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;show('chkout',issuesHtml(l));drawerInfo(l);
+ pill('st_chk',`${ne?'✘':'✔'} 檢查 ${ne} 錯 / ${nw} 警告`,ne?'er':nw?'wn':'ok');toast(ne?`檢查發現 ${ne} 個錯誤`:nw?`檢查通過,${nw} 個警告`:'檢查通過,無問題',ne?'er':nw?'wn':'ok')}
+ catch(e){show('chkout',esc(e.message),'er');pill('st_chk','✘ 檢查失敗','er');toast(e.message,'er')}finally{done()}}
 function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('code').value]));a.download='program.st';a.click()}
-async function gen(){$('genst').textContent=' 產生中…';try{
+async function gen(){const done=busy();$('genst').textContent=' 產生中…';$('genst').className='inline';try{
  const j=await api('/api/generate',{requirement:$('req').value,tags_csv:$('tags').value,provider:$('prov').value,model:$('model').value,api_key:$('key').value,base_url:$('base').value,profile:$('profile').value,max_rounds:+$('rounds').value,use_rag:$('userag').checked,scenario:$('scn').value});
- $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues))}
- catch(e){$('genst').textContent='';show('genout',esc(e.message),'er')}}
-async function ragAdd(){const fs=[...$('ragfile').files];if(!fs.length){$('ragst').textContent=' 請先選檔案';return}
- try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b,embedder:$('embsel').value,embed_api_key:$('embkey').value})}
- $('ragst').textContent=` 索引共 ${last.total} 個片段`}catch(e){$('ragst').textContent=' '+e.message}}
+ $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues));drawerInfo(j.issues);toast('ST 程式碼已產生','ok')}
+ catch(e){$('genst').textContent='';show('genout',esc(e.message),'er');toast('產生失敗:'+e.message,'er',5000)}finally{done()}}
+async function ragAdd(){const fs=[...$('ragfile').files];if(!fs.length){$('ragst').textContent=' 請先選檔案';toast('請先選擇要加入的文件','wn');return}
+ const done=busy();try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b,embedder:$('embsel').value,embed_api_key:$('embkey').value})}
+ $('ragst').textContent=` 索引共 ${last.total} 個片段`;toast(`已加入 ${fs.length} 份文件`,'ok')}catch(e){$('ragst').textContent=' '+e.message;toast(e.message,'er')}finally{done()}}
 function toB64(f){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f)})}
-async function ragClear(){await api('/api/rag/clear',{});$('ragst').textContent=' 已清空'}
-async function ragSearch(){try{const j=await api('/api/rag/search',{query:$('ragq').value});show('ragout',j.hits.length?j.hits.map(h=>`<b>${h.score}</b> [${esc(h.source)}]\n${esc(h.text.slice(0,200))}`).join('\n---\n'):'(無相關片段)')}catch(e){show('ragout',esc(e.message),'er')}}
+async function ragClear(){await api('/api/rag/clear',{});$('ragst').textContent=' 已清空';toast('RAG 索引已清空','info')}
+async function ragSearch(){const done=busy();try{const j=await api('/api/rag/search',{query:$('ragq').value});show('ragout',j.hits.length?j.hits.map(h=>`<b>${h.score}</b> [${esc(h.source)}]\n${esc(h.text.slice(0,200))}`).join('\n---\n'):'(無相關片段)')}catch(e){show('ragout',esc(e.message),'er')}finally{done()}}
 function parseEv(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\d+):([\w.]+)=(.+)$/);if(!m)throw new Error('事件格式錯誤: '+l);
  const v=m[3].toLowerCase()=='true'?true:m[3].toLowerCase()=='false'?false:Number(m[3]);return{cycle:+m[1],name:m[2],value:v}})}
-async function runPlc(){try{const j=await api('/api/run',{code:$('code').value,profile:$('profile').value,cycles:+$('cycles').value,scan_ms:+$('scan').value,events:parseEv($('events').value)});
- $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';pill('st_run',`✔ 模擬 ${j.rows.length} 週期`,'ok');draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er';pill('st_run','✘ 模擬錯誤','er')}}
-function draw(j){const c=$('wave'),g=c.getContext('2d'),cs=getComputedStyle(document.body);g.clearRect(0,0,c.width,c.height);
+let lastWave=null;
+async function runPlc(){const done=busy();try{const j=await api('/api/run',{code:$('code').value,profile:$('profile').value,cycles:+$('cycles').value,scan_ms:+$('scan').value,events:parseEv($('events').value)});
+ $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';pill('st_run',`✔ 模擬 ${j.rows.length} 週期`,'ok');draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er';pill('st_run','✘ 模擬錯誤','er');toast('模擬錯誤:'+e.message,'er')}finally{done()}}
+function draw(j){lastWave=j;$('wave').hidden=false;$('waveempty').hidden=true;
+ const c=$('wave'),g=c.getContext('2d'),cs=getComputedStyle(document.documentElement),tk=n=>cs.getPropertyValue(n).trim();
+ const fg=tk('--fg'),mut=tk('--fg-muted'),wave=tk('--wave'),grid=tk('--wave-grid');g.clearRect(0,0,c.width,c.height);
  const cols=j.columns.slice(2),n=j.rows.length,lh=c.height/Math.max(cols.length,1),lm=110,w=c.width-lm-10;
- g.font='13px sans-serif';cols.forEach((name,k)=>{const vals=j.rows.map(r=>r[k+2]),y0=k*lh+lh-8,h=lh-18;
-  g.fillStyle=cs.color;g.fillText(name,4,y0-h/2);
+ g.font='13px system-ui,sans-serif';cols.forEach((name,k)=>{const vals=j.rows.map(r=>r[k+2]),y0=k*lh+lh-8,h=lh-18;
+  g.strokeStyle=grid;g.lineWidth=1;g.beginPath();g.moveTo(lm,y0+4);g.lineTo(c.width-10,y0+4);g.stroke();
+  g.fillStyle=fg;g.fillText(name,4,y0-h/2);
   const nums=vals.map(Number),mn=Math.min(...nums),mx=Math.max(...nums),bool=vals.every(v=>typeof v=='boolean');
-  g.strokeStyle='#2557d6';g.lineWidth=1.6;g.beginPath();
+  g.strokeStyle=wave;g.lineWidth=1.8;g.beginPath();
   vals.forEach((v,i)=>{const x=lm+i*w/Math.max(n-1,1),f=bool?(v?1:0):(mx==mn?.5:(Number(v)-mn)/(mx-mn)),y=y0-f*h;
    if(i==0)g.moveTo(x,y);else{g.lineTo(x,g._py);g.lineTo(x,y)}g._py=y});g.stroke();
-  if(!bool){g.fillStyle=cs.color;g.fillText(`${mn}..${mx}`,4,y0-h/2+14)}})}
-async function tst(){try{const j=await api('/api/test',{code:$('code').value,scenario:$('scn').value,profile:$('profile').value});
+  if(!bool){g.fillStyle=mut;g.fillText(`${mn}..${mx}`,4,y0-h/2+14)}})}
+async function tst(){const done=busy();try{const j=await api('/api/test',{code:$('code').value,scenario:$('scn').value,profile:$('profile').value});
  show('tstout',j.passed?'PASS':j.failures.map(f=>`FAIL step ${esc(f.step)}: ${esc(f.var)} expected ${JSON.stringify(f.expected)} got ${JSON.stringify(f.actual)}`).join('\n'),j.passed?'ok':'er');
- pill('st_tst',j.passed?'✔ 情境 PASS':`✘ 情境 FAIL ${j.failures.length}`,j.passed?'ok':'er')}catch(e){show('tstout',esc(e.message),'er');pill('st_tst','✘ 情境錯誤','er')}}
+ pill('st_tst',j.passed?'✔ 情境 PASS':`✘ 情境 FAIL ${j.failures.length}`,j.passed?'ok':'er');toast(j.passed?'情境測試全部通過':`情境測試失敗 ${j.failures.length} 項`,j.passed?'ok':'er')}catch(e){show('tstout',esc(e.message),'er');pill('st_tst','✘ 情境錯誤','er');toast(e.message,'er')}finally{done()}}
+setTheme(document.documentElement.dataset.theme||'auto');
 </script></body></html>

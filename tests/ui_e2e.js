@@ -105,7 +105,43 @@ fs.mkdirSync(S, { recursive: true });
   ok('13b 1280x800 整頁無垂直捲動', noscroll);
   for (const [w, h] of [[1920, 1080], [1280, 800]]) { await pg.setViewportSize({ width: w, height: h }); ok('13c ' + w + 'x' + h + ' 無垂直捲動', await pg.evaluate('document.documentElement.scrollHeight <= window.innerHeight')); }
   ok('13d 狀態列顯示檢查/模擬/情境結果', /情境 (PASS|FAIL)/.test(await pg.innerText('#st_tst')) && /模擬/.test(await pg.innerText('#st_run')) && /檢查/.test(await pg.innerText('#st_chk')), (await pg.innerText('#statusbar')).replace(/\n/g, ' | '));
-  for (const t of ['gen','sim','test','exp','rag','set']) { await T(t); await pg.screenshot({ path: S + 'tab_' + t + '.png' }); }
+  for (const t of ['gen','sim','test','exp','rag','set']) { await T(t); await pg.waitForTimeout(250); await pg.screenshot({ path: S + 'tab_' + t + '.png' }); }
+  // UI2: 視覺系統 — 主題切換、WCAG AA 對比、toast、亮/暗截圖
+  const lum = h => { const c = h.replace('#', '').match(/../g).map(x => parseInt(x, 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const PAIRS = [['--fg', '--bg'], ['--fg', '--surface'], ['--fg', '--surface-2'], ['--fg-muted', '--surface'], ['--fg-muted', '--surface-2'], ['--fg-muted', '--bg'],
+    ['--ac', '--surface'], ['--ac', '--ac-bg'], ['--ac-fg', '--ac'], ['--ac-fg', '--ac-hover'], ['--ok', '--ok-bg'], ['--er', '--er-bg'], ['--wn', '--wn-bg'], ['--ok', '--surface'], ['--er', '--surface'], ['--wn', '--surface'], ['--ok', '--surface-2'], ['--er', '--surface-2']];
+  await pg.setViewportSize({ width: 1280, height: 800 });
+  for (const th of ['light', 'dark']) {
+    await pg.evaluate(t => setTheme(t), th);
+    const vals = await pg.evaluate(ps => { const cs = getComputedStyle(document.documentElement); const o = {}; ps.flat().forEach(n => o[n] = cs.getPropertyValue(n).trim()); return o; }, PAIRS);
+    const bad = PAIRS.map(([f, bg]) => [f + '/' + bg, ratio(vals[f], vals[bg])]).filter(([, r]) => r < 4.5);
+    const min = Math.min(...PAIRS.map(([f, bg]) => ratio(vals[f], vals[bg])));
+    ok('16 ' + th + ' 主題文字對比 ≥ 4.5:1 (WCAG AA)', bad.length === 0, 'min ' + min.toFixed(2) + (bad.length ? ' bad: ' + bad.map(([n, r]) => n + '=' + r.toFixed(2)).join(',') : ''));
+    const bodyBg = await pg.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    ok('17 ' + th + ' 主題套用到 body 背景', th === 'dark' ? bodyBg === 'rgb(14, 18, 24)' : bodyBg === 'rgb(243, 245, 248)', bodyBg);
+    await T('sim'); await pg.click('text=執行並繪製波形'); await pg.waitForTimeout(500);
+    await T('gen'); await pg.fill('#code', motor); await pg.click('text=靜態檢查');
+    await pg.waitForSelector('.toast.ok');
+    if (th === 'light') ok('18 操作完成顯示 toast', (await pg.innerText('#toasts')).includes('檢查通過'), await pg.innerText('#toasts'));
+    for (const t of ['gen', 'sim', 'test', 'exp', 'rag', 'set']) { await T(t); await pg.waitForTimeout(250); await pg.screenshot({ path: S + th + '_' + t + '.png' }); }
+  }
+  // 主題按鈕循環 auto → light → dark 並記住
+  await pg.evaluate(() => setTheme('auto'));
+  await pg.click('#themebtn'); const t1th = await pg.evaluate(() => document.documentElement.dataset.theme);
+  await pg.click('#themebtn'); const t2th = await pg.evaluate(() => document.documentElement.dataset.theme);
+  await pg.reload(); await pg.waitForFunction("document.querySelectorAll('#profile option').length>3");
+  const kept = await pg.evaluate(() => document.documentElement.dataset.theme);
+  ok('19 主題按鈕 auto→light→dark 且重新整理後保留', t1th === 'light' && t2th === 'dark' && kept === 'dark', [t1th, t2th, kept].join('→'));
+  ok('20 localStorage 只存主題,不含 API key', await pg.evaluate(() => Object.keys(localStorage).every(k => k === 'plcst.theme')));
+  await pg.evaluate(() => setTheme('auto'));
+  // 按鈕載入狀態:執行中顯示 busy 並 disabled
+  await T('sim'); await pg.fill('#cycles', '3000');
+  const busySeen = await pg.evaluate(() => { const b = [...document.querySelectorAll('#tab_sim button')][0]; b.click(); return b.classList.contains('busy') && b.disabled; });
+  await pg.waitForFunction("!document.querySelector('#tab_sim button').disabled");
+  ok('21 執行中按鈕顯示載入狀態,完成後恢復', busySeen);
+  ok('22 波形繪製後空狀態提示隱藏', await pg.evaluate(() => getComputedStyle(document.getElementById('waveempty')).display === 'none'));
+  await pg.fill('#cycles', '80');
   // 10. mobile width
   await pg.setViewportSize({ width: 390, height: 844 });
   const overflow = await pg.evaluate('document.documentElement.scrollWidth - window.innerWidth');
