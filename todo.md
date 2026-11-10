@@ -6,7 +6,7 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31、M32、UI1 已完成)UI2 → UI3 → UI4 → UI6 → UI5 → UI7(其餘候選穿插)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31、M32、UI1、UI2 已完成)UI3 → UI4 → UI6 → UI5 → UI7(其餘候選穿插)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
 ## M31 ✅ 檢查器補合法 IEC 語法 + 評測保存每輪程式碼(`docs/test_report_M31.md`)
 - [x] lexer:型別前綴常數 `INT#5` `REAL#1.5` `BOOL#1`、進位常數 `16#FF` `8#17` `2#1010`、底線分隔 `1_000`
@@ -16,7 +16,8 @@
 - [x] 以 2026-11-09 的錯誤訊息建立回歸測試;報告 `docs/test_report_M31.md`
 ## M32 ✅ EXIT/字串跳脫/REAL→INT 捨入(`docs/test_report_M32.md`)
 - [x] F1 EXIT 迴圈外 · [x] F2 `$` 跳脫 · [x] F3 捨入一致 + cycles 友善錯誤 · [x] TC-09 lxml 缺件改略過
-## UI1 ✅ 100vh 外框/頁籤/狀態列/問題抽屜(`docs/test_report_UI1.md`);下一個 UI2,見 `docs/ui_redesign_plan.md`
+## UI1 ✅ 100vh 外框/頁籤/狀態列/問題抽屜(`docs/test_report_UI1.md`)
+## UI2 ✅ 設計 token、亮/暗主題切換、按鈕/卡片/SVG 圖示/toast、WCAG AA 對比(`docs/test_report_UI2.md`);下一個 UI3(編輯器行號/語法色彩/錯誤跳行),見 `docs/ui_redesign_plan.md`
 ## M1 ✅
 - [x] lexer / parser / interpreter / FB 標準庫 / 測試
 ## M2 ✅
@@ -115,7 +116,7 @@
 ## UI 改版(規劃中,詳見 `docs/ui_redesign_plan.md`)
 目標:一個畫面看完不用捲動、頁籤切換、重要資訊(檢查/模擬/情境/LLM 狀態)常駐、更有質感
 - [x] UI1 100vh 外框 + 常駐狀態列 + 左側頁籤 + 程式碼常駐 + 底部問題抽屜(功能不變)
-- [ ] UI2 視覺系統:設計 token、亮/暗主題切換、元件、SVG 圖示、toast
+- [x] UI2 視覺系統:設計 token、亮/暗主題切換、元件、SVG 圖示、toast
 - [ ] UI3 程式碼編輯器:行號、ST 語法色彩、錯誤行標記、點擊跳行、快捷鍵
 - [ ] UI4 模擬儀表板:執行/暫停/單步、I/O 開關與燈號、波形改進
 - [ ] UI6 測試與匯出:情境表格編輯器、匯出卡片
