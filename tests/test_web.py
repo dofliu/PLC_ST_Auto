@@ -116,8 +116,9 @@ class UiLayout(unittest.TestCase):
             self.html = f.read()
 
     def test_grid_fits_phone_width(self):
-        # minmax(420px,1fr) 在 390px 手機上會產生水平捲動
-        self.assertIn("minmax(min(420px,100%),1fr)", self.html)
+        # UI1:窄螢幕退回單欄,且欄位用 minmax(0,1fr) 避免撐出水平捲動
+        self.assertIn("minmax(0,1fr)", self.html)
+        self.assertIn("@media(max-width:820px)", self.html)
 
     def test_run_status_resets_error_class(self):
         self.assertIn("週期`;$('runst').className=''", self.html)

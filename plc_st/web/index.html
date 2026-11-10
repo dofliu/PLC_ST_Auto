@@ -5,9 +5,6 @@
 :root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--bd:#d5dae2;--ac:#2557d6;--ok:#1b8a4b;--er:#c62828;--wn:#b26a00}
 @media(prefers-color-scheme:dark){:root{--bg:#14181f;--fg:#e4e8ef;--card:#1d232d;--bd:#323b4a;--ac:#6c9bff;--ok:#4cc27f;--er:#ff7070;--wn:#e0a030}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,"Noto Sans TC",sans-serif}
-header{padding:10px 16px;border-bottom:1px solid var(--bd);font-weight:600}
-main{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:12px;padding:12px}
-section{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;min-width:0}
 h2{margin:0 0 8px;font-size:15px}
 textarea,input,select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:6px;font:13px ui-monospace,monospace}
 textarea{min-height:130px;resize:vertical}
@@ -20,36 +17,43 @@ pre{background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:8p
 canvas{width:100%;height:190px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;margin-top:6px}
 table{border-collapse:collapse;font-size:12px}td,th{border:1px solid var(--bd);padding:2px 6px}
 .wide{grid-column:1/-1}
+
+html,body{height:100%}body{display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:12px;padding:6px 14px;border-bottom:1px solid var(--bd);font-weight:600;background:var(--card);flex:none}
+header .sub{font-weight:400;opacity:.65;font-size:12px}header select{width:auto;margin-left:auto}
+#statusbar{display:flex;gap:6px;flex-wrap:wrap;padding:4px 10px;border-bottom:1px solid var(--bd);background:var(--card);flex:none;font-size:12px}
+.pill{border:1px solid var(--bd);border-radius:12px;padding:1px 10px;cursor:pointer;background:var(--bg);color:var(--fg);margin:0}
+.pill.ok{color:var(--ok);border-color:var(--ok)}.pill.er{color:var(--er);border-color:var(--er)}.pill.wn{color:var(--wn);border-color:var(--wn)}
+#app{flex:1;min-height:0;display:grid;grid-template-columns:84px minmax(0,1fr) minmax(0,1fr)}
+nav{display:flex;flex-direction:column;gap:2px;padding:6px;border-right:1px solid var(--bd);background:var(--card)}
+nav button{background:transparent;color:var(--fg);margin:0;padding:8px 4px;text-align:center;font-size:12px;border-radius:6px}
+nav button b{display:block;font-size:18px;font-weight:400}
+nav button.on{background:var(--ac);color:#fff}
+#codepane{display:flex;flex-direction:column;padding:8px;min-width:0;min-height:0;border-right:1px solid var(--bd)}
+#codepane h2{flex:none}#code{flex:1;min-height:0;resize:none}
+#tabpane{overflow:auto;padding:10px;min-width:0;min-height:0}
+.tab{display:none}.tab.on{display:block}
+#drawer{flex:none;border-top:1px solid var(--bd);background:var(--card)}
+#drawer>div{display:flex;align-items:center;gap:8px;padding:3px 10px;cursor:pointer;font-size:12px}
+#drawer pre{margin:0;border:0;border-radius:0;max-height:22vh}
+.tab h2{margin-top:14px}.tab h2:first-child{margin-top:0}
+@media(max-width:820px){body{overflow:auto}#app{display:flex;flex-direction:column;flex:none}nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--bd)}
+ nav button{flex:1;min-width:64px}#codepane{border-right:0;height:60vh}#tabpane{overflow:visible}}
 </style></head><body>
-<header>PLC ST 開發介面 — 輸入 → LLM/RAG 產生 → 檢查 → 虛擬 PLC 驗證</header>
-<main>
-<section><h2>1. 需求輸入</h2>
- <label>需求文字(或上傳 .txt/.md 檔)</label><textarea id="req">按下 start 後馬達啟動,按 stop 停止;馬達連續運轉 500ms 後計數器加 1。</textarea>
- <input type="file" id="reqfile" accept=".txt,.md">
- <label>點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,comment"></textarea>
- <input type="file" id="tagsfile" accept=".csv,.txt">
- <button class="s" onclick="tagsToVar()">點位表 → VAR 宣告</button>
-</section>
-<section><h2>2. LLM 設定 / 產生</h2>
- <div class="row"><div><label>Provider</label><select id="prov"><option>ollama</option><option>gemini</option><option>openai</option><option>claude</option></select></div>
- <div><label>Model(空=預設)</label><input id="model"></div></div>
- <div class="row"><div><label>API Key(僅送至本機伺服器,不儲存)</label><input id="key" type="password" autocomplete="off"></div>
- <div><label>Base URL(可選)</label><input id="base"></div></div>
- <div class="row"><div><label>廠牌 Profile</label><select id="profile"></select></div>
- <div><label>自動修正輪數</label><input id="rounds" type="number" value="3" min="0" max="10"></div></div>
- <label><input type="checkbox" id="userag" style="width:auto"> 使用 RAG 文件檢索</label>
- <button onclick="gen()">產生 ST</button><span id="genst"></span>
- <pre id="genout" hidden></pre>
-</section>
-<section><h2>3. RAG 文件庫</h2>
- <div class="row"><select id="embsel"><option value="tfidf">TF-IDF(離線)</option><option value="hash">hash 向量(離線)</option><option value="ollama">Ollama embedding</option><option value="openai">OpenAI embedding</option><option value="gemini">Gemini embedding</option></select><input id="embkey" type="password" placeholder="Embedding API Key(可空)"></div>
- <input type="file" id="ragfile" multiple accept=".txt,.md,.st,.csv,.json,.docx,.pdf">
- <button onclick="ragAdd()">加入索引</button><button class="s" onclick="ragClear()">清空</button><span id="ragst"></span>
- <div class="row"><input id="ragq" placeholder="測試查詢…"><button style="flex:0" onclick="ragSearch()">搜尋</button></div>
- <pre id="ragout" hidden></pre>
-</section>
-<section class="wide"><h2>4. ST 程式碼</h2>
- <textarea id="code" style="min-height:230px" spellcheck="false">PROGRAM Motor
+<header>◆ PLC ST Studio <span class="sub">輸入 → LLM/RAG 產生 → 檢查 → 虛擬 PLC 驗證</span><select id="profile" title="廠牌 Profile"></select></header>
+<div id="statusbar">
+ <button class="pill" id="st_chk" onclick="openDrawer(true)">● 檢查:尚未執行</button>
+ <button class="pill" id="st_run" onclick="tab('sim')">▶ 模擬:尚未執行</button>
+ <button class="pill" id="st_tst" onclick="tab('test')">✔ 情境:尚未執行</button>
+ <button class="pill" id="st_llm" onclick="tab('set')">LLM:ollama</button>
+</div>
+<div id="app">
+<nav id="nav">
+ <button data-t="gen" class="on"><b>✎</b>產生</button><button data-t="sim"><b>▶</b>模擬</button><button data-t="test"><b>✔</b>測試</button>
+ <button data-t="exp"><b>⇪</b>匯出</button><button data-t="rag"><b>❏</b>文件</button><button data-t="set"><b>⚙</b>設定</button>
+</nav>
+<section id="codepane"><h2>ST 程式碼</h2>
+ <textarea id="code" spellcheck="false">PROGRAM Motor
 VAR_INPUT start : BOOL; stop : BOOL; END_VAR
 VAR_OUTPUT motor : BOOL; END_VAR
 VAR t : TON; cnt : INT; END_VAR
@@ -58,12 +62,21 @@ IF stop THEN motor := FALSE; END_IF;
 t(IN := motor, PT := T#500ms);
 IF t.Q THEN cnt := cnt + 1; END_IF;
 END_PROGRAM</textarea>
- <input type="file" id="codefile" accept=".st,.txt">
- <button onclick="chk()">靜態檢查</button><button class="s" onclick="dl()">下載 .st</button>
- <select id="expfmt"><option value="plcopen">PLCopen XML</option><option value="scl">Siemens SCL</option><option value="l5x">Rockwell L5X</option><option value="gxworks">Mitsubishi GX Works3</option><option value="sysmac">Omron Sysmac Studio</option></select><button class="s" onclick="exp()">匯出</button>
- <pre id="chkout" hidden></pre>
+ <div><input type="file" id="codefile" accept=".st,.txt" style="width:auto"> <button onclick="chk()">靜態檢查</button><button class="s" onclick="dl()">下載 .st</button></div>
 </section>
-<section><h2>5. 虛擬 PLC</h2>
+<div id="tabpane">
+<div class="tab on" id="tab_gen"><h2>需求輸入</h2>
+ <label>需求文字(或上傳 .txt/.md 檔)</label><textarea id="req">按下 start 後馬達啟動,按 stop 停止;馬達連續運轉 500ms 後計數器加 1。</textarea>
+ <input type="file" id="reqfile" accept=".txt,.md">
+ <label>點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,comment"></textarea>
+ <input type="file" id="tagsfile" accept=".csv,.txt">
+ <button class="s" onclick="tagsToVar()">點位表 → VAR 宣告</button>
+ <h2>LLM 產生</h2>
+ <label><input type="checkbox" id="userag" style="width:auto"> 使用 RAG 文件檢索</label>
+ <button onclick="gen()">產生 ST</button><span id="genst"></span>
+ <pre id="genout" hidden></pre>
+</div>
+<div class="tab" id="tab_sim"><h2>虛擬 PLC</h2>
  <div class="row"><div><label>週期數</label><input id="cycles" type="number" value="80"></div>
  <div><label>掃描週期 ms</label><input id="scan" type="number" value="10"></div></div>
  <label>輸入事件(每行 <code>週期:變數=值</code>)</label>
@@ -72,8 +85,8 @@ END_PROGRAM</textarea>
 60:stop=true</textarea>
  <button onclick="runPlc()">執行並繪製波形</button><span id="runst"></span>
  <canvas id="wave" width="900" height="380"></canvas>
-</section>
-<section><h2>6. 情境測試</h2>
+</div>
+<div class="tab" id="tab_test"><h2>情境測試</h2>
  <textarea id="scn" style="min-height:190px">{"scan_ms": 100, "steps": [
  {"name": "start", "set": {"start": true}, "ms": 600, "expect": {"motor": true, "t.Q": true}},
  {"name": "stop", "set": {"start": false, "stop": true}, "cycles": 1, "expect": {"motor": false}}
@@ -81,10 +94,37 @@ END_PROGRAM</textarea>
  <input type="file" id="scnfile" accept=".json">
  <button onclick="tst()">執行情境</button>
  <pre id="tstout" hidden></pre>
-</section>
-</main>
+</div>
+<div class="tab" id="tab_exp"><h2>匯出</h2>
+ <select id="expfmt"><option value="plcopen">PLCopen XML</option><option value="scl">Siemens SCL</option><option value="l5x">Rockwell L5X</option><option value="gxworks">Mitsubishi GX Works3</option><option value="sysmac">Omron Sysmac Studio</option></select>
+ <button class="s" onclick="exp()">匯出</button>
+</div>
+<div class="tab" id="tab_rag"><h2>RAG 文件庫</h2>
+ <div class="row"><select id="embsel"><option value="tfidf">TF-IDF(離線)</option><option value="hash">hash 向量(離線)</option><option value="ollama">Ollama embedding</option><option value="openai">OpenAI embedding</option><option value="gemini">Gemini embedding</option></select><input id="embkey" type="password" placeholder="Embedding API Key(可空)"></div>
+ <input type="file" id="ragfile" multiple accept=".txt,.md,.st,.csv,.json,.docx,.pdf">
+ <button onclick="ragAdd()">加入索引</button><button class="s" onclick="ragClear()">清空</button><span id="ragst"></span>
+ <div class="row"><input id="ragq" placeholder="測試查詢…"><button style="flex:0" onclick="ragSearch()">搜尋</button></div>
+ <pre id="ragout" hidden></pre>
+</div>
+<div class="tab" id="tab_set"><h2>LLM 設定</h2>
+ <div class="row"><div><label>Provider</label><select id="prov"><option>ollama</option><option>gemini</option><option>openai</option><option>claude</option></select></div>
+ <div><label>Model(空=預設)</label><input id="model"></div></div>
+ <div class="row"><div><label>API Key(僅送至本機伺服器,不儲存)</label><input id="key" type="password" autocomplete="off"></div>
+ <div><label>Base URL(可選)</label><input id="base"></div></div>
+ <label>自動修正輪數</label><input id="rounds" type="number" value="3" min="0" max="10">
+</div>
+</div></div>
+<div id="drawer"><div onclick="openDrawer()"><b>問題 / 輸出</b><span id="drawerinfo" class="wn"></span><span style="margin-left:auto">▴▾</span></div><pre id="chkout" hidden></pre></div>
 <script>
 const $=id=>document.getElementById(id);
+function tab(t){document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id=='tab_'+t));document.querySelectorAll('#nav button').forEach(e=>e.classList.toggle('on',e.dataset.t==t))}
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>tab(b.dataset.t));
+document.addEventListener('keydown',e=>{if(e.altKey&&/^[1-6]$/.test(e.key)){tab(['gen','sim','test','exp','rag','set'][e.key-1]);e.preventDefault()}});
+function openDrawer(v){const p=$('chkout');p.hidden=v===true?false:!p.hidden}
+function pill(id,txt,cls){const e=$(id);e.textContent=txt;e.className='pill '+(cls||'')}
+function llmPill(){pill('st_llm','LLM:'+$('prov').value+($('model').value?'·'+$('model').value:''))}
+$('prov').onchange=$('model').oninput=llmPill;
+
 async function api(p,b){const r=await fetch(p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
  const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
 function show(id,html,cls){const e=$(id);e.hidden=false;e.className=cls||'';e.innerHTML=html}
@@ -95,11 +135,12 @@ api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="
 const issuesHtml=l=>l.length?l.map(i=>`<div class="${i.severity=='error'?'er':'wn'}">${i.severity}${i.line?' line '+i.line:''}: ${esc(i.msg)}</div>`).join(''):'<span class="ok">✔ 無問題</span>';
 async function tagsToVar(){try{const j=await api('/api/tags',{csv:$('tags').value});$('code').value=j.code}catch(e){show('chkout',esc(e.message),'er')}}
 async function exp(){try{const f=$('expfmt').value,j=await api('/api/export',{code:$('code').value,format:f});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j.text],{type:'text/plain'}));a.download='program.'+j.ext;a.click();show('chkout','已匯出 '+esc(a.download)+'('+j.text.length+' 字元)')}catch(e){show('chkout',esc(e.message),'er')}}
-async function chk(){try{show('chkout',issuesHtml((await api('/api/check',{code:$('code').value,profile:$('profile').value})).issues))}catch(e){show('chkout',esc(e.message),'er')}}
+async function chk(){try{const l=(await api('/api/check',{code:$('code').value,profile:$('profile').value})).issues,ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;show('chkout',issuesHtml(l));
+ pill('st_chk',`${ne?'✘':'✔'} 檢查 ${ne} 錯 / ${nw} 警告`,ne?'er':nw?'wn':'ok')}catch(e){show('chkout',esc(e.message),'er');pill('st_chk','✘ 檢查失敗','er')}}
 function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('code').value]));a.download='program.st';a.click()}
 async function gen(){$('genst').textContent=' 產生中…';try{
  const j=await api('/api/generate',{requirement:$('req').value,tags_csv:$('tags').value,provider:$('prov').value,model:$('model').value,api_key:$('key').value,base_url:$('base').value,profile:$('profile').value,max_rounds:+$('rounds').value,use_rag:$('userag').checked,scenario:$('scn').value});
- $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues))}
+ $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues))}
  catch(e){$('genst').textContent='';show('genout',esc(e.message),'er')}}
 async function ragAdd(){const fs=[...$('ragfile').files];if(!fs.length){$('ragst').textContent=' 請先選檔案';return}
  try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b,embedder:$('embsel').value,embed_api_key:$('embkey').value})}
@@ -110,7 +151,7 @@ async function ragSearch(){try{const j=await api('/api/rag/search',{query:$('rag
 function parseEv(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\d+):([\w.]+)=(.+)$/);if(!m)throw new Error('事件格式錯誤: '+l);
  const v=m[3].toLowerCase()=='true'?true:m[3].toLowerCase()=='false'?false:Number(m[3]);return{cycle:+m[1],name:m[2],value:v}})}
 async function runPlc(){try{const j=await api('/api/run',{code:$('code').value,profile:$('profile').value,cycles:+$('cycles').value,scan_ms:+$('scan').value,events:parseEv($('events').value)});
- $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er'}}
+ $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';pill('st_run',`✔ 模擬 ${j.rows.length} 週期`,'ok');draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er';pill('st_run','✘ 模擬錯誤','er')}}
 function draw(j){const c=$('wave'),g=c.getContext('2d'),cs=getComputedStyle(document.body);g.clearRect(0,0,c.width,c.height);
  const cols=j.columns.slice(2),n=j.rows.length,lh=c.height/Math.max(cols.length,1),lm=110,w=c.width-lm-10;
  g.font='13px sans-serif';cols.forEach((name,k)=>{const vals=j.rows.map(r=>r[k+2]),y0=k*lh+lh-8,h=lh-18;
@@ -121,5 +162,6 @@ function draw(j){const c=$('wave'),g=c.getContext('2d'),cs=getComputedStyle(docu
    if(i==0)g.moveTo(x,y);else{g.lineTo(x,g._py);g.lineTo(x,y)}g._py=y});g.stroke();
   if(!bool){g.fillStyle=cs.color;g.fillText(`${mn}..${mx}`,4,y0-h/2+14)}})}
 async function tst(){try{const j=await api('/api/test',{code:$('code').value,scenario:$('scn').value,profile:$('profile').value});
- show('tstout',j.passed?'PASS':j.failures.map(f=>`FAIL step ${esc(f.step)}: ${esc(f.var)} expected ${JSON.stringify(f.expected)} got ${JSON.stringify(f.actual)}`).join('\n'),j.passed?'ok':'er')}catch(e){show('tstout',esc(e.message),'er')}}
+ show('tstout',j.passed?'PASS':j.failures.map(f=>`FAIL step ${esc(f.step)}: ${esc(f.var)} expected ${JSON.stringify(f.expected)} got ${JSON.stringify(f.actual)}`).join('\n'),j.passed?'ok':'er');
+ pill('st_tst',j.passed?'✔ 情境 PASS':`✘ 情境 FAIL ${j.failures.length}`,j.passed?'ok':'er')}catch(e){show('tstout',esc(e.message),'er');pill('st_tst','✘ 情境錯誤','er')}}
 </script></body></html>
