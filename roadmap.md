@@ -29,7 +29,7 @@
 - M27 ✅ STRUCT → Rockwell L5X UDT 匯出
 - M28 ✅ STRUCT 內含 ARRAY 欄位(解譯/檢查)
 - M29 ✅ PR #31/#32 審查意見修正(L5X 匯出健全性、陣列寫入/初值);Dimensions 分隔符待實機確認
-- UI1–UI7 Web UI 改版(UI1、UI2、UI3 ✅;UI4–UI7 進行中):單一畫面 + 頁籤 + 常駐狀態列 + 視覺系統 + 程式碼編輯器,見 `docs/ui_redesign_plan.md`
+- UI1–UI7 Web UI 改版(UI1–UI4 ✅;UI5–UI7 進行中):單一畫面 + 頁籤 + 常駐狀態列 + 視覺系統 + 程式碼編輯器,見 `docs/ui_redesign_plan.md`
 - M30 ✅ LLM 評測工具(`eval`)、Logix 方言對應、計時器邊緣時序修正
 - M31 (下一個)檢查器補合法 IEC 語法(型別前綴/進位常數、TIME 轉換、陣列重複初值)+ 評測保存每輪程式碼
 - M32 EXIT 位置、字串 $ 跳脫、REAL→INT 捨入

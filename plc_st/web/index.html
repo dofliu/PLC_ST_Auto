@@ -39,6 +39,7 @@ html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:var(--fs-md)/1.5 var(--font-ui);display:flex;flex-direction:column;overflow:hidden;font-variant-numeric:tabular-nums}
 .ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
 h2{margin:0 0 var(--sp-2);font-size:var(--fs-lg);font-weight:600;display:flex;align-items:center;gap:var(--sp-2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);margin:0}
 h3{margin:0;font-size:var(--fs-sm);font-weight:600;color:var(--fg-muted);text-transform:none;letter-spacing:.02em}
 code{font-family:var(--font-code);background:var(--surface-2);padding:0 4px;border-radius:4px}
 label{display:block;margin:var(--sp-2) 0 var(--sp-1);font-size:var(--fs-sm);color:var(--fg-muted);font-weight:500}
@@ -141,6 +142,43 @@ kbd{font:var(--fs-xs) var(--font-code);border:1px solid var(--bd-strong);border-
 #drawer>div:hover{background:var(--surface-2)}
 #drawer pre{margin:0;border:0;border-radius:0;max-height:22vh;border-top:1px solid var(--bd)}
 
+/* ===== UI4 模擬儀表板:控制列、I/O 開關/燈號、波形 ===== */
+.simbar{display:flex;align-items:center;gap:var(--sp-1);flex-wrap:wrap}
+.simbar button{margin:0}
+.simbar select{width:auto;padding:5px 6px}
+.clk{margin-left:auto;font:var(--fs-sm) var(--font-code);color:var(--fg-muted);background:var(--surface-2);border:1px solid var(--bd);border-radius:var(--r-pill);padding:2px 10px}
+.badge.run{color:var(--info);background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 40%,transparent)}
+.badge.run::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1s ease-in-out infinite}
+.badge.pause{color:var(--wn);background:var(--wn-bg);border-color:color-mix(in srgb,var(--wn) 40%,transparent)}
+.badge.err{color:var(--er);background:var(--er-bg);border-color:color-mix(in srgb,var(--er) 40%,transparent)}
+@keyframes pulse{50%{opacity:.3}}
+.io{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--sp-2);margin-top:var(--sp-2)}
+.iog{border:1px solid var(--bd);border-radius:var(--r-md);padding:6px var(--sp-2);background:var(--surface-2);min-width:0}
+.iog h3{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.iog h3 .n{margin-left:auto;font-weight:400}
+.iog .list{max-height:168px;overflow:auto}
+.ior{display:flex;align-items:center;gap:var(--sp-2);min-height:26px;font-size:var(--fs-sm)}
+.ior .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-code)}
+.ior .ty{font-size:var(--fs-xs);color:var(--fg-muted)}
+.ior .val{font:600 var(--fs-sm) var(--font-code);min-width:44px;text-align:right}
+.ior input{width:84px;padding:2px 6px;font:var(--fs-sm) var(--font-code);text-align:right}
+.ior input.pend,.sw.pend{box-shadow:0 0 0 2px var(--wn-bg),0 0 0 3px var(--wn)}
+.sw{position:relative;width:38px;height:22px;flex:none;border-radius:var(--r-pill);padding:0;margin:0;background:var(--bd-strong);border:1px solid var(--bd-strong)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow-1);transition:transform var(--dur)}
+.sw[aria-checked=true]{background:var(--ok);border-color:var(--ok)}
+.sw[aria-checked=true]::after{transform:translateX(16px)}
+.sw:hover{background:var(--fg-muted);border-color:var(--fg-muted)}.sw[aria-checked=true]:hover{background:var(--ok);filter:brightness(1.1)}
+.sw:disabled{cursor:default;opacity:.7}
+.lamp{width:16px;height:16px;flex:none;border-radius:50%;background:var(--surface);border:2px solid var(--bd-strong)}
+.lamp.on{background:var(--ok);border-color:var(--ok);box-shadow:0 0 0 3px var(--ok-bg),0 0 10px color-mix(in srgb,var(--ok) 60%,transparent)}
+.wavebar{display:flex;align-items:center;gap:var(--sp-1);flex-wrap:wrap;margin-top:var(--sp-2)}
+.wavebar button{margin:0}
+#wavecur{margin-left:auto;font:var(--fs-sm) var(--font-code);color:var(--fg-muted)}
+.wavebox{max-height:48vh;overflow:auto;margin-top:var(--sp-2);border:1px solid var(--bd);border-radius:var(--r-md);background:var(--surface)}
+#wave{display:block;width:100%;height:auto;margin:0;border:0;border-radius:0;cursor:crosshair;touch-action:none}
+#wave.drag{cursor:grabbing}
+details.batch summary{cursor:pointer;font-size:var(--fs-sm);color:var(--fg-muted);font-weight:500;margin-top:var(--sp-2)}
+
 /* ===== Toast ===== */
 #toasts{position:fixed;right:var(--sp-4);bottom:44px;display:flex;flex-direction:column;gap:var(--sp-2);z-index:50;pointer-events:none;max-width:min(360px,calc(100vw - 32px))}
 .toast{pointer-events:auto;display:flex;align-items:flex-start;gap:var(--sp-2);background:var(--surface);color:var(--fg);border:1px solid var(--bd);border-left:4px solid var(--info);border-radius:var(--r-md);padding:var(--sp-2) var(--sp-3);box-shadow:var(--shadow-2);font-size:var(--fs-md);animation:tin .18s ease-out}
@@ -168,6 +206,12 @@ kbd{font:var(--fs-xs) var(--font-code);border:1px solid var(--bd-strong);border-
  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+ <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+ <symbol id="i-step" viewBox="0 0 24 24"><path d="M5 5l10 7-10 7z"/><path d="M19 5v14"/></symbol>
+ <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+ <symbol id="i-zin" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5M8 11h6M11 8v6"/></symbol>
+ <symbol id="i-zout" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5M8 11h6"/></symbol>
+ <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
  <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></symbol>
  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/></symbol>
@@ -231,16 +275,35 @@ END_PROGRAM</textarea></div></div>
  </div>
 </div>
 <div class="tab" id="tab_sim">
- <div class="card"><h2><svg class="ico"><use href="#i-cpu"/></svg>虛擬 PLC</h2>
-  <div class="row"><div><label for="cycles">週期數</label><input id="cycles" type="number" value="80"></div>
-  <div><label for="scan">掃描週期 ms</label><input id="scan" type="number" value="10"></div></div>
+ <div class="card"><h2><svg class="ico"><use href="#i-cpu"/></svg>虛擬 PLC<span id="simmode" class="badge">停止</span></h2>
+  <div class="simbar" role="toolbar" aria-label="模擬控制">
+   <button id="sim_run" onclick="simRun()" title="連續掃描(Alt+R)"><svg class="ico"><use href="#i-play"/></svg>執行</button>
+   <button id="sim_pause" class="s" onclick="simPause()" disabled title="暫停(Alt+P)"><svg class="ico"><use href="#i-pause"/></svg>暫停</button>
+   <button id="sim_step" class="s" onclick="simStep()" title="執行一個掃描週期(Alt+S)"><svg class="ico"><use href="#i-step"/></svg>單步</button>
+   <button id="sim_reset" class="s" onclick="simReset()" title="重新載入程式、變數回初值"><svg class="ico"><use href="#i-reset"/></svg>重設</button>
+   <label for="simspeed" class="sr">速度</label><select id="simspeed" title="模擬速度"><option value="0.2">×0.2 慢</option><option value="1" selected>×1 即時</option><option value="10">×10 快</option></select>
+   <span class="clk" id="simclk">週期 0 · 0 ms</span>
+  </div>
+  <div class="row"><div><label for="scan">掃描週期 ms</label><input id="scan" type="number" value="10" min="1"></div>
+  <div><label for="cycles">批次週期數</label><input id="cycles" type="number" value="80" min="1"></div></div>
+  <div id="io" class="io"><div class="empty" style="grid-column:1/-1"><svg class="ico"><use href="#i-cpu"/></svg>按「執行」或「單步」開始互動模擬;輸入用開關切換,輸出以燈號/數值顯示</div></div>
+ </div>
+ <div class="card"><h2><svg class="ico"><use href="#i-sim"/></svg>波形<span class="hint" style="font-weight:400">滾輪縮放 · 拖曳平移 · 移動讀值 · 雙擊全覽</span></h2>
+  <details class="batch" id="batchbox"><summary>批次執行(輸入事件腳本)</summary>
   <label for="events">輸入事件(每行 <code>週期:變數=值</code>)</label>
   <textarea id="events" style="min-height:70px">2:start=true
 40:start=false
 60:stop=true</textarea>
-  <button onclick="runPlc()"><svg class="ico"><use href="#i-play"/></svg>執行並繪製波形</button><span id="runst" class="inline"></span>
+  <button id="batchbtn" onclick="runPlc()"><svg class="ico"><use href="#i-play"/></svg>執行並繪製波形</button><span id="runst" class="inline"></span>
+  </details>
+  <div class="wavebar">
+   <button class="ghost" onclick="wvZoom(0.5)" title="放大" aria-label="放大"><svg class="ico"><use href="#i-zin"/></svg></button>
+   <button class="ghost" onclick="wvZoom(2)" title="縮小" aria-label="縮小"><svg class="ico"><use href="#i-zout"/></svg></button>
+   <button class="ghost" onclick="wvFit()" title="全覽" aria-label="全覽"><svg class="ico"><use href="#i-fit"/></svg></button>
+   <span id="wavecur"></span>
+  </div>
   <div class="empty" id="waveempty"><svg class="ico"><use href="#i-sim"/></svg>尚未執行模擬 — 執行後在此顯示各變數時序波形</div>
-  <canvas id="wave" width="900" height="380" hidden></canvas>
+  <div class="wavebox" id="wavebox" hidden><canvas id="wave" role="img" aria-label="變數時序波形"></canvas></div>
  </div>
 </div>
 <div class="tab" id="tab_test">
@@ -402,21 +465,125 @@ async function ragSearch(){const done=busy();try{const j=await api('/api/rag/sea
 function parseEv(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\d+):([\w.]+)=(.+)$/);if(!m)throw new Error('事件格式錯誤: '+l);
  const v=m[3].toLowerCase()=='true'?true:m[3].toLowerCase()=='false'?false:Number(m[3]);return{cycle:+m[1],name:m[2],value:v}})}
 let lastWave=null;
-async function runPlc(){const done=busy();try{const j=await api('/api/run',{code:$('code').value,profile:$('profile').value,cycles:+$('cycles').value,scan_ms:+$('scan').value,events:parseEv($('events').value)});
- $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';pill('st_run',`✔ 模擬 ${j.rows.length} 週期`,'ok');draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er';pill('st_run','✘ 模擬錯誤','er');
+// ---- UI4 模擬儀表板 ----
+const sim={id:null,key:'',run:false,busy:false,pend:{},meta:[],cols:[],rows:[],mode:'stop'};
+const MAXROWS=5000;
+function simKey(){return [$('code').value,$('profile').value,$('scan').value].join('\u0000')}
+function simMode(m,txt){sim.mode=m;const b=$('simmode');b.className='badge '+({run:'run',pause:'pause',err:'err'}[m]||'');
+ b.textContent=txt||{stop:'停止',run:'執行中',pause:'暫停',replay:'批次回放',err:'錯誤'}[m];
+ $('sim_run').disabled=m=='run';$('sim_pause').disabled=m!='run';$('sim_step').disabled=m=='run'}
+function fmtV(v,t){if(typeof v=='boolean')return v?'TRUE':'FALSE';if(typeof v=='number'){if(t=='TIME')return v+'ms';
+ return Number.isInteger(v)?String(v):String(+v.toFixed(4))}if(typeof v=='string')return "'"+v+"'";return String(v)}
+function ioBuild(meta,live){const g={input:[],output:[],local:[]};meta.forEach((m,k)=>{(g[m.section=='output'?'output':m.section=='input'||m.section=='inout'?'input':'local']).push([m,k])});
+ const row=([m,k],kind)=>{const n=esc(m.name),isB=m.type=='BOOL';let ctl;
+  if(kind=='input')ctl=isB?`<button type="button" class="sw" role="switch" aria-checked="false" aria-label="${n}" data-k="${k}" ${live?'':'disabled'}></button>`
+   :`<input data-k="${k}" aria-label="${n}" ${m.type=='STRING'?'':'type="number" step="any"'} ${live?'':'disabled'}>`;
+  else if(kind=='output'&&isB)ctl=`<span class="lamp" data-k="${k}" role="img" aria-label="${n}"></span>`;
+  else ctl=`<span class="val" data-k="${k}"></span>`;
+  return `<div class="ior" title="${n} : ${esc(m.type)}"><span class="nm">${n}</span><span class="ty">${esc(m.type)}</span>${ctl}</div>`};
+ const grp=(kind,title,ico)=>g[kind].length?`<div class="iog" data-g="${kind}"><h3><svg class="ico"><use href="#${ico}"/></svg>${title}<span class="n">${g[kind].length}</span></h3><div class="list">${g[kind].map(x=>row(x,kind)).join('')}</div></div>`:'';
+ $('io').innerHTML=grp('input','輸入','i-play')+grp('output','輸出','i-check')+grp('local','內部變數','i-cpu')||'<div class="empty" style="grid-column:1/-1">程式沒有可顯示的變數</div>';
+ $('io').querySelectorAll('.sw').forEach(b=>b.onclick=()=>{const k=+b.dataset.k,v=b.getAttribute('aria-checked')!='true';sim.pend[meta[k].name]=v;b.setAttribute('aria-checked',v);b.classList.add('pend');if(sim.mode=='stop')simStep()});
+ $('io').querySelectorAll('input[data-k]').forEach(i=>i.onchange=()=>{const m=meta[+i.dataset.k];if(i.value==='')return;sim.pend[m.name]=m.type=='STRING'?i.value:Number(i.value);i.classList.add('pend')})}
+function ioShow(r){if(!r)return;$('io').querySelectorAll('[data-k]').forEach(e=>{const k=+e.dataset.k,v=r[k+2],m=(lastWave&&lastWave.meta||sim.meta)[k];if(!m)return;
+ if(e.classList.contains('sw')){if(!e.classList.contains('pend'))e.setAttribute('aria-checked',!!v)}
+ else if(e.classList.contains('lamp'))e.classList.toggle('on',!!v);
+ else if(e.tagName=='INPUT'){if(!e.classList.contains('pend')&&document.activeElement!==e)e.value=typeof v=='string'?v:v}
+ else e.textContent=fmtV(v,m.type)});
+ $('simclk').textContent=`週期 ${r[0]} · ${r[1]} ms`}
+function simErr(e){simStopLoop();simMode('err');pill('st_run','✘ 模擬錯誤','er');const lm=/line (\d+)/.exec(e.message);
+ if(lm){setMarks([{severity:'error',line:+lm[1],msg:e.message}]);show('chkout',issuesHtml([{severity:'error',line:+lm[1],msg:e.message}]))}toast('模擬錯誤:'+e.message,'er',5000)}
+async function simEnsure(){if(sim.id&&sim.key==simKey()&&sim.mode!='err'&&sim.mode!='replay')return true;
+ if(sim.id)api('/api/sim/stop',{id:sim.id}).catch(()=>{});sim.id=null;
+ const j=await api('/api/sim/start',{code:$('code').value,profile:$('profile').value,scan_ms:+$('scan').value||10});
+ Object.assign(sim,{id:j.id,key:simKey(),meta:j.meta,cols:j.columns,rows:[j.row]});
+ const keep=sim.pend;sim.pend={};ioBuild(j.meta,true);
+ for(const[n,v]of Object.entries(keep)){const k=j.meta.findIndex(m=>m.name==n);if(k>=0&&j.meta[k].section!='output')sim.pend[n]=v}
+ wv.follow=true;wv.span=200;lastWave={columns:j.columns,rows:sim.rows,meta:j.meta};draw(lastWave);ioShow(j.row);simMode('pause');return true}
+async function simTick(n){const set=sim.pend;sim.pend={};
+ const j=await api('/api/sim/step',{id:sim.id,cycles:n,set});
+ $('io').querySelectorAll('.pend').forEach(e=>e.classList.remove('pend'));
+ sim.rows.push(...j.rows);if(sim.rows.length>MAXROWS)sim.rows.splice(0,sim.rows.length-MAXROWS);
+ const last=sim.rows[sim.rows.length-1];ioShow(last);if(wv.follow)wv.cur=null;draw(lastWave);
+ pill('st_run',`${sim.run?'▶':'⏸'} 模擬 週期 ${last[0]}`,sim.run?'':'ok')}
+async function simStep(){if(sim.busy)return;sim.busy=true;try{await simEnsure();await simTick(1);simMode('pause')}catch(e){simErr(e)}finally{sim.busy=false}}
+function simStopLoop(){sim.run=false;clearTimeout(sim.timer)}
+async function simRun(){if(sim.run)return;try{await simEnsure()}catch(e){return simErr(e)}sim.run=true;simMode('run');tab('sim');
+ const loop=async()=>{if(!sim.run)return;const scan=+$('scan').value||10,sp=+$('simspeed').value||1,iv=Math.max(50,scan/sp),n=Math.max(1,Math.min(MAX_STEP,Math.round(sp*iv/scan)));
+  const t0=performance.now();try{await simTick(n)}catch(e){return simErr(e)}
+  if(sim.run)sim.timer=setTimeout(loop,Math.max(0,iv-(performance.now()-t0)))};loop()}
+const MAX_STEP=500;
+function simPause(){simStopLoop();if(sim.id)simMode('pause');const r=sim.rows[sim.rows.length-1];if(r)pill('st_run',`⏸ 模擬 週期 ${r[0]}`,'ok')}
+async function simReset(){simStopLoop();if(sim.id)api('/api/sim/stop',{id:sim.id}).catch(()=>{});sim.id=null;sim.pend={};
+ try{await simEnsure();toast('已重設虛擬 PLC','info')}catch(e){simErr(e)}}
+document.addEventListener('keydown',e=>{if(!e.altKey||e.ctrlKey||e.metaKey)return;const k=(e.code||'').replace('Key','').toLowerCase();
+ if(k=='r'){e.preventDefault();sim.run?simPause():simRun()}else if(k=='s'){e.preventDefault();simStep()}else if(k=='p'){e.preventDefault();simPause()}});
+
+async function runPlc(){const done=busy();simStopLoop();try{const j=await api('/api/run',{code:$('code').value,profile:$('profile').value,cycles:+$('cycles').value,scan_ms:+$('scan').value,events:parseEv($('events').value)});
+ $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';pill('st_run',`✔ 模擬 ${j.rows.length} 週期`,'ok');
+ if(sim.id)api('/api/sim/stop',{id:sim.id}).catch(()=>{});sim.id=null;sim.pend={};simMode('replay');ioBuild(j.meta,false);
+ wv.follow=false;wv.i0=0;wv.span=j.rows.length;wv.cur=null;draw(j);ioShow(j.rows[j.rows.length-1])}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er';pill('st_run','✘ 模擬錯誤','er');
  const lm=/line (\d+)/.exec(e.message);if(lm){setMarks([{severity:'error',line:+lm[1],msg:e.message}]);show('chkout',issuesHtml([{severity:'error',line:+lm[1],msg:e.message}]))}toast('模擬錯誤:'+e.message,'er')}finally{done()}}
-function draw(j){lastWave=j;$('wave').hidden=false;$('waveempty').hidden=true;
- const c=$('wave'),g=c.getContext('2d'),cs=getComputedStyle(document.documentElement),tk=n=>cs.getPropertyValue(n).trim();
- const fg=tk('--fg'),mut=tk('--fg-muted'),wave=tk('--wave'),grid=tk('--wave-grid');g.clearRect(0,0,c.width,c.height);
- const cols=j.columns.slice(2),n=j.rows.length,lh=c.height/Math.max(cols.length,1),lm=110,w=c.width-lm-10;
- g.font='13px system-ui,sans-serif';cols.forEach((name,k)=>{const vals=j.rows.map(r=>r[k+2]),y0=k*lh+lh-8,h=lh-18;
-  g.strokeStyle=grid;g.lineWidth=1;g.beginPath();g.moveTo(lm,y0+4);g.lineTo(c.width-10,y0+4);g.stroke();
-  g.fillStyle=fg;g.fillText(name,4,y0-h/2);
-  const nums=vals.map(Number),mn=Math.min(...nums),mx=Math.max(...nums),bool=vals.every(v=>typeof v=='boolean');
-  g.strokeStyle=wave;g.lineWidth=1.8;g.beginPath();
-  vals.forEach((v,i)=>{const x=lm+i*w/Math.max(n-1,1),f=bool?(v?1:0):(mx==mn?.5:(Number(v)-mn)/(mx-mn)),y=y0-f*h;
-   if(i==0)g.moveTo(x,y);else{g.lineTo(x,g._py);g.lineTo(x,y)}g._py=y});g.stroke();
-  if(!bool){g.fillStyle=mut;g.fillText(`${mn}..${mx}`,4,y0-h/2+14)}})}
+
+// ---- 波形:每變數一條帶狀軌、STRING 以匯流排文字帶、縮放/平移/游標讀值 ----
+const wv={i0:0,span:200,cur:null,follow:false,lanes:[],LM:132,drag:null};
+function wvRange(n){let span=Math.max(1,Math.min(Math.max(wv.span||n,Math.min(n,4)),n));let i0=Math.max(0,wv.follow?n-span:Math.min(wv.i0,n-span));wv.i0=i0;return[i0,span]}
+function laneKind(m,vals){if(m&&m.type=='BOOL'||vals.every(v=>typeof v=='boolean'))return'bool';if(m&&m.type=='STRING'||vals.some(v=>typeof v!='number'&&typeof v!='boolean'))return'str';return'num'}
+function draw(j){lastWave=j;const n=j.rows.length;$('wavebox').hidden=!n;$('waveempty').hidden=!!n;if(!n)return;
+ const c=$('wave'),box=$('wavebox'),dpr=window.devicePixelRatio||1,cs=getComputedStyle(document.documentElement),tk=v=>cs.getPropertyValue(v).trim();
+ const C={fg:tk('--fg'),mut:tk('--fg-muted'),wave:tk('--wave'),grid:tk('--wave-grid'),bd:tk('--bd'),ok:tk('--ok'),ac:tk('--ac'),sf:tk('--surface'),sf2:tk('--surface-2'),wn:tk('--wn')};
+ const cols=j.columns.slice(2),meta=j.meta||cols.map(nm=>({name:nm,type:'',section:'local'}));
+ const W=Math.max(320,box.clientWidth||600),LM=wv.LM,RM=10,AX=22,pw=W-LM-RM;
+ const[i0,span]=wvRange(n),sw=pw/span,X=i=>LM+(i-i0)*sw;
+ let y=4;wv.lanes=cols.map((nm,k)=>{const vals=j.rows.slice(i0,i0+span).map(r=>r[k+2]),kind=laneKind(meta[k],vals),h=kind=='num'?46:26,l={k,nm,kind,y,h,vals,m:meta[k]};y+=h;return l});
+ const H=y+AX;c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);c.style.height=H+'px';
+ const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);g.font='12px '+tk('--font-code');g.textBaseline='middle';
+ const fit=(t,maxw)=>{if(g.measureText(t).width<=maxw)return t;while(t.length>1&&g.measureText(t+'…').width>maxw)t=t.slice(0,-1);return t+'…'};
+ // 時間軸刻度
+ const steps=[1,2,5,10,20,50,100,200,500,1000,2000,5000],st=steps.find(s=>s*sw>=60)||10000;
+ g.fillStyle=C.mut;g.strokeStyle=C.grid;g.lineWidth=1;
+ for(let i=Math.ceil(i0/st)*st;i<i0+span;i+=st){const x=X(i)+.5;g.beginPath();g.moveTo(x,4);g.lineTo(x,H-AX);g.stroke();g.fillText(String(j.rows[i][0]),x+2,H-AX/2)}
+ g.fillText('週期',4,H-AX/2);
+ wv.lanes.forEach(l=>{const{y,h,vals,kind,m}=l,top=y+5,bot=y+h-5,mid=(top+bot)/2;
+  g.strokeStyle=C.grid;g.beginPath();g.moveTo(0,y+h+.5);g.lineTo(W,y+h+.5);g.stroke();
+  const sec=m&&m.section;g.fillStyle=sec=='input'||sec=='inout'?C.ac:sec=='output'?C.ok:C.fg;
+  g.font=(sec=='input'||sec=='output'?'600 ':'')+'12px '+tk('--font-code');g.fillText(fit(l.nm,LM-12),6,kind=='num'?y+14:mid);g.font='12px '+tk('--font-code');
+  if(kind=='bool'){g.fillStyle=C.wave+'22';g.strokeStyle=C.wave;g.lineWidth=1.6;
+   vals.forEach((v,i)=>{if(v)g.fillRect(X(i0+i),top,sw,bot-top)});
+   g.beginPath();vals.forEach((v,i)=>{const x=X(i0+i),yy=v?top:bot;if(i==0)g.moveTo(x,yy);else g.lineTo(x,yy);g.lineTo(x+sw,yy)});g.stroke()}
+  else if(kind=='num'){const nums=vals.map(Number),mn=Math.min(...nums),mx=Math.max(...nums),f=v=>mx==mn?.5:(v-mn)/(mx-mn),Y=v=>bot-f(v)*(bot-top);
+   g.fillStyle=C.mut;g.fillText(fit(`${fmtV(mn,m&&m.type)}…${fmtV(mx,m&&m.type)}`,LM-12),6,y+31);
+   g.strokeStyle=C.wave;g.lineWidth=1.6;g.beginPath();nums.forEach((v,i)=>{const x=X(i0+i);if(i==0)g.moveTo(x,Y(v));else g.lineTo(x,Y(v));g.lineTo(x+sw,Y(v))});g.stroke()}
+  else{// 匯流排:值改變處畫交叉,區段中央放文字(放得下才放)
+   g.strokeStyle=C.wave;g.lineWidth=1.2;let s0=0;
+   const seg=(a,b2)=>{const xa=X(i0+a),xb=X(i0+b2),d=Math.min(4,(xb-xa)/2);g.beginPath();g.moveTo(xa,mid);g.lineTo(xa+d,top);g.lineTo(xb-d,top);g.lineTo(xb,mid);g.lineTo(xb-d,bot);g.lineTo(xa+d,bot);g.closePath();g.stroke();
+    const t=fit(fmtV(vals[a],m&&m.type),xb-xa-10);if(xb-xa>18&&t!='…'){g.fillStyle=C.fg;g.fillText(t,xa+6,mid)}};
+   for(let i=1;i<=vals.length;i++)if(i==vals.length||vals[i]!==vals[s0]){seg(s0,i);s0=i}}});
+ // 左側標籤區分隔線
+ g.strokeStyle=C.bd;g.beginPath();g.moveTo(LM-4.5,0);g.lineTo(LM-4.5,H);g.stroke();
+ // 游標
+ const ci=wv.cur==null?null:Math.max(i0,Math.min(i0+span-1,wv.cur));
+ if(ci!=null){const x=X(ci)+sw/2;g.strokeStyle=C.wn;g.lineWidth=1;g.setLineDash([4,3]);g.beginPath();g.moveTo(x,0);g.lineTo(x,H-AX);g.stroke();g.setLineDash([]);
+  wv.lanes.forEach(l=>{const t=fmtV(j.rows[ci][l.k+2],l.m&&l.m.type),tw=g.measureText(t).width+8,bx=x+tw+8>W?x-tw-4:x+4,by=l.y+l.h/2-8;
+   g.fillStyle=C.sf;g.globalAlpha=.92;g.fillRect(bx,by,tw,16);g.globalAlpha=1;g.strokeStyle=C.bd;g.strokeRect(bx+.5,by+.5,tw,16);g.fillStyle=C.fg;g.fillText(t,bx+4,by+8)});
+  $('wavecur').textContent=`游標 週期 ${j.rows[ci][0]} · ${j.rows[ci][1]} ms`}
+ else $('wavecur').textContent=`週期 ${j.rows[i0][0]}–${j.rows[i0+span-1][0]}(共 ${n})`}
+function wvIdx(ev){const c=$('wave'),r=c.getBoundingClientRect(),n=lastWave.rows.length,[i0,span]=wvRange(n),pw=r.width-wv.LM-10;
+ return Math.floor(i0+(ev.clientX-r.left-wv.LM)/(pw/span))}
+function wvZoom(f,at){if(!lastWave)return;const n=lastWave.rows.length,[i0,span]=wvRange(n),ns=Math.max(4,Math.min(n,Math.round(span*f))),c=at==null?i0+span/2:at;
+ wv.follow=wv.follow&&ns>=span&&sim.mode=='run';wv.i0=Math.round(c-(c-i0)*ns/span);wv.span=ns;draw(lastWave)}
+function wvFit(){if(!lastWave)return;wv.i0=0;wv.span=lastWave.rows.length;wv.follow=sim.mode=='run';draw(lastWave)}
+(()=>{const c=$('wave');
+ c.addEventListener('wheel',e=>{if(!lastWave)return;e.preventDefault();if(e.shiftKey||Math.abs(e.deltaX)>Math.abs(e.deltaY)){const[,span]=wvRange(lastWave.rows.length);
+   wv.follow=false;wv.i0+=Math.round((e.deltaX||e.deltaY)/40*Math.max(1,span/20));draw(lastWave)}else wvZoom(e.deltaY>0?1.25:0.8,wvIdx(e))},{passive:false});
+ c.addEventListener('pointerdown',e=>{if(!lastWave)return;wv.drag={x:e.clientX,i0:wv.i0};c.setPointerCapture(e.pointerId)});
+ c.addEventListener('pointermove',e=>{if(!lastWave)return;if(wv.drag&&Math.abs(e.clientX-wv.drag.x)>3){c.classList.add('drag');const r=c.getBoundingClientRect(),[,span]=wvRange(lastWave.rows.length);
+   wv.follow=false;wv.i0=Math.round(wv.drag.i0-(e.clientX-wv.drag.x)/((r.width-wv.LM-10)/span));wv.cur=null;draw(lastWave);return}
+  const i=wvIdx(e);wv.cur=i>=0?i:null;draw(lastWave);if(wv.cur!=null&&sim.mode=='replay')ioShow(lastWave.rows[Math.min(wv.cur,lastWave.rows.length-1)])});
+ c.addEventListener('pointerup',()=>{wv.drag=null;c.classList.remove('drag')});
+ c.addEventListener('pointerleave',()=>{if(wv.drag)return;wv.cur=null;draw(lastWave);if(sim.mode=='replay'&&lastWave)ioShow(lastWave.rows[lastWave.rows.length-1])});
+ c.addEventListener('dblclick',wvFit);
+ if(window.ResizeObserver)new ResizeObserver(()=>{if(lastWave&&!$('wavebox').hidden)draw(lastWave)}).observe($('wavebox'))})();
 async function tst(){const done=busy();try{const j=await api('/api/test',{code:$('code').value,scenario:$('scn').value,profile:$('profile').value});
  show('tstout',j.passed?'PASS':j.failures.map(f=>`FAIL step ${esc(f.step)}: ${esc(f.var)} expected ${JSON.stringify(f.expected)} got ${JSON.stringify(f.actual)}`).join('\n'),j.passed?'ok':'er');
  pill('st_tst',j.passed?'✔ 情境 PASS':`✘ 情境 FAIL ${j.failures.length}`,j.passed?'ok':'er');toast(j.passed?'情境測試全部通過':`情境測試失敗 ${j.failures.length} 項`,j.passed?'ok':'er')}catch(e){show('tstout',esc(e.message),'er');pill('st_tst','✘ 情境錯誤','er');toast(e.message,'er')}finally{done()}}

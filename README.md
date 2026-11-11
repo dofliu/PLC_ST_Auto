@@ -77,8 +77,9 @@ python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-
 `python -m plc_st serve --port 8765` 後開啟 http://127.0.0.1:8765 (僅本機)。UI 功能測試:`PYTHONPATH=. CHROMIUM_PATH=<chromium> python tests/ui_smoke.py`(需 playwright)。報告見 `docs/test_report_M11.md`。
 
 程式碼編輯器(UI3):行號、ST 語法色彩、輸入後自動檢查並在行號/程式行標記錯誤與警告、點擊問題清單或行號跳到該行、游標行/欄顯示。
+模擬儀表板(UI4):執行/暫停/單步/重設與速度(×0.2/×1/×10)、I/O 面板(BOOL 輸入開關、輸出燈號、數值即時顯示;暫停時切換的輸入於下一掃描生效)、波形每變數一軌(STRING 以文字帶顯示、長名稱截斷)、滾輪縮放/拖曳平移/游標讀值/雙擊全覽;批次執行(事件腳本)後游標移動時 I/O 面板回放該週期值。快捷鍵 `Alt+R` 執行/暫停、`Alt+S` 單步。API:`/api/sim/start|step|stop`。執行期錯誤訊息帶行號並標記於編輯器。
 快捷鍵:`Ctrl+Enter` 執行模擬、`Ctrl+Shift+Enter` 靜態檢查、`Ctrl+/` 註解切換、`Tab`/`Shift+Tab` 縮排(先按 `Esc` 再按 Tab 可離開編輯器)、`THEN`/`DO` 等之後 Enter 自動縮排。
-E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node tests/ui_e2e.js [截圖資料夾]`(`UI3_SHOTS=` 指定編輯器截圖資料夾)。
+E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node tests/ui_e2e.js [截圖資料夾]`(`UI3_SHOTS=`/`UI4_SHOTS=` 指定編輯器/模擬儀表板截圖資料夾)。
 
 ## 陣列 (M17)
 支援一維 `ARRAY[lo..hi] OF T`(可帶初始值 `:= [1,2,3]`),以 `a[i]` 讀寫;越界於靜態檢查(常數索引)與執行期皆報錯。
