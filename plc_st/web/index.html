@@ -18,17 +18,20 @@ try{const t=localStorage.getItem('plcst.theme');if(t=='light'||t=='dark')documen
  --ok:#16703d;--ok-bg:#e6f4ec;--er:#b42318;--er-bg:#fdecea;--wn:#8a5100;--wn-bg:#fcf1de;--info:#1f4fd1;--info-bg:#e8eefc;
  --shadow-1:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);--shadow-2:0 8px 24px rgba(16,24,40,.16);
  --wave:#1f4fd1;--wave-grid:#e3e7ee;
+ --syn-kw:#6f2bb8;--syn-ty:#0b6b78;--syn-fb:#a1400c;--syn-num:#1c5fa8;--syn-str:#2f6b14;--syn-cm:#5f6b7a;--syn-op:#525d6c;
 }
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
  --bg:#0e1218;--surface:#161b23;--surface-2:#1e242e;--fg:#e5e9ef;--fg-muted:#9ca6b4;--bd:#2b3340;--bd-strong:#3d4757;
  --ac:#7ea6ff;--ac-hover:#9bb9ff;--ac-fg:#0a1020;--ac-bg:#1c2944;
  --ok:#56c98a;--ok-bg:#15291f;--er:#ff8077;--er-bg:#331a19;--wn:#e8ad48;--wn-bg:#30251a;--info:#7ea6ff;--info-bg:#1c2944;
- --shadow-1:0 1px 2px rgba(0,0,0,.4);--shadow-2:0 8px 24px rgba(0,0,0,.5);--wave:#7ea6ff;--wave-grid:#252c37}}
+ --shadow-1:0 1px 2px rgba(0,0,0,.4);--shadow-2:0 8px 24px rgba(0,0,0,.5);--wave:#7ea6ff;--wave-grid:#252c37;
+ --syn-kw:#d2a8ff;--syn-ty:#5fd4e0;--syn-fb:#ffa86b;--syn-num:#8cc4ff;--syn-str:#9be07a;--syn-cm:#8d98a7;--syn-op:#b4bdc9;}}
 :root[data-theme="dark"]{color-scheme:dark;
  --bg:#0e1218;--surface:#161b23;--surface-2:#1e242e;--fg:#e5e9ef;--fg-muted:#9ca6b4;--bd:#2b3340;--bd-strong:#3d4757;
  --ac:#7ea6ff;--ac-hover:#9bb9ff;--ac-fg:#0a1020;--ac-bg:#1c2944;
  --ok:#56c98a;--ok-bg:#15291f;--er:#ff8077;--er-bg:#331a19;--wn:#e8ad48;--wn-bg:#30251a;--info:#7ea6ff;--info-bg:#1c2944;
- --shadow-1:0 1px 2px rgba(0,0,0,.4);--shadow-2:0 8px 24px rgba(0,0,0,.5);--wave:#7ea6ff;--wave-grid:#252c37}
+ --shadow-1:0 1px 2px rgba(0,0,0,.4);--shadow-2:0 8px 24px rgba(0,0,0,.5);--wave:#7ea6ff;--wave-grid:#252c37;
+ --syn-kw:#d2a8ff;--syn-ty:#5fd4e0;--syn-fb:#ffa86b;--syn-num:#8cc4ff;--syn-str:#9be07a;--syn-cm:#8d98a7;--syn-op:#b4bdc9;}
 
 /* ===== 基礎 ===== */
 *{box-sizing:border-box}[hidden]{display:none!important}
@@ -101,7 +104,33 @@ nav button .ico{width:20px;height:20px}
 nav button:hover{background:var(--surface-2);border-color:transparent;color:var(--fg)}
 nav button.on{background:var(--ac-bg);color:var(--ac);border-color:transparent;font-weight:600}
 #codepane{display:flex;flex-direction:column;padding:var(--sp-3);min-width:0;min-height:0;border-right:1px solid var(--bd);background:var(--surface)}
-#codepane h2{flex:none}#code{flex:1;min-height:0;resize:none;background:var(--surface-2);border-color:var(--bd)}
+#codepane h2{flex:none}
+/* ===== 程式碼編輯器(UI3):行號 + 語法色彩 + 問題行標記;textarea 疊在上色層之上 ===== */
+.ed{--lh:20px;flex:1;min-height:0;display:flex;border:1px solid var(--bd);border-radius:var(--r-sm);background:var(--surface-2);overflow:hidden;font:13px/var(--lh) var(--font-code);transition:border-color var(--dur),box-shadow var(--dur)}
+.ed:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
+#gutter{flex:none;min-width:44px;padding:8px 0;overflow:hidden;text-align:right;color:var(--fg-muted);background:var(--surface);border-right:1px solid var(--bd);user-select:none;cursor:pointer}
+#gutter div{height:var(--lh);padding:0 8px 0 14px;position:relative}
+#gutter div.cur{color:var(--fg);font-weight:600}
+#gutter div.er,#gutter div.wn{font-weight:700}#gutter div.er{color:var(--er)}#gutter div.wn{color:var(--wn)}
+#gutter div.er::before,#gutter div.wn::before{content:"";position:absolute;left:4px;top:7px;width:6px;height:6px;border-radius:50%;background:currentColor}
+.edwrap{position:relative;flex:1;min-width:0}
+#hl,#code{position:absolute;inset:0;margin:0;padding:8px 10px;border:0;border-radius:0;font:inherit;line-height:var(--lh);white-space:pre;tab-size:4;overflow:auto;max-height:none;letter-spacing:0}
+#hl{pointer-events:none;color:var(--fg);background:transparent;overflow:hidden}
+#hl .l{min-width:calc(100% + 20px);width:max-content;height:var(--lh);margin:0 -10px;padding:0 10px}
+#hl .l.cur{background:color-mix(in srgb,var(--fg) 5%,transparent)}
+#hl .l.wn{background:var(--wn-bg)}#hl .l.er{background:var(--er-bg);text-decoration:underline wavy color-mix(in srgb,var(--er) 70%,transparent);text-decoration-skip-ink:none;text-underline-offset:4px}
+#hl .l.flash{animation:flash 1.2s ease-out}
+@keyframes flash{0%{background:color-mix(in srgb,var(--ac) 35%,transparent)}100%{background:transparent}}
+#code{resize:none;background:transparent;color:transparent;caret-color:var(--fg);min-height:0;width:100%;box-shadow:none!important;-webkit-text-fill-color:transparent}
+#code:focus{outline:none}
+#code::selection{background:color-mix(in srgb,var(--ac) 30%,transparent)}
+.t-kw{color:var(--syn-kw);font-weight:600}.t-ty{color:var(--syn-ty)}.t-fb{color:var(--syn-fb)}.t-num{color:var(--syn-num)}.t-str{color:var(--syn-str)}.t-cm{color:var(--syn-cm);font-style:italic}.t-op{color:var(--syn-op)}
+#curpos{margin-left:auto;font-size:var(--fs-sm);color:var(--fg-muted);margin-top:var(--sp-2);font-family:var(--font-code)}
+#chkout .iss{display:block;width:100%;text-align:left;background:transparent;border:0;border-radius:4px;padding:1px 6px;margin:0;font:inherit;cursor:pointer}
+#chkout .iss.er{color:var(--er)}#chkout .iss.wn{color:var(--wn)}
+#chkout .iss:hover,#chkout .iss:focus-visible{background:color-mix(in srgb,var(--fg) 8%,transparent)}
+#chkout .iss b{font-weight:600;text-decoration:underline;text-underline-offset:2px}
+kbd{font:var(--fs-xs) var(--font-code);border:1px solid var(--bd-strong);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--surface)}
 .codebar{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;flex:none}
 .codebar input[type=file]{width:auto;max-width:230px;margin-top:var(--sp-2)}
 #tabpane{overflow:auto;padding:var(--sp-3);min-width:0;min-height:0}
@@ -174,7 +203,7 @@ nav button.on{background:var(--ac-bg);color:var(--ac);border-color:transparent;f
  <button data-t="set" title="Alt+6"><svg class="ico"><use href="#i-set"/></svg>設定</button>
 </nav>
 <section id="codepane"><h2><svg class="ico"><use href="#i-code"/></svg>ST 程式碼</h2>
- <textarea id="code" spellcheck="false" aria-label="ST 程式碼">PROGRAM Motor
+ <div class="ed" id="editor"><div id="gutter" aria-hidden="true"></div><div class="edwrap"><div id="hl" aria-hidden="true"></div><textarea id="code" spellcheck="false" wrap="off" autocapitalize="off" autocomplete="off" aria-label="ST 程式碼" aria-describedby="edhelp">PROGRAM Motor
 VAR_INPUT start : BOOL; stop : BOOL; END_VAR
 VAR_OUTPUT motor : BOOL; END_VAR
 VAR t : TON; cnt : INT; END_VAR
@@ -182,8 +211,9 @@ IF start AND NOT stop THEN motor := TRUE; END_IF;
 IF stop THEN motor := FALSE; END_IF;
 t(IN := motor, PT := T#500ms);
 IF t.Q THEN cnt := cnt + 1; END_IF;
-END_PROGRAM</textarea>
- <div class="codebar"><input type="file" id="codefile" accept=".st,.txt" aria-label="載入 .st 檔"> <button onclick="chk()"><svg class="ico"><use href="#i-check"/></svg>靜態檢查</button><button class="s" onclick="dl()"><svg class="ico"><use href="#i-dl"/></svg>下載 .st</button></div>
+END_PROGRAM</textarea></div></div>
+ <div class="codebar"><input type="file" id="codefile" accept=".st,.txt" aria-label="載入 .st 檔"> <button onclick="chk()"><svg class="ico"><use href="#i-check"/></svg>靜態檢查</button><button class="s" onclick="dl()"><svg class="ico"><use href="#i-dl"/></svg>下載 .st</button><span id="curpos" title="游標位置">行 1,欄 1</span></div>
+ <div id="edhelp" class="hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> 執行模擬 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> 檢查 · <kbd>Ctrl</kbd>+<kbd>/</kbd> 註解 · <kbd>Tab</kbd> 縮排(<kbd>Esc</kbd> 後 Tab 離開)· 點問題可跳到該行</div>
 </section>
 <div id="tabpane">
 <div class="tab on" id="tab_gen">
@@ -288,18 +318,80 @@ function show(id,html,cls){const e=$(id);e.hidden=false;e.className=cls||'';e.in
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if(f){$(target).value=await f.text();toast('已載入 '+f.name,'info')}}}
 fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');fileTo('scnfile','scn');
-api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('')});
-const issuesHtml=l=>l.length?l.map(i=>`<div class="${i.severity=='error'?'er':'wn'}">${i.severity}${i.line?' line '+i.line:''}: ${esc(i.msg)}</div>`).join(''):'<span class="ok">✔ 無問題</span>';
+api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('');liveCheck()});
+$('profile').addEventListener('change',liveCheck);
+const issuesHtml=l=>l.length?l.map(i=>{const c=i.severity=='error'?'er':'wn';
+ return i.line?`<button type="button" class="iss ${c}" data-line="${i.line}" title="跳到第 ${i.line} 行">${i.severity} <b>line ${i.line}</b>: ${esc(i.msg)}</button>`
+  :`<div class="iss ${c}">${i.severity}: ${esc(i.msg)}</div>`}).join(''):'<span class="ok">✔ 無問題</span>';
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.iss[data-line]');if(b)jumpTo(+b.dataset.line)});
+
+// ---- UI3 程式碼編輯器:行號、ST 語法色彩、問題行標記、跳行、快捷鍵 ----
+const ST_KW=new Set(('PROGRAM END_PROGRAM FUNCTION END_FUNCTION FUNCTION_BLOCK END_FUNCTION_BLOCK VAR VAR_INPUT VAR_OUTPUT VAR_IN_OUT VAR_GLOBAL VAR_TEMP VAR_EXTERNAL CONSTANT RETAIN END_VAR '+
+ 'TYPE END_TYPE STRUCT END_STRUCT ARRAY OF IF THEN ELSIF ELSE END_IF CASE END_CASE FOR TO BY DO END_FOR WHILE END_WHILE REPEAT UNTIL END_REPEAT EXIT RETURN AND OR XOR NOT MOD TRUE FALSE').split(' '));
+const ST_TY=new Set('BOOL BYTE WORD DWORD LWORD SINT INT DINT LINT USINT UINT UDINT ULINT REAL LREAL TIME DATE TOD DT TIME_OF_DAY DATE_AND_TIME STRING WSTRING'.split(' '));
+const ST_FB=new Set('TON TOF TP CTU CTD CTUD R_TRIG F_TRIG SR RS'.split(' '));
+const ST_RE=/(\(\*[\s\S]*?(?:\*\)|$))|(\/\/[^\n]*)|('(?:\$.|[^'$\n])*'?|"(?:\$.|[^"$\n])*"?)|\b((?:T|TIME|LT|D|DATE|TOD|DT)#[\w.:+-]+|\w+#[0-9A-Fa-f_.]+(?:[eE][+-]?\d+)?|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)|([A-Za-z_]\w*)|(:=|=>|<>|<=|>=|\*\*|[-+*\/<>=&;:,.()[\]^])/g;
+function stTokens(src){const out=[];let last=0,m;ST_RE.lastIndex=0;
+ while((m=ST_RE.exec(src))){if(!m[0]){ST_RE.lastIndex++;continue}if(m.index>last)out.push(['',src.slice(last,m.index)]);
+  let c='';if(m[1]||m[2])c='cm';else if(m[3])c='str';else if(m[4])c='num';else if(m[6])c='op';
+  else{const u=m[5].toUpperCase();c=ST_KW.has(u)?'kw':ST_TY.has(u)||/_TO_/.test(u)?'ty':ST_FB.has(u)?'fb':''}
+  out.push([c,m[0]]);last=ST_RE.lastIndex}
+ if(last<src.length)out.push(['',src.slice(last)]);return out}
+function stLines(src){const lines=[[]];for(const[c,t]of stTokens(src)){t.split('\n').forEach((part,k)=>{if(k)lines.push([]);if(part)lines[lines.length-1].push(c?`<span class="t-${c}">${esc(part)}</span>`:esc(part))})}return lines.map(x=>x.join(''))}
+const ed={ta:$('code'),marks:new Map(),cur:1,flash:0,timer:0,tabEsc:false,seq:0};
+function edLine(){const ta=ed.ta;return ta.value.slice(0,ta.selectionStart).split('\n').length}
+function edRender(){const ta=ed.ta,lines=stLines(ta.value),cur=ed.cur;let h='',g='';
+ lines.forEach((html,k)=>{const n=k+1,mk=ed.marks.get(n),cls=(mk?' '+mk.sev:'')+(n==cur?' cur':'')+(n==ed.flash?' flash':'');
+  h+=`<div class="l${cls}">${html||' '}</div>`;g+=`<div class="${cls.trim()}"${mk?` title="${esc(mk.msg)}"`:''}>${n}</div>`});
+ $('hl').innerHTML=h+'<div class="l"> </div>';$('gutter').innerHTML=g+'<div></div>';edSync()}
+function edSync(){const ta=ed.ta;$('hl').scrollTop=ta.scrollTop;$('hl').scrollLeft=ta.scrollLeft;$('gutter').scrollTop=ta.scrollTop}
+function edCaret(){const n=edLine(),ta=ed.ta,col=ta.selectionStart-ta.value.lastIndexOf('\n',ta.selectionStart-1);
+ $('curpos').textContent=`行 ${n},欄 ${col}`;if(n!=ed.cur){ed.cur=n;edRender()}}
+function setMarks(l){ed.marks.clear();for(const i of l){if(!i.line)continue;const sev=i.severity=='error'?'er':'wn',o=ed.marks.get(i.line);
+ if(!o)ed.marks.set(i.line,{sev,msg:i.msg});else{if(sev=='er')o.sev='er';o.msg+='\n'+i.msg}}edRender()}
+function jumpTo(n){const ta=ed.ta,lines=ta.value.split('\n');n=Math.max(1,Math.min(n,lines.length));
+ let st=0;for(let k=0;k<n-1;k++)st+=lines[k].length+1;ta.focus({preventScroll:true});ta.setSelectionRange(st,st+lines[n-1].length);
+ const lh=parseFloat(getComputedStyle($('editor')).lineHeight)||20;ta.scrollTop=Math.max(0,(n-1)*lh-ta.clientHeight/3);
+ if(matchMedia('(max-width:820px)').matches)$('codepane').scrollIntoView({block:'start'});
+ ed.cur=n;ed.flash=n;edRender();edCaret();clearTimeout(ed.ft);ed.ft=setTimeout(()=>{ed.flash=0;edRender()},1300)}
+// 程式化設定 .value(產生/匯入/載入檔案)時也要重繪並清除舊標記
+(()=>{const d=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value');
+ Object.defineProperty(ed.ta,'value',{configurable:true,get(){return d.get.call(this)},set(v){d.set.call(this,v);ed.marks.clear();ed.cur=1;edRender();liveCheck()}})})();
+function liveCheck(){clearTimeout(ed.timer);ed.timer=setTimeout(()=>chk(true),700)}
+function edEdit(text,s0,s1,selA,selB){const ta=ed.ta;ta.focus();ta.setSelectionRange(s0,s1);
+ if(!document.execCommand('insertText',false,text))ta.setRangeText(text,s0,s1,'end');  // execCommand 保留復原(Ctrl+Z)
+ if(selA!=null)ta.setSelectionRange(selA,selB);ta.dispatchEvent(new Event('input'))}
+function edLines(fn){const ta=ed.ta,v=ta.value,a=v.lastIndexOf('\n',ta.selectionStart-1)+1;let b=v.indexOf('\n',Math.max(ta.selectionEnd-(ta.selectionEnd>ta.selectionStart&&v[ta.selectionEnd-1]=='\n'?1:0),a));if(b<0)b=v.length;
+ const out=fn(v.slice(a,b).split('\n')).join('\n');edEdit(out,a,b,a,a+out.length)}
+ed.ta.addEventListener('input',()=>{ed.marks.clear();edRender();edCaret();liveCheck()});
+ed.ta.addEventListener('scroll',edSync);
+['keyup','click','select','focus'].forEach(t=>ed.ta.addEventListener(t,edCaret));
+$('gutter').addEventListener('click',e=>{const d=e.target.closest('div');if(d&&/^\d+$/.test(d.textContent))jumpTo(+d.textContent)});
+ed.ta.addEventListener('keydown',e=>{const ta=ed.ta,mod=e.ctrlKey||e.metaKey;
+ if(e.key=='Escape'){ed.tabEsc=true;return}
+ if(e.key=='Tab'&&!ed.tabEsc&&!mod&&!e.altKey){e.preventDefault();
+  if(ta.selectionStart==ta.selectionEnd&&!e.shiftKey){edEdit('    ',ta.selectionStart,ta.selectionEnd)}
+  else edLines(ls=>ls.map(l=>e.shiftKey?l.replace(/^( {1,4}|\t)/,''):'    '+l));return}
+ ed.tabEsc=false;
+ if(mod&&e.key=='Enter'){e.preventDefault();if(e.shiftKey)chk();else{tab('sim');runPlc()}return}
+ if(mod&&e.key=='/'){e.preventDefault();edLines(ls=>{const all=ls.filter(l=>l.trim()).every(l=>/^\s*\/\//.test(l));
+  return ls.map(l=>all?l.replace(/^(\s*)\/\/ ?/,'$1'):l.trim()?l.replace(/^(\s*)/,'$1// '):l)});return}
+ if(e.key=='Enter'&&!mod&&!e.shiftKey&&!e.altKey){const v=ta.value,a=v.lastIndexOf('\n',ta.selectionStart-1)+1,ind=v.slice(a).match(/^[ \t]*/)[0],
+  prev=v.slice(a,ta.selectionStart).trim().toUpperCase(),more=/^(IF|ELSIF|ELSE|CASE|FOR|WHILE|REPEAT|VAR\w*|STRUCT|TYPE|PROGRAM|FUNCTION\w*)\b/.test(prev)||/\b(THEN|DO|OF|ELSE)$/.test(prev);
+  if(ind||more){e.preventDefault();edEdit('\n'+ind+(more&&!/^END_/.test(prev)?'    ':''),ta.selectionStart,ta.selectionEnd)}}});
 function drawerInfo(l){const ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;const d=$('drawerinfo');d.textContent=l.length?`${ne} 錯誤 · ${nw} 警告`:'';d.className=ne?'er':'wn'}
 async function tagsToVar(){const done=busy();try{const j=await api('/api/tags',{csv:$('tags').value});$('code').value=j.code;toast('已由點位表產生 VAR 宣告','ok')}catch(e){show('chkout',esc(e.message),'er');toast(e.message,'er')}finally{done()}}
 async function exp(){const done=busy();try{const f=$('expfmt').value,j=await api('/api/export',{code:$('code').value,format:f});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j.text],{type:'text/plain'}));a.download='program.'+j.ext;a.click();show('chkout','已匯出 '+esc(a.download)+'('+j.text.length+' 字元)');toast('已匯出 '+a.download,'ok')}catch(e){show('chkout',esc(e.message),'er');toast('匯出失敗:'+e.message,'er')}finally{done()}}
-async function chk(){const done=busy();try{const l=(await api('/api/check',{code:$('code').value,profile:$('profile').value})).issues,ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;show('chkout',issuesHtml(l));drawerInfo(l);
- pill('st_chk',`${ne?'✘':'✔'} 檢查 ${ne} 錯 / ${nw} 警告`,ne?'er':nw?'wn':'ok');toast(ne?`檢查發現 ${ne} 個錯誤`:nw?`檢查通過,${nw} 個警告`:'檢查通過,無問題',ne?'er':nw?'wn':'ok')}
- catch(e){show('chkout',esc(e.message),'er');pill('st_chk','✘ 檢查失敗','er');toast(e.message,'er')}finally{done()}}
+// silent=true:編輯時自動檢查,只更新行標記/狀態列/問題清單,不開抽屜也不跳 toast
+async function chk(silent){clearTimeout(ed.timer);const seq=++ed.seq,done=silent===true?()=>{}:busy();try{const code=$('code').value,l=(await api('/api/check',{code,profile:$('profile').value})).issues,ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;
+ if(seq!=ed.seq||code!=$('code').value)return;  // 已有較新的檢查或內容已變
+ const wasHidden=$('chkout').hidden;show('chkout',issuesHtml(l));if(silent===true&&wasHidden)$('chkout').hidden=true;drawerInfo(l);setMarks(l);
+ pill('st_chk',`${ne?'✘':'✔'} 檢查 ${ne} 錯 / ${nw} 警告`,ne?'er':nw?'wn':'ok');if(silent!==true)toast(ne?`檢查發現 ${ne} 個錯誤`:nw?`檢查通過,${nw} 個警告`:'檢查通過,無問題',ne?'er':nw?'wn':'ok')}
+ catch(e){if(silent===true)return;show('chkout',esc(e.message),'er');pill('st_chk','✘ 檢查失敗','er');toast(e.message,'er')}finally{done()}}
 function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('code').value]));a.download='program.st';a.click()}
 async function gen(){const done=busy();$('genst').textContent=' 產生中…';$('genst').className='inline';try{
  const j=await api('/api/generate',{requirement:$('req').value,tags_csv:$('tags').value,provider:$('prov').value,model:$('model').value,api_key:$('key').value,base_url:$('base').value,profile:$('profile').value,max_rounds:+$('rounds').value,use_rag:$('userag').checked,scenario:$('scn').value});
- $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues));drawerInfo(j.issues);toast('ST 程式碼已產生','ok')}
+ $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues));drawerInfo(j.issues);setMarks(j.issues);toast('ST 程式碼已產生','ok')}
  catch(e){$('genst').textContent='';show('genout',esc(e.message),'er');toast('產生失敗:'+e.message,'er',5000)}finally{done()}}
 async function ragAdd(){const fs=[...$('ragfile').files];if(!fs.length){$('ragst').textContent=' 請先選檔案';toast('請先選擇要加入的文件','wn');return}
  const done=busy();try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b,embedder:$('embsel').value,embed_api_key:$('embkey').value})}
@@ -311,7 +403,8 @@ function parseEv(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=
  const v=m[3].toLowerCase()=='true'?true:m[3].toLowerCase()=='false'?false:Number(m[3]);return{cycle:+m[1],name:m[2],value:v}})}
 let lastWave=null;
 async function runPlc(){const done=busy();try{const j=await api('/api/run',{code:$('code').value,profile:$('profile').value,cycles:+$('cycles').value,scan_ms:+$('scan').value,events:parseEv($('events').value)});
- $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';pill('st_run',`✔ 模擬 ${j.rows.length} 週期`,'ok');draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er';pill('st_run','✘ 模擬錯誤','er');toast('模擬錯誤:'+e.message,'er')}finally{done()}}
+ $('runst').textContent=` ${j.rows.length} 週期`;$('runst').className='';pill('st_run',`✔ 模擬 ${j.rows.length} 週期`,'ok');draw(j)}catch(e){$('runst').textContent=' '+e.message;$('runst').className='er';pill('st_run','✘ 模擬錯誤','er');
+ const lm=/line (\d+)/.exec(e.message);if(lm){setMarks([{severity:'error',line:+lm[1],msg:e.message}]);show('chkout',issuesHtml([{severity:'error',line:+lm[1],msg:e.message}]))}toast('模擬錯誤:'+e.message,'er')}finally{done()}}
 function draw(j){lastWave=j;$('wave').hidden=false;$('waveempty').hidden=true;
  const c=$('wave'),g=c.getContext('2d'),cs=getComputedStyle(document.documentElement),tk=n=>cs.getPropertyValue(n).trim();
  const fg=tk('--fg'),mut=tk('--fg-muted'),wave=tk('--wave'),grid=tk('--wave-grid');g.clearRect(0,0,c.width,c.height);
@@ -328,4 +421,5 @@ async function tst(){const done=busy();try{const j=await api('/api/test',{code:$
  show('tstout',j.passed?'PASS':j.failures.map(f=>`FAIL step ${esc(f.step)}: ${esc(f.var)} expected ${JSON.stringify(f.expected)} got ${JSON.stringify(f.actual)}`).join('\n'),j.passed?'ok':'er');
  pill('st_tst',j.passed?'✔ 情境 PASS':`✘ 情境 FAIL ${j.failures.length}`,j.passed?'ok':'er');toast(j.passed?'情境測試全部通過':`情境測試失敗 ${j.failures.length} 項`,j.passed?'ok':'er')}catch(e){show('tstout',esc(e.message),'er');pill('st_tst','✘ 情境錯誤','er');toast(e.message,'er')}finally{done()}}
 setTheme(document.documentElement.dataset.theme||'auto');
+edRender();edCaret();
 </script></body></html>
