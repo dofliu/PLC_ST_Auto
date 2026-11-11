@@ -702,11 +702,17 @@ class VirtualPLC:
     def run(self, stmts):
         for s in stmts:
             op = s[0]
-            if op == "assign":
-                if not self._struct_copy(s[1], s[2]):
-                    self.assign(s[1], self.eval(s[2]))
-            elif op == "call":
-                self.call_fb(s[1], s[2])
+            if op in ("assign", "call"):
+                try:
+                    if op == "call":
+                        self.call_fb(s[1], s[2])
+                    elif not self._struct_copy(s[1], s[2]):
+                        self.assign(s[1], self.eval(s[2]))
+                except STError as e:
+                    # 執行期錯誤補上行號(最內層先補,外層不重複),讓 UI 能標記到正確行
+                    if len(s) > 3 and s[3] and not str(e).startswith("line "):
+                        raise STError(f"line {s[3]}: {e}") from None
+                    raise
             elif op == "if":
                 for cond, body in s[1]:
                     if self.eval(cond):

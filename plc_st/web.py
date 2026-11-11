@@ -1,11 +1,14 @@
 """python -m plc_st serve [--port 8765]:stdlib http.server Web UI + JSON API(僅綁 127.0.0.1)。
 
-POST /api/{check,run,test,tags,generate,rag/add,rag/search,rag/clear};GET /api/profiles、/。
+POST /api/{check,run,test,tags,generate,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
 handle() 與 HTTP 分離,方便單元測試。"""
 import base64
 import json
 import os
+import re
+import secrets
 import tempfile
+from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .checker import check
@@ -17,12 +20,14 @@ from .scenario import run_scenario
 from .tags import tags_to_var_blocks
 
 MAX_CYCLES = 5000
+MAX_SIMS = 16  # 互動模擬 session 上限(超過時淘汰最久未用的)
 INDEX_HTML = os.path.join(os.path.dirname(__file__), "web", "index.html")
 
 
 class State:
     def __init__(self):
         self.store = VectorStore()
+        self.sims = OrderedDict()
 
 
 def _issues(items):
@@ -36,14 +41,67 @@ def _need(p, key):
     return v
 
 
-def _run(p):
-    plc = VirtualPLC(_need(p, "code"), scan_ms=int(p.get("scan_ms", 10)), profile=p.get("profile", "iec"))
+def _meta(plc, cols):
+    """每個 snapshot 欄位的型別與區段(input/output/inout/local),供 UI 畫開關/燈號。"""
+    out = []
+    for c in cols:
+        key = re.sub(r"\[[^\]]*\]", "", c.lower())
+        out.append({"name": c, "type": plc.types.get(key, ""), "section": plc.section.get(key, "local")})
+    return out
+
+
+def _cycles(p, default=50):
     try:
-        cycles = int(p.get("cycles", 50))
+        cycles = int(p.get("cycles", default))
     except (TypeError, ValueError):
         raise STError(f"cycles must be an integer 1..{MAX_CYCLES}, got {p.get('cycles')!r}")
     if not 0 < cycles <= MAX_CYCLES:
         raise STError(f"cycles must be 1..{MAX_CYCLES}")
+    return cycles
+
+
+def _row(plc, cols):
+    snap = plc.snapshot()
+    return [plc.cycles, plc.time_ms] + [snap[k] for k in cols]
+
+
+def _sim_start(p, state):
+    plc = VirtualPLC(_need(p, "code"), scan_ms=int(p.get("scan_ms", 10)), profile=p.get("profile", "iec"))
+    cols = list(plc.snapshot())
+    sid = secrets.token_hex(8)
+    state.sims[sid] = (plc, cols)
+    while len(state.sims) > MAX_SIMS:
+        state.sims.popitem(last=False)
+    return {"id": sid, "columns": ["cycle", "time_ms"] + cols, "meta": _meta(plc, cols), "row": _row(plc, cols)}
+
+
+def _sim_get(p, state):
+    sid = p.get("id")
+    if sid not in state.sims:
+        raise STError("simulation session not found (expired or stopped); press reset")
+    state.sims.move_to_end(sid)
+    return state.sims[sid]
+
+
+def _sim_step(p, state):
+    plc, cols = _sim_get(p, state)
+    sets = p.get("set") or {}
+    if not isinstance(sets, dict):
+        raise STError("set must be an object {name: value}")
+    for n, v in sets.items():
+        if plc.section.get(re.sub(r"\[[^\]]*\]", "", n.lower())) == "output":
+            raise STError(f"{n} is an output; only inputs/locals can be forced")
+        plc.set_input(n, v)
+    rows = []
+    for _ in range(_cycles(p, 1)):
+        plc.scan(1)
+        rows.append(_row(plc, cols))
+    return {"rows": rows}
+
+
+def _run(p):
+    plc = VirtualPLC(_need(p, "code"), scan_ms=int(p.get("scan_ms", 10)), profile=p.get("profile", "iec"))
+    cycles = _cycles(p)
     events = [(int(e.get("cycle", 0)), e["name"], e["value"]) for e in p.get("events", [])]
     cols = list(plc.snapshot())
     rows = []
@@ -52,9 +110,8 @@ def _run(p):
             if c == cyc:
                 plc.set_input(n, v)
         plc.scan(1)
-        snap = plc.snapshot()
-        rows.append([plc.cycles, plc.time_ms] + [snap[k] for k in cols])
-    return {"columns": ["cycle", "time_ms"] + cols, "rows": rows}
+        rows.append(_row(plc, cols))
+    return {"columns": ["cycle", "time_ms"] + cols, "rows": rows, "meta": _meta(plc, cols)}
 
 
 def _generate(p, state):
@@ -110,6 +167,13 @@ def handle(method, path, payload, state):
             return 200, {"issues": _issues(check(_need(payload, "code"), payload.get("profile", "iec")))}
         if path == "/api/run":
             return 200, _run(payload)
+        if path == "/api/sim/start":
+            return 200, _sim_start(payload, state)
+        if path == "/api/sim/step":
+            return 200, _sim_step(payload, state)
+        if path == "/api/sim/stop":
+            state.sims.pop(payload.get("id"), None)
+            return 200, {"stopped": True}
         if path == "/api/test":
             fails = run_scenario(_need(payload, "code"), _need(payload, "scenario"), profile=payload.get("profile"))
             return 200, {"passed": not fails, "failures": fails}

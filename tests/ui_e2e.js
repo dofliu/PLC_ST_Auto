@@ -9,6 +9,8 @@ const S = path.resolve(process.argv[2] || 'docs/screenshots/e2e') + '/';
 const URL0 = process.env.PLC_URL || 'http://127.0.0.1:8765/';
 fs.mkdirSync(S, { recursive: true });
 const SS3 = path.resolve(process.env.UI3_SHOTS || S) + '/'; fs.mkdirSync(SS3, { recursive: true });
+const SS4 = path.resolve(process.env.UI4_SHOTS || S) + '/'; fs.mkdirSync(SS4, { recursive: true });
+const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
 (async () => {
   const b = await chromium.launch();
   const pg = await b.newPage({ viewport: { width: 1280, height: 1000 }, deviceScaleFactor: 2, acceptDownloads: true });
@@ -65,12 +67,13 @@ const SS3 = path.resolve(process.env.UI3_SHOTS || S) + '/'; fs.mkdirSync(SS3, { 
   }
   // 6. virtual PLC
   await T('sim');
+  await pg.evaluate(() => { document.getElementById('batchbox').open = true; });
   await pg.fill('#events', '2:start=true\n40:start=false');
   const t1 = Date.now();
   await pg.click('text=執行並繪製波形');
   await pg.waitForFunction("document.getElementById('runst').textContent.includes('週期')");
   ok('08 虛擬 PLC 執行 80 週期', (await pg.innerText('#runst')).includes('80'), (Date.now() - t1) + 'ms');
-  ok('09 波形圖有繪製', await pg.evaluate("[...document.getElementById('wave').getContext('2d').getImageData(0,0,900,380).data].some(v=>v>0)"));
+  ok('09 波形圖有繪製', await pg.evaluate("[...document.getElementById('wave').getContext('2d').getImageData(0,0,document.getElementById('wave').width,document.getElementById('wave').height).data].some(v=>v>0)"));
   await card('5. 虛擬 PLC', '05_vplc.png').catch(() => {});
   // 7. scenario
   await T('test');
@@ -138,11 +141,73 @@ const SS3 = path.resolve(process.env.UI3_SHOTS || S) + '/'; fs.mkdirSync(SS3, { 
   await pg.evaluate(() => setTheme('auto'));
   // 按鈕載入狀態:執行中顯示 busy 並 disabled
   await T('sim'); await pg.fill('#cycles', '3000');
-  const busySeen = await pg.evaluate(() => { const b = [...document.querySelectorAll('#tab_sim button')][0]; b.click(); return b.classList.contains('busy') && b.disabled; });
-  await pg.waitForFunction("!document.querySelector('#tab_sim button').disabled");
+  const busySeen = await pg.evaluate(() => { const b = document.getElementById('batchbtn'); b.click(); return b.classList.contains('busy') && b.disabled; });
+  await pg.waitForFunction("!document.getElementById('batchbtn').disabled");
   ok('21 執行中按鈕顯示載入狀態,完成後恢復', busySeen);
   ok('22 波形繪製後空狀態提示隱藏', await pg.evaluate(() => getComputedStyle(document.getElementById('waveempty')).display === 'none'));
   await pg.fill('#cycles', '80');
+  // UI4: 模擬儀表板 — 執行/暫停/單步/重設、I/O 開關與燈號、波形縮放/游標/STRING/標籤
+  await T('gen'); await pg.fill('#code', motor); await T('sim');
+  await pg.evaluate(() => { document.getElementById('batchbox').open = true; });
+  await pg.click('#sim_reset'); await pg.waitForFunction("document.getElementById('simmode').textContent=='暫停'");
+  const io0 = await pg.evaluate(() => [document.querySelectorAll('#io .sw').length, document.querySelectorAll('#io .lamp').length, document.querySelectorAll('#io .val').length, document.getElementById('simclk').textContent, document.getElementById('simmode').textContent]);
+  ok('31 重設後建立 I/O 面板:2 個輸入開關、1 個輸出燈號、1 個數值', io0[0] === 2 && io0[1] === 1 && io0[2] === 1 && io0[3].includes('週期 0') && io0[4] === '暫停', JSON.stringify(io0));
+  await pg.click('.sw[aria-label=start]');
+  ok('32 暫停中切換輸入:標示為待套用(下一掃描才生效)', await pg.evaluate(() => document.querySelector('.sw[aria-label=start]').classList.contains('pend') && !document.querySelector('.lamp').classList.contains('on')));
+  await pg.click('#sim_step'); await pg.waitForFunction("document.getElementById('simclk').textContent.includes('週期 1 ')");
+  ok('32b 單步後輸出燈號亮、待套用標記清除', await pg.evaluate(() => document.querySelector('.lamp').classList.contains('on') && !document.querySelector('#io .pend')));
+  await pg.screenshot({ path: SS4 + 'sim_step_lamp_on.png' });
+  await pg.click('#sim_run'); await pg.waitForTimeout(1200);
+  const runSt = await pg.evaluate(() => [document.getElementById('simmode').textContent, document.getElementById('sim_pause').disabled, document.getElementById('sim_step').disabled, +document.getElementById('simclk').textContent.match(/週期 (\d+)/)[1]]);
+  ok('33 連續執行:狀態「執行中」、暫停可按、單步停用、週期持續增加', runSt[0] === '執行中' && !runSt[1] && runSt[2] && runSt[3] > 30, JSON.stringify(runSt));
+  ok('33b 狀態列顯示模擬週期', /模擬 週期 \d+/.test(await pg.innerText('#st_run')), await pg.innerText('#st_run'));
+  await pg.screenshot({ path: SS4 + 'sim_running.png' });
+  await pg.click('#sim_pause'); await pg.waitForTimeout(150);
+  const c1 = await pg.innerText('#simclk'); await pg.waitForTimeout(500);
+  ok('34 暫停後週期不再增加', c1 === await pg.innerText('#simclk') && await pg.innerText('#simmode') === '暫停', c1);
+  ok('34b 執行中波形跟隨最新週期', await pg.evaluate(() => { const n = lastWave.rows.length, [i0, sp] = wvRange(n); return i0 + sp === n; }));
+  const cntBefore = await pg.evaluate(() => +document.querySelector('#io .val').textContent);
+  ok('34c TON 計時後內部計數 cnt 增加', cntBefore > 0, 'cnt=' + cntBefore);
+  await pg.click('.sw[aria-label=stop]'); await pg.keyboard.press('Alt+s'); await pg.waitForTimeout(400);
+  ok('35 Alt+S 單步:stop 生效後燈號熄滅', await pg.evaluate(() => !document.querySelector('.lamp').classList.contains('on')));
+  // 縮放 / 平移 / 游標
+  const sp0 = await pg.evaluate(() => wv.span);
+  await pg.click('[aria-label=放大]'); const sp1 = await pg.evaluate(() => wv.span);
+  const box = await pg.locator('#wave').boundingBox();
+  await pg.mouse.move(box.x + box.width * 0.6, box.y + 20); await pg.mouse.wheel(0, 200); await pg.waitForTimeout(100);
+  const sp2 = await pg.evaluate(() => wv.span);
+  ok('36 放大按鈕與滾輪縮放改變可視範圍', sp1 < sp0 && sp2 > sp1, [sp0, sp1, sp2].join('→'));
+  await pg.mouse.move(box.x + box.width * 0.5, box.y + 20); await pg.waitForTimeout(100);
+  ok('37 游標讀值顯示週期與時間', /游標 週期 \d+ · \d+ ms/.test(await pg.innerText('#wavecur')), await pg.innerText('#wavecur'));
+  const i0a = await pg.evaluate(() => wv.i0);
+  await pg.mouse.down(); await pg.mouse.move(box.x + box.width * 0.8, box.y + 20, { steps: 4 }); await pg.mouse.up();
+  ok('37b 拖曳平移', await pg.evaluate(() => wv.i0) !== i0a || i0a === 0, i0a + '→' + await pg.evaluate(() => wv.i0));
+  await pg.dblclick('#wave'); ok('37c 雙擊全覽', await pg.evaluate(() => wv.i0 === 0 && wv.span === lastWave.rows.length));
+  await pg.screenshot({ path: SS4 + 'wave_cursor.png' });
+  // STRING 與長名稱:文字帶、無 NaN、標籤不重疊
+  const strProg = "PROGRAM S\nVAR_INPUT go : BOOL; END_VAR\nVAR_OUTPUT msg : STRING; very_long_variable_name_for_label_test : INT; ratio : REAL; END_VAR\nVAR n : INT; END_VAR\nn := n + 1;\nIF go THEN msg := 'RUNNING'; ELSE msg := 'IDLE'; END_IF;\nvery_long_variable_name_for_label_test := n MOD 7;\nratio := INT_TO_REAL(n) / 3.0;\nEND_PROGRAM";
+  await pg.fill('#code', strProg);
+  await pg.evaluate(() => { window.__txt = []; const f = CanvasRenderingContext2D.prototype.fillText; CanvasRenderingContext2D.prototype.fillText = function (t, ...a) { window.__txt.push(String(t)); return f.call(this, t, ...a); }; });
+  await pg.fill('#events', '10:go=true\n30:go=false'); await pg.fill('#cycles', '40');
+  await pg.click('#batchbtn'); await pg.waitForFunction("document.getElementById('simmode').textContent=='批次回放'");
+  const lanes = await pg.evaluate(() => wv.lanes.map(l => ({ nm: l.nm, kind: l.kind, y: l.y, h: l.h })));
+  ok('38 STRING 以文字帶顯示,內容可讀、沒有 NaN', lanes.find(l => l.nm === 'msg').kind === 'str' && await pg.evaluate(() => __txt.includes("'RUNNING'") && __txt.includes("'IDLE'") && !__txt.some(t => t.includes('NaN'))));
+  ok('38b 每個變數一條不重疊的軌道', lanes.every((l, i) => i === 0 || l.y >= lanes[i - 1].y + lanes[i - 1].h), lanes.map(l => l.nm + ':' + l.y).join(' '));
+  ok('38c 長變數名截斷不壓到波形區', await pg.evaluate(() => { const g = document.getElementById('wave').getContext('2d'); g.font = '600 12px ' + getComputedStyle(document.documentElement).getPropertyValue('--font-code'); return __txt.filter(t => t.startsWith('very_long')).every(t => t.endsWith('…') && g.measureText(t).width <= wv.LM - 12); }));
+  ok('38d 數值軌顯示範圍', await pg.evaluate(() => __txt.some(t => /^0…6$/.test(t))));
+  const bx2 = await pg.locator('#wave').boundingBox();
+  await pg.mouse.move(bx2.x + wv_x(bx2, 20, 40), bx2.y + 20); await pg.waitForTimeout(150);
+  ok('39 批次回放:游標移到週期 21,I/O 面板顯示該週期值', await pg.evaluate(() => document.querySelector('.sw[aria-label=go]').getAttribute('aria-checked') === 'true' && document.querySelector('.sw').disabled), await pg.innerText('#wavecur'));
+  await pg.screenshot({ path: SS4 + 'wave_string_lanes.png' });
+  await pg.evaluate(() => setTheme('dark')); await pg.waitForTimeout(150); await pg.screenshot({ path: SS4 + 'dark_sim.png' });
+  await pg.evaluate(() => setTheme('auto'));
+  // 互動模擬執行期錯誤:停止並標記行號
+  await pg.fill('#code', 'PROGRAM E\nVAR a : ARRAY[1..3] OF INT; i : INT; END_VAR\ni := i + 1;\na[i] := i;\nEND_PROGRAM');
+  await pg.click('#sim_run'); await pg.waitForFunction("document.getElementById('simmode').textContent=='錯誤'", null, { timeout: 5000 });
+  ok('40 互動模擬執行期錯誤:停止、狀態「錯誤」、標記第 4 行', await pg.evaluate(() => !sim.run && document.querySelectorAll('#gutter div')[3].classList.contains('er')));
+  await pg.screenshot({ path: SS4 + 'sim_runtime_error.png' });
+  await pg.evaluate(() => { document.getElementById('chkout').hidden = true; });
+  await pg.fill('#events', '2:start=true\n40:start=false\n60:stop=true'); await pg.fill('#cycles', '80');
   // UI3: 程式碼編輯器 — 行號、語法色彩、即時檢查標記、點問題跳行、快捷鍵、捲動同步
   await T('gen'); await pg.fill('#code', motor); await pg.waitForTimeout(300);
   const nl = motor.split('\n').length;
