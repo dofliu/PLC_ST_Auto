@@ -8,6 +8,7 @@ const R = path.resolve(__dirname, '..') + '/';
 const S = path.resolve(process.argv[2] || 'docs/screenshots/e2e') + '/';
 const URL0 = process.env.PLC_URL || 'http://127.0.0.1:8765/';
 fs.mkdirSync(S, { recursive: true });
+const SS3 = path.resolve(process.env.UI3_SHOTS || S) + '/'; fs.mkdirSync(SS3, { recursive: true });
 (async () => {
   const b = await chromium.launch();
   const pg = await b.newPage({ viewport: { width: 1280, height: 1000 }, deviceScaleFactor: 2, acceptDownloads: true });
@@ -142,6 +143,67 @@ fs.mkdirSync(S, { recursive: true });
   ok('21 執行中按鈕顯示載入狀態,完成後恢復', busySeen);
   ok('22 波形繪製後空狀態提示隱藏', await pg.evaluate(() => getComputedStyle(document.getElementById('waveempty')).display === 'none'));
   await pg.fill('#cycles', '80');
+  // UI3: 程式碼編輯器 — 行號、語法色彩、即時檢查標記、點問題跳行、快捷鍵、捲動同步
+  await T('gen'); await pg.fill('#code', motor); await pg.waitForTimeout(300);
+  const nl = motor.split('\n').length;
+  ok('23 行號數量 = 程式行數', await pg.locator('#gutter div').count() - 1 === nl, nl + ' lines');
+  ok('23b ST 語法色彩(關鍵字/型別/FB/時間常數/註解)', await pg.evaluate(() => ['kw', 'ty', 'fb', 'num'].every(c => document.querySelector('#hl .t-' + c))));
+  ok('23c 上色層與輸入框字型/行高/內距一致(游標不會錯位)', await pg.evaluate(() => { const a = getComputedStyle(document.getElementById('hl')), b = getComputedStyle(document.getElementById('code'));
+    return ['fontFamily', 'fontSize', 'lineHeight', 'paddingTop', 'paddingLeft', 'whiteSpace', 'letterSpacing'].every(k => a[k] === b[k]); }));
+  const bad = 'PROGRAM X\nVAR a : INT; END_VAR\na := 1;\nb := a + 1;\nEND_PROGRAM';
+  const nToast = await pg.locator('.toast').count();
+  await pg.fill('#code', bad);
+  await pg.waitForFunction("document.querySelector('#gutter div:nth-child(4)').classList.contains('er')", null, { timeout: 4000 });
+  ok('24 輸入後自動檢查,錯誤行(第 4 行)標記在行號與程式行', await pg.evaluate(() => document.querySelectorAll('#hl .l')[3].classList.contains('er') && document.querySelectorAll('#gutter .er').length === 1));
+  ok('24b 自動檢查不跳 toast、不自動展開問題抽屜', (await pg.locator('.toast').count()) <= nToast && await pg.evaluate(() => document.getElementById('chkout').hidden));
+  ok('24c 狀態列與抽屜摘要同步更新', /1 錯/.test(await pg.innerText('#st_chk')) && /1 錯誤/.test(await pg.innerText('#drawerinfo')));
+  await pg.screenshot({ path: SS3 + 'editor_error_marked.png' });
+  await pg.click('#drawer>div'); await pg.click('#chkout .iss[data-line="4"]');
+  const sel = await pg.evaluate(() => { const t = document.getElementById('code'); return [document.activeElement === t, t.value.slice(t.selectionStart, t.selectionEnd)]; });
+  ok('25 點擊問題跳到該行並選取', sel[0] && sel[1] === 'b := a + 1;', JSON.stringify(sel));
+  ok('25b 游標位置顯示行 4', (await pg.innerText('#curpos')).includes('行 4'), await pg.innerText('#curpos'));
+  await pg.screenshot({ path: SS3 + 'editor_jump_to_issue.png' });
+  await pg.fill('#code', 'PROGRAM X\nVAR a : INT; END_VAR\nIF a > 1 THEN\n  a := 0;\nEND_PROGRAM');
+  await pg.waitForFunction("document.querySelector('#gutter div:nth-child(5)').classList.contains('er')", null, { timeout: 4000 });
+  ok('26 語法錯誤也有行號並標記(第 5 行)', (await pg.innerText('#chkout')).includes('line 5'));
+  // 快捷鍵:Tab 縮排、Enter 自動縮排、Ctrl+/ 註解、Ctrl+Enter 執行
+  await pg.fill('#code', 'PROGRAM K\nVAR a : INT; END_VAR\nIF a = 0 THEN\nEND_PROGRAM');
+  await pg.evaluate(() => { const t = document.getElementById('code'); const i = t.value.indexOf('THEN') + 4; t.focus(); t.setSelectionRange(i, i); });
+  await pg.keyboard.press('Enter'); await pg.keyboard.type('a := 1;');
+  ok('27 THEN 後 Enter 自動縮排 4 格', (await pg.inputValue('#code')).includes('THEN\n    a := 1;'), JSON.stringify((await pg.inputValue('#code')).split('\n')[3]));
+  await pg.keyboard.press('Control+/');
+  ok('27b Ctrl+/ 註解目前行', (await pg.inputValue('#code')).includes('    // a := 1;'));
+  await pg.keyboard.press('Control+/');
+  ok('27c 再按 Ctrl+/ 取消註解', (await pg.inputValue('#code')).includes('    a := 1;') && !(await pg.inputValue('#code')).includes('//'));
+  await pg.keyboard.press('Tab');
+  ok('27d Tab 縮排並保留焦點在編輯器', (await pg.inputValue('#code')).includes('        a := 1;') && await pg.evaluate(() => document.activeElement.id === 'code'));
+  await pg.keyboard.press('Shift+Tab');
+  ok('27e Shift+Tab 取消縮排', (await pg.inputValue('#code')).includes('\n    a := 1;'));
+  await pg.keyboard.press('Control+z');
+  ok('27f Ctrl+Z 可復原編輯器操作', (await pg.inputValue('#code')).includes('        a := 1;'));
+  await pg.keyboard.press('Escape'); await pg.keyboard.press('Tab');
+  ok('27g Esc 後 Tab 可離開編輯器(鍵盤不受困)', await pg.evaluate(() => document.activeElement.id !== 'code'));
+  await pg.fill('#code', motor); await pg.focus('#code');
+  await pg.evaluate(() => { document.getElementById('runst').textContent = ''; });
+  await pg.keyboard.press('Control+Enter');
+  await pg.waitForFunction("document.getElementById('runst').textContent.includes('週期')");
+  ok('28 Ctrl+Enter 切到模擬頁並執行', await pg.evaluate(() => document.getElementById('tab_sim').classList.contains('on')));
+  // 長程式:跳到第 180 行後,上色層與行號跟著捲動
+  await T('gen');
+  const long = 'PROGRAM L\nVAR i : INT; END_VAR\n' + Array.from({ length: 200 }, (_, k) => 'i := i + ' + k + '; (* line ' + (k + 3) + ' *)').join('\n') + '\nEND_PROGRAM';
+  await pg.fill('#code', long); await pg.evaluate(() => jumpTo(180));
+  const sc = await pg.evaluate(() => [document.getElementById('code').scrollTop, document.getElementById('hl').scrollTop, document.getElementById('gutter').scrollTop]);
+  ok('29 長程式跳行後捲動同步(輸入框/上色層/行號)', sc[0] > 0 && sc[0] === sc[1] && sc[1] === sc[2], sc.join(','));
+  const vis = await pg.evaluate(() => { const g = document.querySelectorAll('#gutter div')[179].getBoundingClientRect(), e = document.getElementById('editor').getBoundingClientRect(); return g.top >= e.top && g.bottom <= e.bottom; });
+  ok('29b 第 180 行在可視範圍', vis);
+  await pg.screenshot({ path: SS3 + 'editor_long_jump.png' });
+  // 程式化載入(點位表 → VAR)也會重繪
+  await pg.fill('#tags', fs.readFileSync(R + 'examples/points.csv', 'utf8'));
+  await pg.click('text=點位表 → VAR 宣告'); await pg.waitForTimeout(600);
+  ok('30 程式由點位表產生後行號/上色重繪', await pg.evaluate(() => document.querySelectorAll('#gutter div').length - 1 === document.getElementById('code').value.split('\n').length));
+  await pg.fill('#code', bad); await pg.waitForFunction("document.querySelector('#gutter .er')", null, { timeout: 4000 });
+  for (const th of ['light', 'dark']) { await pg.evaluate(t => setTheme(t), th); await pg.waitForTimeout(150); await pg.screenshot({ path: SS3 + th + '_editor.png' }); }
+  await pg.evaluate(() => setTheme('auto')); await pg.fill('#code', motor);
   // 10. mobile width
   await pg.setViewportSize({ width: 390, height: 844 });
   const overflow = await pg.evaluate('document.documentElement.scrollWidth - window.innerWidth');

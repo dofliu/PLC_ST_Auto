@@ -1,4 +1,5 @@
 """Static checker: undeclared names, type mismatches, writes to inputs, profile limits."""
+import re
 from dataclasses import dataclass
 
 from .dialect import dialect_issues
@@ -35,6 +36,9 @@ def check(src, profile="iec"):
     try:
         prog = parse(src)
     except STError as e:
+        m = re.match(r"line (\d+): (.*)", str(e), re.S)
+        if m:  # carry the line so the UI can mark/jump to it
+            return [Issue("error", int(m.group(1)), f"syntax: {m.group(2)}")]
         return [Issue("error", 0, f"syntax: {e}")]
     issues = []
     env = {}

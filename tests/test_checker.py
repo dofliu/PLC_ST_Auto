@@ -45,6 +45,8 @@ class TestChecker(unittest.TestCase):
         r = check("PROGRAM p\nIF THEN\nEND_PROGRAM")
         self.assertEqual(len(r), 1)
         self.assertEqual(r[0].severity, "error")
+        self.assertEqual(r[0].line, 2)  # UI3: syntax errors carry the line for marking/jumping
+        self.assertNotIn("line 2: syntax: line", str(r[0]))
 
     def test_cli_exit_code(self):
         with tempfile.TemporaryDirectory() as d:
