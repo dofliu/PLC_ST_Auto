@@ -6,7 +6,7 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31、M32、UI1–UI4 已完成)UI6 → UI5 → UI7(其餘候選穿插)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31、M32、UI1–UI4、UI6 已完成)UI5 → UI7(其餘候選穿插)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
 ## M31 ✅ 檢查器補合法 IEC 語法 + 評測保存每輪程式碼(`docs/test_report_M31.md`)
 - [x] lexer:型別前綴常數 `INT#5` `REAL#1.5` `BOOL#1`、進位常數 `16#FF` `8#17` `2#1010`、底線分隔 `1_000`
@@ -19,7 +19,8 @@
 ## UI1 ✅ 100vh 外框/頁籤/狀態列/問題抽屜(`docs/test_report_UI1.md`)
 ## UI2 ✅ 設計 token、亮/暗主題切換、按鈕/卡片/SVG 圖示/toast、WCAG AA 對比(`docs/test_report_UI2.md`)
 ## UI3 ✅ 編輯器:行號、ST 語法色彩、自動檢查行標記、點問題跳行、快捷鍵;語法錯誤帶行號(`docs/test_report_UI3.md`);下一個 UI4(模擬儀表板),見 `docs/ui_redesign_plan.md`
-## UI4 ✅ 模擬儀表板:執行/暫停/單步/重設、I/O 開關與燈號、波形軌道/STRING/縮放/游標、執行期錯誤行號(`docs/test_report_UI4.md`);下一個 UI6
+## UI4 ✅ 模擬儀表板:執行/暫停/單步/重設、I/O 開關與燈號、波形軌道/STRING/縮放/游標、執行期錯誤行號(`docs/test_report_UI4.md`)
+## UI6 ✅ 情境表格編輯器(表格⇄JSON、變數晶片、逐步 ✔/✘ 與實際值)+ 匯出卡片(可匯出/不支援原因/方言警告/預覽)(`docs/test_report_UI6.md`);下一個 UI5
 ## M1 ✅
 - [x] lexer / parser / interpreter / FB 標準庫 / 測試
 ## M2 ✅
@@ -121,7 +122,7 @@
 - [x] UI2 視覺系統:設計 token、亮/暗主題切換、元件、SVG 圖示、toast
 - [x] UI3 程式碼編輯器:行號、ST 語法色彩、錯誤行標記、點擊跳行、快捷鍵
 - [x] UI4 模擬儀表板:執行/暫停/單步、I/O 開關與燈號、波形改進
-- [ ] UI6 測試與匯出:情境表格編輯器、匯出卡片
+- [x] UI6 測試與匯出:情境表格編輯器、匯出卡片
 - [ ] UI5 產生流程時間軸、修正輪 diff、點位表預覽
 - [ ] UI7 響應式(手機底部導覽)、可拖曳分欄、設定記憶、無障礙、README 截圖
 ## 下一步候選(≤2h)

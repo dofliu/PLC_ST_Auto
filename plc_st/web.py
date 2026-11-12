@@ -1,6 +1,6 @@
 """python -m plc_st serve [--port 8765]:stdlib http.server Web UI + JSON API(僅綁 127.0.0.1)。
 
-POST /api/{check,run,test,tags,generate,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
+POST /api/{check,run,test,export,export/status,tags,generate,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
 handle() 與 HTTP 分離,方便單元測試。"""
 import base64
 import json
@@ -16,7 +16,7 @@ from .interpreter import VirtualPLC, STError
 from .llm import get_provider, generate_checked
 from .profiles import PROFILES
 from .rag import VectorStore
-from .scenario import run_scenario
+from .scenario import run_scenario_detail
 from .tags import tags_to_var_blocks
 
 MAX_CYCLES = 5000
@@ -156,6 +156,59 @@ def _rag_add(p, state):
     return {"chunks": len(state.store.docs) - before, "total": len(state.store.docs)}
 
 
+def _test(p):
+    """情境測試:回傳 passed、failures(相容舊版)與逐步結果 steps;執行期錯誤回 400 並附 step(0 起算)。"""
+    try:
+        steps = run_scenario_detail(_need(p, "code"), _need(p, "scenario"), profile=p.get("profile") or None)
+    except STError as e:
+        return 400, {"error": f"STError: {e}", "step": getattr(e, "step_index", None)}
+    fails = [{"step": s["step"], "var": c["var"], "expected": c["expected"], "actual": c["actual"]}
+             for s in steps for c in s["checks"] if not c["pass"]]
+    return 200, {"passed": not fails, "failures": fails, "steps": steps}
+
+
+# 匯出卡片:格式 → (顯示名稱, 廠牌/軟體, 方言警告所用 profile)
+EXPORT_CARDS = (
+    ("plcopen", "PLCopen XML", "CODESYS / TwinCAT / 通用 TC6", "codesys"),
+    ("scl", "Siemens SCL", "TIA Portal(S7-1200/1500)", "siemens-s7-1500"),
+    ("l5x", "Rockwell L5X", "Studio 5000 Logix Designer", "rockwell"),
+    ("gxworks", "Mitsubishi GX Works3", "MELSEC iQ-R / iQ-F", "mitsubishi"),
+    ("sysmac", "Omron Sysmac Studio", "NJ / NX 系列", "omron"),
+    ("st", "純 ST", "任何 IEC 61131-3 編輯器", None),
+)
+
+
+def export_status(code):
+    """每個匯出格式是否可匯出(不可時附原因)、輸出大小與該廠牌的方言警告。"""
+    from .dialect import dialect_issues
+    from .export import export, FORMATS
+    from .parser import parse
+    try:
+        parse(code)
+        syntax = None
+    except STError as e:
+        syntax = str(e)
+    out = []
+    for fmt, label, vendor, prof in EXPORT_CARDS:
+        item = {"format": fmt, "label": label, "vendor": vendor, "profile": prof, "ext": FORMATS[fmt][0],
+                "ok": False, "size": 0, "error": None, "warnings": []}
+        if syntax:
+            item["error"] = f"語法錯誤:{syntax}"
+        else:
+            try:
+                item["size"] = len(export(code, fmt))
+                item["ok"] = True
+            except STError as e:
+                item["error"] = str(e)
+            if prof:
+                try:
+                    item["warnings"] = [{"line": ln, "msg": m} for ln, m in dialect_issues(code, prof)]
+                except STError:
+                    pass
+        out.append(item)
+    return out
+
+
 def handle(method, path, payload, state):
     """回傳 (http_status, json_obj)。"""
     try:
@@ -175,12 +228,13 @@ def handle(method, path, payload, state):
             state.sims.pop(payload.get("id"), None)
             return 200, {"stopped": True}
         if path == "/api/test":
-            fails = run_scenario(_need(payload, "code"), _need(payload, "scenario"), profile=payload.get("profile"))
-            return 200, {"passed": not fails, "failures": fails}
+            return _test(payload)
         if path == "/api/export":
             from .export import export, FORMATS
             fmt = payload.get("format", "plcopen")
             return 200, {"text": export(_need(payload, "code"), fmt), "ext": FORMATS[fmt][0]}
+        if path == "/api/export/status":
+            return 200, {"formats": export_status(_need(payload, "code"))}
         if path == "/api/tags":
             return 200, {"code": tags_to_var_blocks(_need(payload, "csv"))}
         if path == "/api/generate":

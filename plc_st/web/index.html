@@ -179,6 +179,63 @@ kbd{font:var(--fs-xs) var(--font-code);border:1px solid var(--bd-strong);border-
 #wave.drag{cursor:grabbing}
 details.batch summary{cursor:pointer;font-size:var(--fs-sm);color:var(--fg-muted);font-weight:500;margin-top:var(--sp-2)}
 
+/* ===== UI6 情境表格編輯器、匯出卡片 ===== */
+.scnbar{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.scnbar button{margin:0}
+.seg{display:inline-flex;border:1px solid var(--bd-strong);border-radius:var(--r-sm);overflow:hidden}
+.seg button{margin:0;border:0;border-radius:0;background:var(--surface);color:var(--fg-muted);padding:5px 11px}
+.seg button+button{border-left:1px solid var(--bd-strong)}
+.seg button:hover{background:var(--surface-2);color:var(--fg)}
+.seg button.on{background:var(--ac-bg);color:var(--ac);font-weight:600}
+label.scnms{display:flex;align-items:center;gap:6px;margin:0;color:var(--fg-muted)}
+label.scnms input{width:72px;padding:4px 6px;text-align:right;font-family:var(--font-code)}
+#tstbtn{margin-left:auto}
+.scnwrap{overflow:auto;max-height:44vh;margin-top:var(--sp-2);border:1px solid var(--bd);border-radius:var(--r-md)}
+table.scn{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:var(--fs-sm)}
+table.scn th{position:sticky;top:0;z-index:1;background:var(--surface-2);color:var(--fg-muted);font-weight:600;text-align:left;padding:5px 6px;border:0;border-bottom:1px solid var(--bd);white-space:nowrap}
+table.scn th .hint{font-weight:400;margin-left:6px;font-size:var(--fs-xs)}
+table.scn td{border:0;border-bottom:1px solid var(--bd);padding:4px 5px;vertical-align:top}
+table.scn tr:last-child td{border-bottom:0}
+table.scn input,table.scn select{padding:3px 6px;font:var(--fs-sm) var(--font-code)}
+table.scn input.bad{border-color:var(--er);box-shadow:0 0 0 2px var(--er-bg)}
+.c-n{width:26px;color:var(--fg-muted);text-align:right}.c-s{width:84px}.c-w{width:122px}.c-r{width:150px}.c-a{width:80px}
+td.c-n{padding-top:8px!important}
+.wait{display:flex;gap:4px}.wait input{width:58px;text-align:right}.wait select{width:auto}
+td.c-a{white-space:nowrap}td.c-a button{margin:0;padding:4px}
+table.scn tr.pass td{background:color-mix(in srgb,var(--ok-bg) 70%,transparent)}
+table.scn tr.fail td{background:color-mix(in srgb,var(--er-bg) 70%,transparent)}
+table.scn tr.err td{background:var(--wn-bg)}
+.res{font-size:var(--fs-xs);line-height:1.45;padding-top:0!important}
+table.scn tr.rrow td{border-top:0}table.scn tr.main.pass td,table.scn tr.main.fail td,table.scn tr.main.err td{border-bottom:0}
+.res .ck{display:inline-block!important;margin-right:10px}
+.res b{display:inline-flex;align-items:center;gap:3px;font-size:var(--fs-sm)}
+.res .ok,.res .er,.res .wn{display:block;font-family:var(--font-code)}
+.res b.ok,.res b.er,.res b.wn{display:inline-flex;font-family:var(--font-ui)}
+.res .ico{width:13px;height:13px}
+.scnfoot{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.vchips{display:flex;flex-wrap:wrap;gap:4px;margin-top:var(--sp-2)}
+.vchips button{margin:0;padding:1px 8px;font:var(--fs-xs) var(--font-code);border-radius:var(--r-pill);background:var(--surface-2);color:var(--fg);border-color:var(--bd)}
+.vchips button.in{border-color:color-mix(in srgb,var(--info) 50%,transparent);color:var(--info)}
+.vchips button.out{border-color:color-mix(in srgb,var(--ok) 50%,transparent);color:var(--ok)}
+.vchips button:hover{background:var(--ac-bg)}
+.expgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:var(--sp-2)}
+.xcard{border:1px solid var(--bd);border-radius:var(--r-md);padding:var(--sp-2) var(--sp-3);background:var(--surface-2);display:flex;flex-direction:column;gap:4px;min-width:0}
+.xcard.ok{border-left:4px solid var(--ok)}.xcard.no{border-left:4px solid var(--er)}
+.xcard .t{display:flex;align-items:center;gap:6px;font-weight:600}
+.xcard .t .badge{margin-left:auto}
+.xcard .v{font-size:var(--fs-xs);color:var(--fg-muted)}
+.xcard .why{font-size:var(--fs-sm);color:var(--er);overflow-wrap:anywhere}
+.badge.ok{color:var(--ok);background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.badge.no{color:var(--er);background:var(--er-bg);border-color:color-mix(in srgb,var(--er) 40%,transparent)}
+.badge.wn{color:var(--wn);background:var(--wn-bg);border-color:color-mix(in srgb,var(--wn) 40%,transparent)}
+.xcard details summary{cursor:pointer;font-size:var(--fs-sm);color:var(--wn)}
+.xcard details .iss{font-size:var(--fs-xs);display:block;width:100%;text-align:left;background:transparent;border:0;padding:1px 4px;margin:0;color:var(--wn);cursor:pointer;font-family:var(--font-ui)}
+.xcard details .iss:hover{background:color-mix(in srgb,var(--fg) 8%,transparent)}
+.xcard.sel{box-shadow:0 0 0 2px var(--ac)}
+.xcard .acts{display:flex;gap:4px;margin-top:auto}
+.xcard .acts button{margin:4px 0 0;padding:4px 10px}
+pre.exppv{max-height:30vh}
+
 /* ===== Toast ===== */
 #toasts{position:fixed;right:var(--sp-4);bottom:44px;display:flex;flex-direction:column;gap:var(--sp-2);z-index:50;pointer-events:none;max-width:min(360px,calc(100vw - 32px))}
 .toast{pointer-events:auto;display:flex;align-items:flex-start;gap:var(--sp-2);background:var(--surface);color:var(--fg);border:1px solid var(--bd);border-left:4px solid var(--info);border-radius:var(--r-md);padding:var(--sp-2) var(--sp-3);box-shadow:var(--shadow-2);font-size:var(--fs-md);animation:tin .18s ease-out}
@@ -307,21 +364,31 @@ END_PROGRAM</textarea></div></div>
  </div>
 </div>
 <div class="tab" id="tab_test">
- <div class="card"><h2><svg class="ico"><use href="#i-test"/></svg>情境測試</h2>
+ <div class="card"><h2><svg class="ico"><use href="#i-test"/></svg>情境測試<span class="hint" style="font-weight:400">設定輸入 → 等待 → 比對預期輸出</span></h2>
+  <div class="scnbar">
+   <div class="seg" role="tablist" aria-label="情境編輯模式"><button type="button" id="scnmode_t" class="on" role="tab" aria-selected="true" onclick="scnMode('table')"><svg class="ico"><use href="#i-table"/></svg>表格</button><button type="button" id="scnmode_j" role="tab" aria-selected="false" onclick="scnMode('json')"><svg class="ico"><use href="#i-code"/></svg>JSON</button></div>
+   <label class="scnms" for="scnscan">掃描週期<input id="scnscan" type="number" min="1" value="100" aria-label="情境掃描週期(ms)">ms</label>
+   <button id="tstbtn" onclick="tst()"><svg class="ico"><use href="#i-play"/></svg>執行情境</button>
+  </div>
+  <div id="scnview_t">
+   <div class="scnwrap"><table class="scn" id="scntbl"><thead><tr><th class="c-n">#</th><th class="c-s">步驟名稱</th><th>設定輸入</th><th class="c-w">等待</th><th>預期輸出</th><th class="c-a"><span class="sr">操作</span></th></tr></thead><tbody id="scnbody"></tbody></table></div>
+   <div class="scnfoot"><button class="s" type="button" onclick="scnAdd()"><svg class="ico"><use href="#i-plus"/></svg>新增步驟</button><span class="hint">格式 <code>變數=值; 變數=值</code>,值:<code>TRUE</code> / <code>FALSE</code>、數字、<code>'文字'</code>。點下方變數可插入到目前欄位。</span></div>
+   <div id="scnvars" class="vchips"></div>
+  </div>
+  <div id="scnview_j" hidden>
   <textarea id="scn" style="min-height:190px" aria-label="情境 JSON">{"scan_ms": 100, "steps": [
  {"name": "start", "set": {"start": true}, "ms": 600, "expect": {"motor": true, "t.Q": true}},
  {"name": "stop", "set": {"start": false, "stop": true}, "cycles": 1, "expect": {"motor": false}}
 ]}</textarea>
-  <input type="file" id="scnfile" accept=".json" aria-label="上傳情境 JSON">
-  <button onclick="tst()"><svg class="ico"><use href="#i-play"/></svg>執行情境</button>
+  </div>
+  <label for="scnfile">載入情境 JSON 檔</label><input type="file" id="scnfile" accept=".json" aria-label="上傳情境 JSON">
   <pre id="tstout" hidden></pre>
  </div>
 </div>
 <div class="tab" id="tab_exp">
- <div class="card"><h2><svg class="ico"><use href="#i-exp"/></svg>匯出</h2>
-  <p class="hint">將 ST 轉成各廠牌工程軟體可匯入的格式。</p>
-  <select id="expfmt" aria-label="匯出格式"><option value="plcopen">PLCopen XML</option><option value="scl">Siemens SCL</option><option value="l5x">Rockwell L5X</option><option value="gxworks">Mitsubishi GX Works3</option><option value="sysmac">Omron Sysmac Studio</option></select>
-  <button class="s" onclick="exp()"><svg class="ico"><use href="#i-dl"/></svg>匯出</button>
+ <div class="card"><h2><svg class="ico"><use href="#i-exp"/></svg>匯出<span class="hint" style="font-weight:400">轉成各廠牌工程軟體可匯入的格式</span><button class="ghost" style="margin-left:auto" onclick="expRefresh()" title="重新檢查" aria-label="重新檢查匯出狀態"><svg class="ico"><use href="#i-reset"/></svg></button></h2>
+  <div id="expcards" class="expgrid"><div class="empty">開啟此頁時自動檢查各格式是否可匯出</div></div>
+  <div id="exppvbox" hidden><h3 id="exppvt" style="margin-top:var(--sp-3)"></h3><pre id="exppv" class="exppv"></pre></div>
  </div>
 </div>
 <div class="tab" id="tab_rag">
@@ -350,7 +417,7 @@ END_PROGRAM</textarea></div></div>
 <div id="toasts" aria-live="polite"></div>
 <script>
 const $=id=>document.getElementById(id);
-function tab(t){document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id=='tab_'+t));document.querySelectorAll('#nav button').forEach(e=>{const on=e.dataset.t==t;e.classList.toggle('on',on);e.setAttribute('aria-current',on?'page':'false')})}
+function tab(t){if(t=='exp'&&typeof expRefresh=='function')expRefresh();if(t=='test'&&typeof scnVars=='function')scnVars();document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id=='tab_'+t));document.querySelectorAll('#nav button').forEach(e=>{const on=e.dataset.t==t;e.classList.toggle('on',on);e.setAttribute('aria-current',on?'page':'false')})}
 document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 document.addEventListener('keydown',e=>{if(e.altKey&&/^[1-6]$/.test(e.key)){tab(['gen','sim','test','exp','rag','set'][e.key-1]);e.preventDefault()}});
 function openDrawer(v){const p=$('chkout');p.hidden=v===true?false:!p.hidden}
@@ -380,7 +447,7 @@ async function api(p,b){const r=await fetch(p,{method:b?'POST':'GET',headers:{'C
 function show(id,html,cls){const e=$(id);e.hidden=false;e.className=cls||'';e.innerHTML=html}
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if(f){$(target).value=await f.text();toast('已載入 '+f.name,'info')}}}
-fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');fileTo('scnfile','scn');
+fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');
 api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('');liveCheck()});
 $('profile').addEventListener('change',liveCheck);
 const issuesHtml=l=>l.length?l.map(i=>{const c=i.severity=='error'?'er':'wn';
@@ -419,7 +486,7 @@ function jumpTo(n){const ta=ed.ta,lines=ta.value.split('\n');n=Math.max(1,Math.m
  ed.cur=n;ed.flash=n;edRender();edCaret();clearTimeout(ed.ft);ed.ft=setTimeout(()=>{ed.flash=0;edRender()},1300)}
 // 程式化設定 .value(產生/匯入/載入檔案)時也要重繪並清除舊標記
 (()=>{const d=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value');
- Object.defineProperty(ed.ta,'value',{configurable:true,get(){return d.get.call(this)},set(v){d.set.call(this,v);ed.marks.clear();ed.cur=1;edRender();liveCheck()}})})();
+ Object.defineProperty(ed.ta,'value',{configurable:true,get(){return d.get.call(this)},set(v){d.set.call(this,v);ed.marks.clear();ed.cur=1;edRender();liveCheck();this.dispatchEvent(new CustomEvent('codeset'))}})})();
 function liveCheck(){clearTimeout(ed.timer);ed.timer=setTimeout(()=>chk(true),700)}
 function edEdit(text,s0,s1,selA,selB){const ta=ed.ta;ta.focus();ta.setSelectionRange(s0,s1);
  if(!document.execCommand('insertText',false,text))ta.setRangeText(text,s0,s1,'end');  // execCommand 保留復原(Ctrl+Z)
@@ -444,7 +511,6 @@ ed.ta.addEventListener('keydown',e=>{const ta=ed.ta,mod=e.ctrlKey||e.metaKey;
   if(ind||more){e.preventDefault();edEdit('\n'+ind+(more&&!/^END_/.test(prev)?'    ':''),ta.selectionStart,ta.selectionEnd)}}});
 function drawerInfo(l){const ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;const d=$('drawerinfo');d.textContent=l.length?`${ne} 錯誤 · ${nw} 警告`:'';d.className=ne?'er':'wn'}
 async function tagsToVar(){const done=busy();try{const j=await api('/api/tags',{csv:$('tags').value});$('code').value=j.code;toast('已由點位表產生 VAR 宣告','ok')}catch(e){show('chkout',esc(e.message),'er');toast(e.message,'er')}finally{done()}}
-async function exp(){const done=busy();try{const f=$('expfmt').value,j=await api('/api/export',{code:$('code').value,format:f});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j.text],{type:'text/plain'}));a.download='program.'+j.ext;a.click();show('chkout','已匯出 '+esc(a.download)+'('+j.text.length+' 字元)');toast('已匯出 '+a.download,'ok')}catch(e){show('chkout',esc(e.message),'er');toast('匯出失敗:'+e.message,'er')}finally{done()}}
 // silent=true:編輯時自動檢查,只更新行標記/狀態列/問題清單,不開抽屜也不跳 toast
 async function chk(silent){clearTimeout(ed.timer);const seq=++ed.seq,done=silent===true?()=>{}:busy();try{const code=$('code').value,l=(await api('/api/check',{code,profile:$('profile').value})).issues,ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;
  if(seq!=ed.seq||code!=$('code').value)return;  // 已有較新的檢查或內容已變
@@ -584,9 +650,87 @@ function wvFit(){if(!lastWave)return;wv.i0=0;wv.span=lastWave.rows.length;wv.fol
  c.addEventListener('pointerleave',()=>{if(wv.drag)return;wv.cur=null;draw(lastWave);if(sim.mode=='replay'&&lastWave)ioShow(lastWave.rows[lastWave.rows.length-1])});
  c.addEventListener('dblclick',wvFit);
  if(window.ResizeObserver)new ResizeObserver(()=>{if(lastWave&&!$('wavebox').hidden)draw(lastWave)}).observe($('wavebox'))})();
-async function tst(){const done=busy();try{const j=await api('/api/test',{code:$('code').value,scenario:$('scn').value,profile:$('profile').value});
- show('tstout',j.passed?'PASS':j.failures.map(f=>`FAIL step ${esc(f.step)}: ${esc(f.var)} expected ${JSON.stringify(f.expected)} got ${JSON.stringify(f.actual)}`).join('\n'),j.passed?'ok':'er');
- pill('st_tst',j.passed?'✔ 情境 PASS':`✘ 情境 FAIL ${j.failures.length}`,j.passed?'ok':'er');toast(j.passed?'情境測試全部通過':`情境測試失敗 ${j.failures.length} 項`,j.passed?'ok':'er')}catch(e){show('tstout',esc(e.message),'er');pill('st_tst','✘ 情境錯誤','er');toast(e.message,'er')}finally{done()}}
+// ---- UI6 情境表格編輯器:表格 ⇄ JSON(#scn 永遠是最新 JSON,執行/產生都讀它) ----
+const scn={mode:'table',rows:[],extra:{},focus:null,res:null};
+const scV=v=>v===true?'TRUE':v===false?'FALSE':typeof v=='string'?`'${v}'`:JSON.stringify(v);
+const fmtMap=o=>Object.entries(o||{}).map(([k,v])=>`${k}=${scV(v)}`).join('; ');
+function parseV(t){t=t.trim();if(/^true$/i.test(t))return true;if(/^false$/i.test(t))return false;
+ if(/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(t))return Number(t);
+ const m=t.match(/^'(.*)'$|^"(.*)"$/);if(m)return m[1]??m[2];throw new Error(`值 ${t||'(空)'} 無法辨識(用 TRUE/FALSE、數字或 '文字')`)}
+function parseMap(t){const o={};for(const part of t.split(/[;\n]/)){const x=part.trim();if(!x)continue;const i=x.indexOf('=');
+ if(i<1)throw new Error(`「${x}」缺少 =(格式:變數=值)`);const k=x.slice(0,i).trim();if(!/^[A-Za-z_][\w.\[\],]*$/.test(k))throw new Error(`變數名稱 ${k} 不合法`);o[k]=parseV(x.slice(i+1))}return o}
+function scnFromJson(quiet){let j;try{j=JSON.parse($('scn').value)}catch(e){if(!quiet)toast('情境 JSON 格式錯誤:'+e.message,'er',5000);return false}
+ if(!j||!Array.isArray(j.steps)){if(!quiet)toast('情境 JSON 需要 steps 陣列','er');return false}
+ const{steps,scan_ms,...extra}=j;scn.extra=extra;if(Number.isInteger(scan_ms)&&scan_ms>0)$('scnscan').value=scan_ms;
+ scn.rows=steps.map(st=>{const{name,set,expect,ms,cycles,...rest}=st||{};return{name:name??'',set:fmtMap(set),expect:fmtMap(expect),
+  unit:ms!=null?'ms':'cyc',n:ms??cycles??1,rest}});scn.res=null;scnRender();return true}
+function scnToJson(){const steps=[];let bad=0;scn.rows.forEach(r=>{const st={};if(r.name!=='')st.name=r.name;const o={};
+ for(const f of['set','expect'])try{o[f]=parseMap(r[f]);r[f+'Err']=''}catch(e){o[f]={};r[f+'Err']=e.message;bad++}
+ if(Object.keys(o.set).length)st.set=o.set;const n=Number(r.n),ok=Number.isFinite(n)&&n>=0;
+ if(r.unit=='ms')st.ms=ok?n:0;else st.cycles=ok?Math.round(n):1;st.expect=o.expect;Object.assign(st,r.rest);steps.push(st)});
+ const sm=parseInt($('scnscan').value,10),one=v=>JSON.stringify(v,null,1).replace(/\n\s*/g,' '),head=one({...scn.extra,scan_ms:sm>0?sm:100}).slice(1,-2);
+ $('scn').value=`{${head}, "steps": [\n`+steps.map(x=>' '+one(x)).join(',\n')+'\n]}';
+ return bad}
+function scnRender(){const tb=$('scnbody');tb.innerHTML=scn.rows.map((r,i)=>{const rs=scn.res&&scn.res[i];
+ const cls=rs?rs.err?'err':rs.passed?'pass':'fail':'';
+ let res='';
+ if(rs&&rs.err)res=`<b class="wn"><svg class="ico"><use href="#i-warn"/></svg>錯誤</b> <span class="wn ck">${esc(rs.err)}</span>`;
+ else if(rs){res=`<b class="${rs.passed?'ok':'er'}"><svg class="ico"><use href="#${rs.passed?'i-check':'i-x'}"/></svg>${rs.passed?'通過':'失敗'}</b> <span class="hint ck">@${rs.t_ms} ms</span>`+
+  rs.checks.map(c=>`<span class="${c.pass?'ok':'er'} ck" title="預期 ${esc(scV(c.expected))}">${c.pass?'✔':'✘'} ${esc(c.var)}=${esc(scV(c.actual))}${c.pass?'':` (預期 ${esc(scV(c.expected))})`}</span>`).join('')}
+ const f=(k,ph)=>`<input data-i="${i}" data-k="${k}" value="${esc(r[k]).replace(/"/g,'&quot;')}" placeholder="${ph}"${r[k+'Err']?` class="bad" title="${esc(r[k+'Err']).replace(/"/g,'&quot;')}"`:''} aria-label="步驟 ${i+1} ${ph}">`;
+ return`<tr class="main ${cls}" data-row="${i}"><td class="c-n">${i+1}</td><td>${f('name','名稱')}</td><td>${f('set','start=TRUE')}</td>
+ <td class="c-w"><div class="wait"><input data-i="${i}" data-k="n" type="number" min="0" value="${esc(r.n)}" aria-label="步驟 ${i+1} 等待"><select data-i="${i}" data-k="unit" aria-label="步驟 ${i+1} 等待單位"><option value="ms"${r.unit=='ms'?' selected':''}>ms</option><option value="cyc"${r.unit!='ms'?' selected':''}>週期</option></select></div></td>
+ <td>${f('expect','motor=TRUE')}</td>
+ <td class="c-a"><button class="ghost" type="button" data-act="up" data-i="${i}" title="上移" aria-label="步驟 ${i+1} 上移"${i?'':' disabled'}>↑</button><button class="ghost" type="button" data-act="down" data-i="${i}" title="下移" aria-label="步驟 ${i+1} 下移"${i<scn.rows.length-1?'':' disabled'}>↓</button><button class="ghost" type="button" data-act="del" data-i="${i}" title="刪除" aria-label="刪除步驟 ${i+1}"><svg class="ico"><use href="#i-trash"/></svg></button></td></tr>`+
+ (res?`<tr class="rrow ${cls}"><td></td><td colspan="5" class="res">${res}</td></tr>`:'')}).join('')
+  ||'<tr><td colspan="6"><div class="empty" style="margin:0">尚無步驟 — 按「新增步驟」開始</div></td></tr>'}
+$('scnbody').addEventListener('input',e=>{const t=e.target,i=+t.dataset.i,k=t.dataset.k;if(!k)return;scn.rows[i][k]=t.value;
+ const bad=scnToJson();if(k=='set'||k=='expect'){const err=scn.rows[i][k+'Err'];t.classList.toggle('bad',!!err);t.title=err||''}});
+$('scnbody').addEventListener('change',e=>{if(e.target.dataset.k=='unit'){scn.rows[+e.target.dataset.i].unit=e.target.value;scnToJson()}});
+$('scnbody').addEventListener('focusin',e=>{const k=e.target.dataset&&e.target.dataset.k;if(k=='set'||k=='expect')scn.focus=e.target});
+$('scnbody').addEventListener('click',e=>{const b=e.target.closest('button[data-act]');if(!b)return;const i=+b.dataset.i,R=scn.rows;
+ if(b.dataset.act=='del')R.splice(i,1);else{const j=b.dataset.act=='up'?i-1:i+1;[R[i],R[j]]=[R[j],R[i]]}scn.res=null;scnToJson();scnRender()});
+$('scnscan').addEventListener('input',()=>{if(scn.mode=='table')scnToJson()});
+function scnAdd(){if(scn.mode!='table')scnMode('table');scn.rows.push({name:'step'+(scn.rows.length+1),set:'',expect:'',unit:'ms',n:100,rest:{}});scn.res=null;scnToJson();scnRender();
+ const ins=$('scnbody').querySelectorAll(`input[data-i="${scn.rows.length-1}"][data-k="set"]`);if(ins[0])ins[0].focus()}
+function scnMode(m){if(m==scn.mode)return;if(m=='table'&&!scnFromJson())return;if(m=='json')scnToJson();scn.mode=m;
+ $('scnview_t').hidden=m!='table';$('scnview_j').hidden=m!='json';
+ for(const[id,on]of[['scnmode_t',m=='table'],['scnmode_j',m=='json']]){$(id).classList.toggle('on',on);$(id).setAttribute('aria-selected',on)}}
+$('scn').addEventListener('input',()=>{const j=(()=>{try{return JSON.parse($('scn').value)}catch(e){}})();if(j&&Number.isInteger(j.scan_ms)&&j.scan_ms>0)$('scnscan').value=j.scan_ms});
+$('scnfile').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('scn').value=await f.text();if(scnFromJson())toast('已載入 '+f.name,'info');else scnMode('json')};
+// 變數晶片:由程式 VAR_INPUT / VAR_OUTPUT 擷取,點一下插入到最後聚焦的「設定/預期」欄
+function scnVars(){const src=$('code').value.replace(/\(\*[\s\S]*?\*\)|\/\/[^\n]*/g,''),out=[],re=/\b(VAR_INPUT|VAR_OUTPUT|VAR_IN_OUT|VAR)\b([\s\S]*?)\bEND_VAR\b/gi;let m;
+ while((m=re.exec(src))){const sec=m[1].toUpperCase();for(const d of m[2].split(';')){const mm=d.match(/^\s*(?:CONSTANT\s+|RETAIN\s+)?([\w\s,]+?)\s*:\s*([A-Za-z_]\w*)/);
+  if(!mm)continue;for(const n of mm[1].split(','))if(n.trim())out.push({n:n.trim(),ty:mm[2].toUpperCase(),sec})}}
+ const show=out.filter(v=>v.sec!='VAR'||!/^(TON|TOF|TP|CTU|CTD|CTUD|R_TRIG|F_TRIG|SR|RS)$/.test(v.ty)).slice(0,40);
+ $('scnvars').innerHTML=show.length?'<span class="hint">變數:</span>'+show.map(v=>`<button type="button" class="${v.sec=='VAR_INPUT'?'in':v.sec=='VAR_OUTPUT'?'out':''}" data-v="${esc(v.n)}" data-b="${v.ty=='BOOL'?1:''}" title="${v.sec} · ${v.ty}">${esc(v.n)}</button>`).join(''):''}
+$('scnvars').addEventListener('click',e=>{const b=e.target.closest('button[data-v]');if(!b)return;let t=scn.focus;
+ if(!t||!t.isConnected){const last=scn.rows.length-1;if(last<0)return;t=$('scnbody').querySelector(`input[data-i="${last}"][data-k="${b.classList.contains('out')?'expect':'set'}"]`)}
+ const add=`${b.dataset.v}=${b.dataset.b?'TRUE':'0'}`;t.value=t.value.trim()?t.value.replace(/;?\s*$/,'; ')+add:add;t.dispatchEvent(new Event('input',{bubbles:true}));t.focus();scn.focus=t});
+async function tst(){if(scn.mode=='table'){const bad=scnToJson();if(bad){scnRender();toast(`情境表格有 ${bad} 個欄位格式錯誤(紅框)`,'er');return}}else if(!scnFromJson())return;
+ const done=busy();try{const r=await fetch('/api/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('code').value,scenario:$('scn').value,profile:$('profile').value})}),j=await r.json();
+ if(!r.ok){scn.res=null;if(j.step!=null){scn.res=[];scn.res[j.step]={err:j.error.replace(/^STError: /,'')}}scnRender();throw new Error(j.error||r.status)}
+ scn.res=j.steps;scnRender();const nchk=j.steps.reduce((a,s)=>a+s.checks.length,0),nok=j.steps.filter(s=>s.passed).length;
+ show('tstout',j.passed?`PASS · ${nok}/${j.steps.length} 步驟 · ${nchk} 項檢查`:j.failures.map(f=>`FAIL step ${esc(f.step)}: ${esc(f.var)} expected ${JSON.stringify(f.expected)} got ${JSON.stringify(f.actual)}`).join('\n'),j.passed?'ok':'er');
+ pill('st_tst',j.passed?`✔ 情境 PASS ${nok}/${j.steps.length}`:`✘ 情境 FAIL ${j.failures.length}`,j.passed?'ok':'er');toast(j.passed?'情境測試全部通過':`情境測試失敗 ${j.failures.length} 項`,j.passed?'ok':'er')}
+ catch(e){show('tstout',esc(e.message),'er');pill('st_tst','✘ 情境錯誤','er');toast(e.message,'er')}finally{done()}}
+scnFromJson(true);scnVars();['input','codeset'].forEach(t=>ed.ta.addEventListener(t,()=>{clearTimeout(scn.vt);scn.vt=setTimeout(scnVars,500)}));
+
+// ---- UI6 匯出卡片:每個格式是否可匯出 / 不支援原因 / 方言警告,一鍵下載或預覽 ----
+const xp={seq:0,timer:0};
+async function expRefresh(){const seq=++xp.seq,code=$('code').value;try{const j=await api('/api/export/status',{code});if(seq!=xp.seq)return;
+ $('expcards').innerHTML=j.formats.map(f=>{const w=f.warnings.length;
+  return`<div class="xcard ${f.ok?'ok':'no'}" data-fmt="${f.format}"><div class="t">${esc(f.label)}<span class="badge ${f.ok?(w?'wn':'ok'):'no'}">${f.ok?(w?`⚠ ${w} 警告`:'✔ 可匯出'):'✘ 不支援'}</span></div>
+  <div class="v">${esc(f.vendor)} · .${esc(f.ext)}${f.ok?` · ${f.size.toLocaleString()} 字元`:''}${f.profile?` · 方言 ${esc(f.profile)}`:''}</div>
+  ${f.ok?'':`<div class="why">${esc(f.error)}</div>`}
+  ${w?`<details><summary>方言警告 ${w} 項</summary>${f.warnings.map(x=>`<button type="button" class="iss" data-line="${x.line}" title="跳到第 ${x.line} 行">line ${x.line}: ${esc(x.msg)}</button>`).join('')}</details>`:''}
+  <div class="acts"><button class="xdl" type="button" onclick="exp('${f.format}')"${f.ok?'':' disabled'} aria-label="下載 ${esc(f.label)}"><svg class="ico"><use href="#i-dl"/></svg>下載</button><button class="s" type="button" onclick="expPreview('${f.format}')"${f.ok?'':' disabled'} aria-label="預覽 ${esc(f.label)}">預覽</button></div></div>`}).join('')}
+ catch(e){if(seq==xp.seq)$('expcards').innerHTML=`<div class="empty er">${esc(e.message)}</div>`}}
+async function exp(f){const done=busy();try{const j=await api('/api/export',{code:$('code').value,format:f});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([j.text],{type:'text/plain'}));a.download='program.'+j.ext;a.click();toast('已匯出 '+a.download+'('+j.text.length+' 字元)','ok')}catch(e){show('chkout',esc(e.message),'er');toast('匯出失敗:'+e.message,'er')}finally{done()}}
+async function expPreview(f){try{const j=await api('/api/export',{code:$('code').value,format:f}),ls=j.text.split('\n');
+ $('exppvbox').hidden=false;$('exppvt').textContent=`預覽 program.${j.ext}(${ls.length} 行${ls.length>80?',顯示前 80 行':''})`;$('exppv').textContent=ls.slice(0,80).join('\n');
+ document.querySelectorAll('.xcard').forEach(c=>c.classList.toggle('sel',c.dataset.fmt==f))}catch(e){toast('預覽失敗:'+e.message,'er')}}
+['input','codeset'].forEach(t=>ed.ta.addEventListener(t,()=>{if($('tab_exp').classList.contains('on')){clearTimeout(xp.timer);xp.timer=setTimeout(expRefresh,700)}}));
 setTheme(document.documentElement.dataset.theme||'auto');
 edRender();edCaret();
 </script></body></html>
