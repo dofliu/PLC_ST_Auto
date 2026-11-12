@@ -235,6 +235,36 @@ table.scn tr.rrow td{border-top:0}table.scn tr.main.pass td,table.scn tr.main.fa
 .xcard .acts{display:flex;gap:4px;margin-top:auto}
 .xcard .acts button{margin:4px 0 0;padding:4px 10px}
 pre.exppv{max-height:30vh}
+/* ===== UI5 點位表預覽 / 產生時間軸 / 修正輪差異 ===== */
+.tagsum{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:var(--sp-2)}
+.tagsum .badge.in{color:var(--info);background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 40%,transparent)}
+table.scn.tagpv{table-layout:auto}
+table.scn.tagpv td{font-family:var(--font-code);white-space:nowrap}
+table.scn.tagpv td.cm{font-family:var(--font-ui);white-space:normal;color:var(--fg-muted);overflow-wrap:anywhere}
+table.scn.tagpv tr.bad td{background:color-mix(in srgb,var(--er-bg) 70%,transparent)}
+table.scn.tagpv tr.bad td.cm{color:var(--er)}
+.tlhead{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--fs-sm);color:var(--fg-muted);margin-top:var(--sp-2)}
+ol.tl{list-style:none;margin:var(--sp-2) 0 0;padding:0}
+ol.tl li{position:relative;padding:0 0 var(--sp-2) 26px}
+ol.tl li::before{content:"";position:absolute;left:8px;top:16px;bottom:0;width:2px;background:var(--bd-strong)}
+ol.tl li.last::before{display:none}
+ol.tl .dot{position:absolute;left:2px;top:5px;width:14px;height:14px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 2px currentColor;background:currentColor}
+ol.tl li.ok{color:var(--ok)}ol.tl li.er{color:var(--er)}ol.tl li.wn{color:var(--wn)}
+ol.tl .tlbody{color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-md);padding:4px var(--sp-2);background:var(--surface-2)}
+ol.tl li.sel .tlbody{box-shadow:0 0 0 2px var(--ac)}
+.tlrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tlrow .tlact{margin-left:auto;display:flex;gap:2px}
+.tlrow .tlact button{padding:2px 8px;font-size:var(--fs-xs)}
+.tlmsg{font:var(--fs-xs)/1.5 var(--font-code);color:var(--er);overflow-wrap:anywhere}
+.diffh{display:flex;gap:6px;align-items:center;font-size:var(--fs-sm);font-weight:600;margin-top:var(--sp-3)}
+.diffh .add{color:var(--ok)}.diffh .del{color:var(--er)}
+.diff{border:1px solid var(--bd);border-radius:var(--r-md);overflow:auto;max-height:34vh;margin-top:var(--sp-2);font:var(--fs-sm)/1.55 var(--font-code);background:var(--surface-2)}
+.diff .dl{display:flex;white-space:pre;min-width:max-content}
+.diff .dl .ln{flex:0 0 3.2em;text-align:right;padding-right:6px;color:var(--fg-muted);user-select:none}
+.diff .dl .dm{flex:0 0 1.4em;text-align:center;user-select:none;color:var(--fg-muted)}
+.diff .dl.add{background:color-mix(in srgb,var(--ok-bg) 85%,transparent)}.diff .dl.add .dm{color:var(--ok);font-weight:700}
+.diff .dl.del{background:color-mix(in srgb,var(--er-bg) 85%,transparent)}.diff .dl.del .dm{color:var(--er);font-weight:700}
+.diff .dl.gap{color:var(--fg-muted);font-style:italic;padding-left:7.8em}
 
 /* ===== Toast ===== */
 #toasts{position:fixed;right:var(--sp-4);bottom:44px;display:flex;flex-direction:column;gap:var(--sp-2);z-index:50;pointer-events:none;max-width:min(360px,calc(100vw - 32px))}
@@ -252,6 +282,7 @@ pre.exppv{max-height:30vh}
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
  <symbol id="i-logo" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3M9 9h6v6H9z"/></symbol>
  <symbol id="i-gen" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+ <symbol id="i-flow" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 7v10M8 5h3a5 5 0 0 1 5 5M8 19h3a5 5 0 0 0 5-5"/></symbol>
  <symbol id="i-sim" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
  <symbol id="i-test" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4.5 18.5A2 2 0 0 0 6.2 21.5h11.6a2 2 0 0 0 1.7-3L14 9V3"/><path d="M7.5 15h9"/></symbol>
  <symbol id="i-exp" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
@@ -324,11 +355,17 @@ END_PROGRAM</textarea></div></div>
   <label for="tags">點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,comment"></textarea>
   <input type="file" id="tagsfile" accept=".csv,.txt" aria-label="上傳點位表">
   <button class="s" onclick="tagsToVar()"><svg class="ico"><use href="#i-table"/></svg>點位表 → VAR 宣告</button>
+  <div id="tagpv" aria-live="polite"></div>
  </div>
  <div class="card"><h2><svg class="ico"><use href="#i-gen"/></svg>LLM 產生</h2>
   <label class="chk"><input type="checkbox" id="userag"> 使用 RAG 文件檢索</label>
+  <label class="chk" title="靜態檢查通過後,再用「測試」頁的情境在虛擬 PLC 執行,不符時回饋 LLM 修正"><input type="checkbox" id="usescn" checked> 以「測試」頁情境驗證並修正</label>
   <button onclick="gen()"><svg class="ico"><use href="#i-gen"/></svg>產生 ST</button><span id="genst" class="inline"></span>
   <pre id="genout" hidden></pre>
+ </div>
+ <div class="card"><h2><svg class="ico"><use href="#i-flow"/></svg>產生流程<span class="hint" style="font-weight:400">初稿 → 檢查 → 修正,每輪可比較差異或套用</span></h2>
+  <div id="gentl"><div class="empty"><svg class="ico"><use href="#i-gen"/></svg>按「產生 ST」後在此顯示每一輪的檢查結果與耗時(Provider 選 mock 可離線示範)</div></div>
+  <div id="gendiff" hidden><div class="diffh" id="gendiffh"></div><div class="diff" id="gendiffb" role="region" aria-label="修正輪程式碼差異"></div></div>
  </div>
 </div>
 <div class="tab" id="tab_sim">
@@ -405,7 +442,7 @@ END_PROGRAM</textarea></div></div>
 </div>
 <div class="tab" id="tab_set">
  <div class="card"><h2><svg class="ico"><use href="#i-set"/></svg>LLM 設定</h2>
-  <div class="row"><div><label for="prov">Provider</label><select id="prov"><option>ollama</option><option>gemini</option><option>openai</option><option>claude</option></select></div>
+  <div class="row"><div><label for="prov">Provider</label><select id="prov"><option>ollama</option><option>gemini</option><option>openai</option><option>claude</option><option value="mock">mock(離線示範)</option></select></div>
   <div><label for="model">Model(空=預設)</label><input id="model"></div></div>
   <div class="row"><div><label for="key">API Key(僅送至本機伺服器,不儲存)</label><input id="key" type="password" autocomplete="off"></div>
   <div><label for="base">Base URL(可選)</label><input id="base"></div></div>
@@ -446,7 +483,7 @@ async function api(p,b){const r=await fetch(p,{method:b?'POST':'GET',headers:{'C
  const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
 function show(id,html,cls){const e=$(id);e.hidden=false;e.className=cls||'';e.innerHTML=html}
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if(f){$(target).value=await f.text();toast('已載入 '+f.name,'info')}}}
+function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if(f){$(target).value=await f.text();if(target!='code')$(target).dispatchEvent(new Event('input'));toast('已載入 '+f.name,'info')}}}
 fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');
 api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('');liveCheck()});
 $('profile').addEventListener('change',liveCheck);
@@ -519,8 +556,8 @@ async function chk(silent){clearTimeout(ed.timer);const seq=++ed.seq,done=silent
  catch(e){if(silent===true)return;show('chkout',esc(e.message),'er');pill('st_chk','✘ 檢查失敗','er');toast(e.message,'er')}finally{done()}}
 function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('code').value]));a.download='program.st';a.click()}
 async function gen(){const done=busy();$('genst').textContent=' 產生中…';$('genst').className='inline';try{
- const j=await api('/api/generate',{requirement:$('req').value,tags_csv:$('tags').value,provider:$('prov').value,model:$('model').value,api_key:$('key').value,base_url:$('base').value,profile:$('profile').value,max_rounds:+$('rounds').value,use_rag:$('userag').checked,scenario:$('scn').value});
- $('code').value=j.code;$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues));drawerInfo(j.issues);setMarks(j.issues);toast('ST 程式碼已產生','ok')}
+ const j=await api('/api/generate',{requirement:$('req').value,tags_csv:$('tags').value,provider:$('prov').value,model:$('model').value,api_key:$('key').value,base_url:$('base').value,profile:$('profile').value,max_rounds:+$('rounds').value,use_rag:$('userag').checked,scenario:$('usescn').checked?$('scn').value:''});
+ $('code').value=j.code;renderTL(j);$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues));drawerInfo(j.issues);setMarks(j.issues);toast('ST 程式碼已產生','ok')}
  catch(e){$('genst').textContent='';show('genout',esc(e.message),'er');toast('產生失敗:'+e.message,'er',5000)}finally{done()}}
 async function ragAdd(){const fs=[...$('ragfile').files];if(!fs.length){$('ragst').textContent=' 請先選檔案';toast('請先選擇要加入的文件','wn');return}
  const done=busy();try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b,embedder:$('embsel').value,embed_api_key:$('embkey').value})}
@@ -530,6 +567,43 @@ async function ragClear(){await api('/api/rag/clear',{});$('ragst').textContent=
 async function ragSearch(){const done=busy();try{const j=await api('/api/rag/search',{query:$('ragq').value});show('ragout',j.hits.length?j.hits.map(h=>`<b>${h.score}</b> [${esc(h.source)}]\n${esc(h.text.slice(0,200))}`).join('\n---\n'):'(無相關片段)')}catch(e){show('ragout',esc(e.message),'er')}finally{done()}}
 function parseEv(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\d+):([\w.]+)=(.+)$/);if(!m)throw new Error('事件格式錯誤: '+l);
  const v=m[3].toLowerCase()=='true'?true:m[3].toLowerCase()=='false'?false:Number(m[3]);return{cycle:+m[1],name:m[2],value:v}})}
+// ---- UI5 點位表預覽、產生時間軸、修正輪差異 ----
+const SECL={VAR_INPUT:['輸入','in'],VAR_OUTPUT:['輸出','ok'],VAR_IN_OUT:['輸入輸出','wn'],VAR:['內部','']};
+let tagT=0,tagSeq=0;
+async function tagPreview(){const t=$('tags').value,seq=++tagSeq;if(!t.trim()){$('tagpv').innerHTML='';return}
+ try{const j=await api('/api/tags/preview',{csv:t});if(seq==tagSeq)renderTagPv(j)}catch(e){if(seq==tagSeq)$('tagpv').innerHTML=`<div class="iss er">${esc(e.message)}</div>`}}
+function renderTagPv(j){const cnt={};j.rows.forEach(r=>{if(!r.error)cnt[r.section]=(cnt[r.section]||0)+1});
+ const sum=Object.keys(SECL).filter(k=>cnt[k]).map(k=>`<span class="badge ${SECL[k][1]}">${SECL[k][0]} ${cnt[k]}</span>`).join('')
+  +(j.errors?`<span class="badge no">✘ ${j.errors} 處錯誤</span>`:j.rows.length?'<span class="badge ok">✔ 可轉成 VAR 宣告</span>':'')
+  +(j.fatal?`<span class="iss er">${esc(j.fatal)}</span>`:'');
+ const rows=j.rows.map(r=>`<tr class="${r.error?'bad':''}"><td>${r.line}</td><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${r.section?esc(SECL[r.section][0]):esc(r.direction)}</td><td>${esc(r.init)}</td><td class="cm">${r.error?'✘ '+esc(r.error):esc(r.comment)}</td></tr>`).join('');
+ $('tagpv').innerHTML=`<div class="tagsum"><b style="font-size:var(--fs-sm)">點位預覽</b>${sum}</div>`+(rows?`<div class="scnwrap" style="max-height:26vh"><table class="scn tagpv"><thead><tr><th>行</th><th>名稱</th><th>型別</th><th>方向</th><th>初值</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table></div>`:'')}
+$('tags').addEventListener('input',()=>{clearTimeout(tagT);tagT=setTimeout(tagPreview,250)});
+let genTL=[];
+function renderTL(j){genTL=j.timeline||[];const n=genTL.length,tot=genTL.reduce((a,t)=>a+t.ms,0),last=genTL[n-1];
+ if(!n){$('gentl').innerHTML='';$('gendiff').hidden=true;return}
+ const fin=last.errors?`<span class="badge no">✘ ${n-1} 輪修正後仍有 ${last.errors} 個錯誤</span>`:`<span class="badge ok">✔ ${n>1?`經 ${n-1} 輪修正後通過`:'初稿即通過'}</span>`;
+ $('gentl').innerHTML=`<div class="tlhead"><span class="badge">${esc(j.provider||'')}${j.model?' · '+esc(j.model):''}</span><span>${n} 輪 · 共 ${tot} ms</span>${fin}</div><ol class="tl">`+genTL.map((t,k)=>{
+  const st=t.errors?'er':t.warnings?'wn':'ok',errs=t.issues.filter(i=>i.severity=='error'),more=errs.length>3?`<div class="tlmsg">…另 ${errs.length-3} 個</div>`:'';
+  return `<li class="${st}${k==n-1?' last':''}" data-k="${k}"><span class="dot"></span><div class="tlbody"><div class="tlrow"><b>${t.round?'第 '+t.round+' 輪修正':'初稿'}</b><span class="badge ${t.errors?'no':t.warnings?'wn':'ok'}">${t.errors?'✘ '+t.errors+' 錯':'✔ 通過'}${t.warnings?' · '+t.warnings+' 警告':''}</span><span class="hint">${t.ms} ms · ${t.code.split('\n').filter(Boolean).length} 行</span><span class="tlact">${k?`<button type="button" class="ghost" onclick="tlDiff(${k})" title="與上一輪比較">差異</button>`:''}<button type="button" class="ghost" onclick="tlApply(${k})" title="把這一輪的程式碼放進編輯器">套用</button></span></div>`
+   +errs.slice(0,3).map(i=>`<div class="tlmsg">${i.line?'line '+i.line+': ':''}${esc(i.msg)}</div>`).join('')+more+'</div></li>'}).join('')+'</ol>';
+ if(n>1)tlDiff(n-1);else $('gendiff').hidden=true}
+function lineDiff(a,b){const A=a.replace(/\n$/,'').split('\n'),B=b.replace(/\n$/,'').split('\n'),n=A.length,m=B.length;
+ if(n*m>4e6)return[...A.map((s,i)=>['-',s,i+1,0]),...B.map((s,j)=>['+',s,0,j+1])];
+ const L=Array.from({length:n+1},()=>new Int32Array(m+1));
+ for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[i][j]=A[i]===B[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+ const out=[];let i=0,j=0;
+ while(i<n&&j<m){if(A[i]===B[j]){out.push([' ',A[i],i+1,j+1]);i++;j++}else if(L[i+1][j]>=L[i][j+1]){out.push(['-',A[i],i+1,0]);i++}else{out.push(['+',B[j],0,j+1]);j++}}
+ while(i<n){out.push(['-',A[i],i+1,0]);i++}while(j<m){out.push(['+',B[j],0,j+1]);j++}return out}
+function diffHtml(d,ctx=3){const keep=d.map(()=>false);d.forEach((x,k)=>{if(x[0]!=' ')for(let q=Math.max(0,k-ctx);q<=Math.min(d.length-1,k+ctx);q++)keep[q]=true});
+ let h='',gap=0;d.forEach((x,k)=>{if(!keep[k]){gap++;return}if(gap){h+=`<div class="dl gap">⋯ ${gap} 行未變更</div>`;gap=0}
+  h+=`<div class="dl ${x[0]=='+'?'add':x[0]=='-'?'del':''}"><span class="ln">${x[2]||''}</span><span class="ln">${x[3]||''}</span><span class="dm">${x[0]}</span>${esc(x[1])||' '}</div>`});
+ if(gap)h+=`<div class="dl gap">⋯ ${gap} 行未變更</div>`;return h||'<div class="dl gap">(兩輪程式碼相同)</div>'}
+function tlDiff(k){const d=lineDiff(genTL[k-1].code,genTL[k].code),add=d.filter(x=>x[0]=='+').length,del=d.filter(x=>x[0]=='-').length;
+ $('gendiffh').innerHTML=`差異:${k==1?'初稿':'第 '+(k-1)+' 輪'} → 第 ${k} 輪 <span class="add">+${add}</span><span class="del">−${del}</span>`;
+ $('gendiffb').innerHTML=diffHtml(d);$('gendiff').hidden=false;
+ document.querySelectorAll('#gentl li').forEach(li=>li.classList.toggle('sel',+li.dataset.k==k))}
+function tlApply(k){const t=genTL[k];$('code').value=t.code;setMarks(t.issues);drawerInfo(t.issues);toast(`已套用${t.round?'第 '+t.round+' 輪':'初稿'}程式碼`,'info')}
 let lastWave=null;
 // ---- UI4 模擬儀表板 ----
 const sim={id:null,key:'',run:false,busy:false,pend:{},meta:[],cols:[],rows:[],mode:'stop'};
