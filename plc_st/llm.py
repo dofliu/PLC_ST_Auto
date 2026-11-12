@@ -13,6 +13,7 @@ DEFAULT_MODELS = {
     "openai": "gpt-4o",
     "claude": "claude-sonnet-5-5",
     "ollama": "llama3.1",
+    "mock": "demo",
 }
 KEY_ENV = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "claude": "ANTHROPIC_API_KEY"}
 
@@ -99,7 +100,52 @@ class Ollama(Provider):
             raise STError(f"unexpected Ollama response: {str(d)[:200]}")
 
 
-PROVIDERS = {c.name: c for c in (OpenAI, Claude, Gemini, Ollama)}
+class Mock(Provider):
+    """離線示範 provider(不連網、不需金鑰):依 prompt 的點位表產生自保持程式。
+    初稿故意引用一個未宣告的輸出 alarm_lamp,修正輪補上宣告,用來展示「產生 → 檢查 → 修正」流程。"""
+    name = "mock"
+    DEFAULT_DECL = [("VAR_INPUT", "start", "BOOL"), ("VAR_INPUT", "stop", "BOOL"), ("VAR_OUTPUT", "motor", "BOOL")]
+
+    @staticmethod
+    def _decls(user):
+        m = re.search(r"Tag table \(declare these exactly\):\n(.*?)(?:\n\n|\Z)", user, re.S)
+        if not m:
+            return None
+        out, sec = [], None
+        for line in m.group(1).splitlines():
+            t = line.strip()
+            if re.fullmatch(r"VAR(_INPUT|_OUTPUT|_IN_OUT)?", t):
+                sec = t
+            elif sec and (d := re.match(r"(\w+)\s*:\s*([^;:=]+?)\s*(?::=|;)", t)):
+                out.append((sec, d.group(1), d.group(2).strip().upper()))
+        return out or None
+
+    def complete(self, system, user):
+        repair = "Your previous answer:" in user
+        decls = self._decls(user.split("\n\nYour previous answer:")[0]) or self.DEFAULT_DECL
+        bins = [n for s, n, t in decls if s == "VAR_INPUT" and t == "BOOL"]
+        bouts = [n for s, n, t in decls if s == "VAR_OUTPUT" and t == "BOOL"]
+        out_name = bouts[0] if bouts else "motor"
+        extra = [] if bouts else [("VAR_OUTPUT", out_name, "BOOL")]
+        if repair:
+            extra.append(("VAR_OUTPUT", "alarm_lamp", "BOOL"))
+        lines = ["(* mock provider: offline demo, not a real LLM *)", "PROGRAM Main"]
+        for sec in ("VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR"):
+            sel = [(n, t) for s, n, t in decls + extra if s == sec]
+            if sel:
+                lines.append(sec)
+                lines += [f"  {n} : {t};" for n, t in sel]
+                lines.append("END_VAR")
+        if len(bins) >= 2:
+            lines.append(f"{out_name} := ({bins[0]} OR {out_name}) AND NOT {bins[1]};")
+        elif bins:
+            lines.append(f"{out_name} := {bins[0]};")
+        lines.append(f"alarm_lamp := NOT {out_name};")
+        lines.append("END_PROGRAM")
+        return "```st\n" + "\n".join(lines) + "\n```"
+
+
+PROVIDERS = {c.name: c for c in (OpenAI, Claude, Gemini, Ollama, Mock)}
 PROVIDERS["gpt"] = OpenAI
 PROVIDERS["anthropic"] = Claude
 

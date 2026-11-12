@@ -1,6 +1,6 @@
 """python -m plc_st serve [--port 8765]:stdlib http.server Web UI + JSON API(僅綁 127.0.0.1)。
 
-POST /api/{check,run,test,export,export/status,tags,generate,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
+POST /api/{check,run,test,export,export/status,tags,tags/preview,generate,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
 handle() 與 HTTP 分離,方便單元測試。"""
 import base64
 import json
@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import tempfile
+import time
 from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -17,7 +18,7 @@ from .llm import get_provider, generate_checked
 from .profiles import PROFILES
 from .rag import VectorStore
 from .scenario import run_scenario_detail
-from .tags import tags_to_var_blocks
+from .tags import tags_to_var_blocks, preview_tags
 
 MAX_CYCLES = 5000
 MAX_SIMS = 16  # 互動模擬 session 上限(超過時淘汰最久未用的)
@@ -121,9 +122,19 @@ def _generate(p, state):
     prov = get_provider(p.get("provider", "ollama"), **kw)
     ctx = state.store.context(req, int(p.get("top_k", 4))) if p.get("use_rag") and state.store.docs else None
     scenario = p.get("scenario") or None
+    timeline, t0 = [], [time.monotonic()]
+
+    def on_round(n, code, issues):  # 每輪(含初稿)的程式碼、問題與耗時,供 UI 時間軸/差異比較
+        now = time.monotonic()
+        ne = sum(i.severity == "error" for i in issues)
+        timeline.append({"round": n, "code": code, "issues": _issues(issues), "errors": ne,
+                         "warnings": len(issues) - ne, "ms": round((now - t0[0]) * 1000)})
+        t0[0] = now
+
     code, issues, rounds = generate_checked(prov, req, tags, p.get("profile", "iec"), ctx,
-                                            int(p.get("max_rounds", 3)), scenario)
-    return {"code": code, "issues": _issues(issues), "rounds": rounds, "rag_passages": len(ctx or [])}
+                                            int(p.get("max_rounds", 3)), scenario, on_round)
+    return {"code": code, "issues": _issues(issues), "rounds": rounds, "rag_passages": len(ctx or []),
+            "timeline": timeline, "provider": prov.name, "model": prov.model}
 
 
 def _rag_add(p, state):
@@ -237,6 +248,8 @@ def handle(method, path, payload, state):
             return 200, {"formats": export_status(_need(payload, "code"))}
         if path == "/api/tags":
             return 200, {"code": tags_to_var_blocks(_need(payload, "csv"))}
+        if path == "/api/tags/preview":
+            return 200, preview_tags(payload.get("csv") or "")
         if path == "/api/generate":
             return 200, _generate(payload, state)
         if path == "/api/rag/add":

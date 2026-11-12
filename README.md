@@ -41,6 +41,7 @@ export ANTHROPIC_API_KEY=...   # 或 OPENAI_API_KEY / GEMINI_API_KEY;ollama 不�
 python -m plc_st generate "馬達啟停,停止優先" --provider claude --tags examples/points.csv -o out.st
 ```
 產生後自動執行 `check`;LLM 輸出仍須經虛擬 PLC 與廠牌官方工具驗證。
+沒有金鑰時可用 `--provider mock`(離線示範,初稿故意留一個錯誤,展示自動修正流程)。Web UI 產生頁會顯示每一輪的檢查結果、耗時與修正差異,點位表貼上後即時預覽(UI5)。
 
 ## RAG (M6)
 ```
