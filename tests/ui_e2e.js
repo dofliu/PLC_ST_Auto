@@ -10,6 +10,7 @@ const URL0 = process.env.PLC_URL || 'http://127.0.0.1:8765/';
 fs.mkdirSync(S, { recursive: true });
 const SS3 = path.resolve(process.env.UI3_SHOTS || S) + '/'; fs.mkdirSync(SS3, { recursive: true });
 const SS4 = path.resolve(process.env.UI4_SHOTS || S) + '/'; fs.mkdirSync(SS4, { recursive: true });
+const SS6 = path.resolve(process.env.UI6_SHOTS || S) + '/'; fs.mkdirSync(SS6, { recursive: true });
 const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
 (async () => {
   const b = await chromium.launch();
@@ -60,8 +61,8 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   await T('exp');
   const fmts = { plcopen: ['program.xml', '<pou'], scl: ['.scl', 'ORGANIZATION_BLOCK'], l5x: ['.L5X', '<Routine'], gxworks: ['.txt', 'Label Name'], sysmac: ['.txt', 'Data Type'] };
   for (const [f, [ext, needle]] of Object.entries(fmts)) {
-    await pg.selectOption('#expfmt', f);
-    const [d] = await Promise.all([pg.waitForEvent('download'), pg.click('#tab_exp button')]);
+    await pg.waitForSelector(`.xcard[data-fmt=${f}] .xdl:not([disabled])`);
+    const [d] = await Promise.all([pg.waitForEvent('download'), pg.click(`.xcard[data-fmt=${f}] .xdl`)]);
     const txt = fs.readFileSync(await d.path(), 'utf8');
     ok('07 匯出 ' + f, d.suggestedFilename().endsWith(ext) && txt.includes(needle), d.suggestedFilename() + ' ' + txt.length + ' chars');
   }
@@ -78,12 +79,14 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   // 7. scenario
   await T('test');
   await pg.click('text=執行情境'); await pg.waitForSelector('#tstout:not([hidden])');
-  ok('10 情境測試 PASS', (await pg.innerText('#tstout')).trim() === 'PASS');
+  ok('10 情境測試 PASS', (await pg.innerText('#tstout')).trim().startsWith('PASS'), await pg.innerText('#tstout'));
+  await pg.click('#scnmode_j');
   await pg.fill('#scn', '{"scan_ms":100,"steps":[{"name":"wrong","set":{"start":true},"ms":600,"expect":{"motor":false}}]}').catch(() => {});
   if (await pg.locator('#scn').count()) {
     await pg.click('text=執行情境'); await pg.waitForTimeout(800);
     ok('11 情境測試能偵測錯誤預期(FAIL)', (await pg.innerText('#tstout')).includes('FAIL'), (await pg.innerText('#tstout')).slice(0, 80));
     await card('6. 情境測試', '06_scenario_fail.png').catch(() => {});
+    await pg.click('#scnmode_t');
   }
   // 8. profiles: strict overflow
   await T('sim');
@@ -269,6 +272,84 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   await pg.fill('#code', bad); await pg.waitForFunction("document.querySelector('#gutter .er')", null, { timeout: 4000 });
   for (const th of ['light', 'dark']) { await pg.evaluate(t => setTheme(t), th); await pg.waitForTimeout(150); await pg.screenshot({ path: SS3 + th + '_editor.png' }); }
   await pg.evaluate(() => setTheme('auto')); await pg.fill('#code', motor);
+
+  // ===== UI6 情境表格編輯器 + 匯出卡片 =====
+  await pg.fill('#code', motor); await T('test');
+  if (await pg.isVisible('#scnview_j')) await pg.click('#scnmode_t');
+  await pg.evaluate(() => { scn.rows = []; scnToJson(); scnRender(); });
+  await pg.waitForSelector('#scnvars button[data-v=start]');
+  ok('41 變數晶片:由程式擷取輸入/輸出(start 藍、motor 綠)', await pg.evaluate(() => document.querySelector('#scnvars button[data-v=start]').classList.contains('in') && document.querySelector('#scnvars button[data-v=motor]').classList.contains('out')));
+  // 不寫 JSON:按新增步驟、填表格、點變數晶片
+  await pg.click('.scnfoot button');
+  await pg.click('#scnvars button[data-v=start]');
+  await pg.fill('#scnbody input[data-i="0"][data-k=name]', 'run');
+  await pg.fill('#scnbody input[data-i="0"][data-k=n]', '600');
+  await pg.click('#scnbody input[data-i="0"][data-k=expect]');
+  await pg.click('#scnvars button[data-v=motor]');
+  await pg.click('.scnfoot button');
+  await pg.fill('#scnbody input[data-i="1"][data-k=name]', 'halt');
+  await pg.fill('#scnbody input[data-i="1"][data-k=set]', 'start=FALSE; stop=TRUE');
+  await pg.fill('#scnbody input[data-i="1"][data-k=n]', '1');
+  await pg.selectOption('#scnbody select[data-i="1"]', 'cyc');
+  await pg.fill('#scnbody input[data-i="1"][data-k=expect]', 'motor=FALSE; cnt=0');
+  const sj = JSON.parse(await pg.inputValue('#scn'));
+  ok('42 表格編輯即時同步成 JSON', sj.steps.length === 2 && sj.steps[0].set.start === true && sj.steps[0].ms === 600 && sj.steps[0].expect.motor === true && sj.steps[1].cycles === 1 && sj.steps[1].expect.cnt === 0, JSON.stringify(sj.steps));
+  await pg.click('#tstbtn'); await pg.waitForSelector('#scnbody tr.pass, #scnbody tr.fail');
+  const rcls = await pg.evaluate(() => [...document.querySelectorAll('#scnbody tr.main')].map(r => r.className.replace('main ', '')));
+  ok('43 不寫 JSON 跑出逐步結果:步驟 1 通過、步驟 2 失敗(cnt 實際值 ≠ 0)', rcls[0] === 'pass' && rcls[1] === 'fail' && (await pg.innerText('#scnbody tr.rrow >> nth=1')).includes('預期 0'), rcls.join(',') + ' | ' + (await pg.innerText('#scnbody tr.rrow >> nth=1')).replace(/\n/g, ' '));
+  ok('43b 狀態列顯示情境 FAIL', /FAIL/.test(await pg.innerText('#st_tst')));
+  await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'scenario_table_fail.png' });
+  await pg.fill('#scnbody input[data-i="1"][data-k=expect]', 'motor=FALSE');
+  await pg.click('#tstbtn'); await pg.waitForFunction("document.getElementById('tstout').textContent.startsWith('PASS')");
+  ok('44 修正預期後全部通過(2/2)', (await pg.innerText('#tstout')).includes('2/2') && await pg.evaluate(() => [...document.querySelectorAll('#scnbody tr.main')].every(r => r.classList.contains('pass'))), await pg.innerText('#tstout'));
+  await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'scenario_table_pass.png' });
+  // 格式錯誤欄位:紅框、不送出
+  await pg.fill('#scnbody input[data-i="1"][data-k=expect]', 'motor FALSE');
+  ok('45 格式錯誤欄位標紅框並說明', await pg.evaluate(() => { const e = document.querySelector('#scnbody input[data-i="1"][data-k=expect]'); return e.classList.contains('bad') && e.title.includes('缺少 ='); }));
+  await pg.click('#tstbtn'); await pg.waitForTimeout(300);
+  ok('45b 有格式錯誤時不執行並提示', (await pg.innerText('#toasts')).includes('格式錯誤'));
+  await pg.fill('#scnbody input[data-i="1"][data-k=expect]', 'motor=FALSE');
+  // 上移/刪除
+  await pg.click('#scnbody button[data-act=up][data-i="1"]');
+  ok('46 上移步驟', JSON.parse(await pg.inputValue('#scn')).steps.map(x => x.name).join() === 'halt,run');
+  await pg.click('#scnbody button[data-act=del][data-i="0"]');
+  ok('46b 刪除步驟', JSON.parse(await pg.inputValue('#scn')).steps.map(x => x.name).join() === 'run');
+  // JSON ⇄ 表格
+  await pg.click('#scnmode_j');
+  await pg.fill('#scn', '{"scan_ms": 50, "steps": [{"name": "j1", "set": {"start": true}, "cycles": 3, "expect": {"motor": true}}]}');
+  await pg.click('#scnmode_t');
+  ok('47 JSON 切回表格:步驟與掃描週期帶入', await pg.inputValue('#scnbody input[data-i="0"][data-k=name]') === 'j1' && await pg.inputValue('#scnscan') === '50' && await pg.inputValue('#scnbody select[data-i="0"]') === 'cyc');
+  await pg.click('#scnmode_j'); await pg.fill('#scn', '{"steps": [');
+  await pg.click('#scnmode_t');
+  ok('47b JSON 格式錯誤時留在 JSON 模式並提示', await pg.isVisible('#scnview_j') && (await pg.innerText('#toasts')).includes('JSON'));
+  await pg.fill('#scn', '{"scan_ms": 100, "steps": [{"name": "s", "cycles": 1}, {"name": "bad", "expect": {"nope": true}}]}');
+  await pg.click('#scnmode_t');
+  await pg.click('#tstbtn'); await pg.waitForSelector('#scnbody tr.err');
+  ok('48 執行期錯誤標在出錯的步驟列(第 2 步 unknown variable)', await pg.evaluate(() => document.querySelectorAll('#scnbody tr.main')[1].classList.contains('err')) && (await pg.innerText('#scnbody tr.rrow.err')).includes('nope'));
+  // 匯出卡片
+  await T('exp'); await pg.waitForSelector('.xcard[data-fmt=l5x]');
+  const cards = await pg.evaluate(() => [...document.querySelectorAll('.xcard')].map(c => c.dataset.fmt + ':' + c.className.split(' ')[1]));
+  ok('49 匯出卡片 6 種格式皆可匯出(motor.st)', cards.length === 6 && cards.every(c => c.endsWith(':ok')), cards.join(' '));
+  ok('49b Rockwell 卡片顯示方言警告數', (await pg.innerText('.xcard[data-fmt=l5x] .badge')).includes('警告'));
+  await pg.click('.xcard[data-fmt=l5x] summary');
+  await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'export_cards.png' });
+  await pg.click('.xcard[data-fmt=l5x] .iss[data-line="4"]');
+  ok('49c 點方言警告跳到程式第 4 行', await pg.evaluate(() => ed.cur === 4));
+  await pg.click('.xcard[data-fmt=scl] button:has-text("預覽")');
+  await pg.waitForFunction("document.getElementById('exppv').textContent.includes('ORGANIZATION_BLOCK')", null, { timeout: 4000 }).catch(() => {});
+  ok('50 預覽 SCL 內容', (await pg.innerText('#exppv')).includes('ORGANIZATION_BLOCK'), (await pg.innerText('#exppvt')));
+  await pg.fill('#code', fs.readFileSync(R + 'examples/struct_l5x.st', 'utf8'));
+  await pg.waitForFunction("document.querySelector('.xcard[data-fmt=gxworks]') && document.querySelector('.xcard[data-fmt=gxworks]').classList.contains('no')", null, { timeout: 4000 });
+  ok('51 程式改變後卡片自動更新:GX Works3 不支援 STRUCT 並說明原因、下載停用', (await pg.innerText('.xcard[data-fmt=gxworks] .why')).includes('STRUCT') && await pg.isDisabled('.xcard[data-fmt=gxworks] .xdl') && await pg.evaluate(() => document.querySelector('.xcard[data-fmt=l5x]').classList.contains('ok')));
+  await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'export_unsupported.png' });
+  await pg.evaluate(() => setTheme('dark')); await pg.waitForTimeout(150); await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'dark_export.png' });
+  await pg.fill('#code', motor); await T('test'); await pg.click('#scnmode_j');
+  await pg.fill('#scn', '{"scan_ms": 100, "steps": [\n {"name": "start", "set": {"start": true}, "ms": 600, "expect": {"motor": true, "t.Q": true}},\n {"name": "stop", "set": {"start": false, "stop": true}, "cycles": 1, "expect": {"motor": false}}\n]}');
+  await pg.click('#scnmode_t'); await pg.click('#tstbtn'); await pg.waitForSelector('#scnbody tr.pass');
+  await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'dark_scenario.png' });
+  await pg.evaluate(() => setTheme('auto'));
+  const ns2 = await pg.evaluate('document.documentElement.scrollHeight <= window.innerHeight');
+  ok('52 測試/匯出頁仍整頁無垂直捲動', ns2);
   // 10. mobile width
   await pg.setViewportSize({ width: 390, height: 844 });
   const overflow = await pg.evaluate('document.documentElement.scrollWidth - window.innerWidth');

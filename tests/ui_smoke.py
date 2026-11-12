@@ -1,4 +1,4 @@
-"""Web UI 功能測試(需 Playwright):python tests/ui_smoke.py [輸出資料夾]。截圖 + 結果印到 stdout。"""
+"""舊版 Web UI 測試(UI1 之前的單頁版面,已由 tests/ui_e2e.js 取代;需 Python Playwright):python tests/ui_smoke.py [輸出資料夾]。"""
 import os
 import sys
 import threading
