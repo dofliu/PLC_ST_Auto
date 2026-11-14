@@ -116,8 +116,9 @@ class UiLayout(unittest.TestCase):
             self.html = f.read()
 
     def test_grid_fits_phone_width(self):
-        # UI1:窄螢幕退回單欄,且欄位用 minmax(0,1fr) 避免撐出水平捲動
-        self.assertIn("minmax(0,1fr)", self.html)
+        # UI1:窄螢幕退回單欄,且欄位用 minmax(0,…) 避免撐出水平捲動(UI7 起寬度由分欄變數決定)
+        self.assertIn("minmax(0,var(--lw,1fr))", self.html)
+        self.assertIn("minmax(0,var(--rw,1fr))", self.html)
         self.assertIn("@media(max-width:820px)", self.html)
 
     def test_run_status_resets_error_class(self):

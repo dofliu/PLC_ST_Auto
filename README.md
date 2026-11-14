@@ -75,14 +75,25 @@ python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-
 未出現警告不能視為通過該廠牌 IDE/PLC 的編譯或相容性驗證,上傳實機前請以廠牌官方工具再驗證。
 
 ## Web UI
-`python -m plc_st serve --port 8765` 後開啟 http://127.0.0.1:8765 (僅本機)。UI 功能測試:`PYTHONPATH=. CHROMIUM_PATH=<chromium> python tests/ui_smoke.py`(需 playwright)。報告見 `docs/test_report_M11.md`。
+`python -m plc_st serve --port 8765` 後開啟 http://127.0.0.1:8765 (僅本機)。
+
+| 桌機 1920×1080 | 手機 390×844(底部導覽) |
+|---|---|
+| ![桌機](docs/screenshots/ui7/desktop_1920.png) | ![手機](docs/screenshots/ui7/mobile_390_jump.png) |
+
+版面(UI7):整頁不捲動;程式碼欄與頁籤欄中間的分欄把手可拖曳(或聚焦後用 ←/→、Shift 加大步距、Home/End,雙擊或 Enter 還原 50%)。
+寬度 ≤820px(手機/平板直向)改為底部導覽列,「程式碼」鍵與各頁籤一次顯示一個;點問題清單會自動切到編輯器並定位。
+介面會記住 provider/model/base URL、修正輪數、廠牌 profile、模擬參數、最後頁籤、分欄寬度與程式碼草稿(瀏覽器 localStorage,前綴 `plcst.`);**API Key 一律不儲存**。設定頁可關閉「記住程式碼草稿」或「清除記憶」。
+無障礙:第一個 Tab 為「跳到程式碼編輯器」、問題抽屜可用鍵盤開關、所有互動元素有可讀名稱(E2E 稽核)。
+
+UI 功能測試:`PYTHONPATH=. CHROMIUM_PATH=<chromium> python tests/ui_smoke.py`(需 playwright)。報告見 `docs/test_report_M11.md`。
 
 程式碼編輯器(UI3):行號、ST 語法色彩、輸入後自動檢查並在行號/程式行標記錯誤與警告、點擊問題清單或行號跳到該行、游標行/欄顯示。
 模擬儀表板(UI4):執行/暫停/單步/重設與速度(×0.2/×1/×10)、I/O 面板(BOOL 輸入開關、輸出燈號、數值即時顯示;暫停時切換的輸入於下一掃描生效)、波形每變數一軌(STRING 以文字帶顯示、長名稱截斷)、滾輪縮放/拖曳平移/游標讀值/雙擊全覽;批次執行(事件腳本)後游標移動時 I/O 面板回放該週期值。快捷鍵 `Alt+R` 執行/暫停、`Alt+S` 單步。API:`/api/sim/start|step|stop`。執行期錯誤訊息帶行號並標記於編輯器。
 
 情境測試與匯出(UI6):情境可用表格編輯(步驟名稱/設定輸入 `變數=值; …`/等待 ms 或週期/預期輸出),與 JSON 雙向切換,變數晶片一鍵插入;執行後逐步顯示 ✔/✘ 與實際值。匯出頁以 6 張廠牌卡片顯示可否匯出、不支援原因、方言警告(點擊跳行)與預覽。API:`/api/test`(回傳 `steps`)、`/api/export/status`。
 快捷鍵:`Ctrl+Enter` 執行模擬、`Ctrl+Shift+Enter` 靜態檢查、`Ctrl+/` 註解切換、`Tab`/`Shift+Tab` 縮排(先按 `Esc` 再按 Tab 可離開編輯器)、`THEN`/`DO` 等之後 Enter 自動縮排。
-E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node tests/ui_e2e.js [截圖資料夾]`(`UI3_SHOTS=`/`UI4_SHOTS=`/`UI6_SHOTS=` 指定編輯器/模擬儀表板/測試與匯出截圖資料夾)。
+E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node tests/ui_e2e.js [截圖資料夾]`(`UI3_SHOTS=`/`UI4_SHOTS=`/`UI5_SHOTS=`/`UI6_SHOTS=`/`UI7_SHOTS=` 指定各階段截圖資料夾)。
 
 ## 陣列 (M17)
 支援一維 `ARRAY[lo..hi] OF T`(可帶初始值 `:= [1,2,3]`),以 `a[i]` 讀寫;越界於靜態檢查(常數索引)與執行期皆報錯。

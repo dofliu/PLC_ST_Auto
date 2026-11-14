@@ -141,7 +141,9 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   await pg.reload(); await pg.waitForFunction("document.querySelectorAll('#profile option').length>3");
   const kept = await pg.evaluate(() => document.documentElement.dataset.theme);
   ok('19 主題按鈕 auto→light→dark 且重新整理後保留', t1th === 'light' && t2th === 'dark' && kept === 'dark', [t1th, t2th, kept].join('→'));
-  ok('20 localStorage 只存主題,不含 API key', await pg.evaluate(() => Object.keys(localStorage).every(k => k === 'plcst.theme')));
+  ok('20 localStorage 只用 plcst. 前綴,不含 API key', await pg.evaluate(() => { document.getElementById('key').value = 'SECRET-K'; document.getElementById('key').dispatchEvent(new Event('input', { bubbles: true })); document.getElementById('prov').dispatchEvent(new Event('change', { bubbles: true }));
+    return Object.keys(localStorage).every(k => k.startsWith('plcst.')) && !Object.values(localStorage).some(v => v.includes('SECRET-K')); }));
+  await pg.evaluate(() => { document.getElementById('key').value = ''; });
   await pg.evaluate(() => setTheme('auto'));
   // 按鈕載入狀態:執行中顯示 busy 並 disabled
   await T('sim'); await pg.fill('#cycles', '3000');
@@ -401,6 +403,77 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   ok('71 產生頁整頁無垂直捲動', ns5);
   await pg.setViewportSize({ width: 390, height: 844 });
   await clr(); await pg.screenshot({ path: SS5 + 'mobile_timeline.png', fullPage: true });
+  await pg.setViewportSize({ width: 1280, height: 800 });
+  // ===== UI7 響應式 / 分欄 / 設定記憶 / 無障礙 =====
+  const SS7 = path.resolve(process.env.UI7_SHOTS || S) + '/'; fs.mkdirSync(SS7, { recursive: true });
+  await pg.setViewportSize({ width: 1280, height: 800 }); await T('gen');
+  const cw = async () => (await pg.locator('#codepane').boundingBox()).width;
+  const sb = await pg.locator('#split').boundingBox(), w0 = await cw();
+  await pg.mouse.move(sb.x + 3, sb.y + sb.height / 2); await pg.mouse.down(); await pg.mouse.move(sb.x + 3 + 200, sb.y + sb.height / 2, { steps: 6 }); await pg.mouse.up();
+  const w1 = await cw(), v1 = +(await pg.getAttribute('#split', 'aria-valuenow'));
+  ok('72 拖曳分欄:程式碼欄變寬且 aria-valuenow 更新', w1 - w0 > 150 && v1 > 55, `${Math.round(w0)}→${Math.round(w1)}px, ${v1}%`);
+  await pg.focus('#split'); await pg.keyboard.press('ArrowLeft'); const v2 = +(await pg.getAttribute('#split', 'aria-valuenow'));
+  await pg.keyboard.press('End'); const v3 = +(await pg.getAttribute('#split', 'aria-valuenow'));
+  await pg.mouse.move(0, 0); await pg.mouse.down(); await pg.mouse.move(-500, 0); await pg.mouse.up();
+  const nsx = await pg.evaluate('document.documentElement.scrollWidth <= window.innerWidth && document.documentElement.scrollHeight <= window.innerHeight');
+  ok('73 鍵盤調整分欄(←-2%、End=75%)且限制在範圍內、無整頁捲動', v2 === v1 - 2 && v3 === 75 && nsx, `${v2}, ${v3}`);
+  await pg.screenshot({ path: SS7 + 'split_75.png' });
+  await pg.dblclick('#split'); ok('74 雙擊分欄還原 50%', (await pg.getAttribute('#split', 'aria-valuenow')) === '50');
+  // 設定記憶
+  await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight');  // 56%
+  await T('set'); await pg.selectOption('#prov', 'mock'); await pg.fill('#model', 'mem-model'); await pg.fill('#rounds', '2'); await pg.fill('#key', 'SECRET-MEM-KEY'); await pg.fill('#base', 'http://h:1');
+  await pg.selectOption('#profile', 'rockwell');
+  await pg.fill('#code', 'PROGRAM Mem\nVAR x : INT; END_VAR\nx := x + 1;\nEND_PROGRAM'); await T('sim'); await pg.fill('#cycles', '42'); await pg.waitForTimeout(500);
+  await pg.reload(); await pg.waitForFunction("document.querySelectorAll('#profile option').length>3"); await pg.waitForTimeout(300);
+  const restored = await pg.evaluate(() => ({ prov: prov.value, model: model.value, rounds: rounds.value, key: key.value, base: base.value, profile: profile.value, cycles: cycles.value, code: code.value, split: split.getAttribute('aria-valuenow'), tab: document.querySelector('.tab.on').id, pill: st_llm.textContent }));
+  ok('75 重新整理後還原 provider/model/輪數/base/profile/週期/分欄/頁籤/程式碼草稿', restored.prov === 'mock' && restored.model === 'mem-model' && restored.rounds === '2' && restored.base === 'http://h:1' && restored.profile === 'rockwell' && restored.cycles === '42' && restored.code.startsWith('PROGRAM Mem') && restored.split === '56' && restored.tab === 'tab_sim' && restored.pill.includes('mock·mem-model'), JSON.stringify({ ...restored, code: restored.code.slice(0, 11) }));
+  ok('76 API Key 不被記住,localStorage 中也找不到', restored.key === '' && await pg.evaluate(() => !Object.values(localStorage).some(v => v.includes('SECRET-MEM-KEY'))));
+  await T('set'); await pg.uncheck('#keepcode'); await pg.waitForTimeout(100);
+  const nocode = await pg.evaluate(() => localStorage.getItem('plcst.code') === null);
+  await pg.check('#keepcode'); await pg.screenshot({ path: SS7 + 'settings_memory.png' });
+  await pg.click('text=清除記憶'); await pg.reload(); await pg.waitForFunction("document.querySelectorAll('#profile option').length>3"); await pg.waitForTimeout(300);
+  const cleared = await pg.evaluate(() => ({ prov: prov.value, rounds: rounds.value, code: code.value, split: split.getAttribute('aria-valuenow'), tab: document.querySelector('.tab.on').id, keys: Object.keys(localStorage) }));
+  ok('77 取消「記住程式碼」即刪除草稿;「清除記憶」後回到預設(主題保留)', nocode && cleared.prov === 'ollama' && cleared.rounds === '3' && cleared.code.startsWith('PROGRAM Motor') && cleared.split === '50' && cleared.tab === 'tab_gen', JSON.stringify(cleared).slice(0, 160));
+  // 無障礙稽核
+  const a11y = await pg.evaluate(() => {
+    const bad = [], ids = {}, dup = [];
+    document.querySelectorAll('[id]').forEach(e => { if (ids[e.id]) dup.push(e.id); ids[e.id] = 1; });
+    const nm = e => (e.getAttribute('aria-label') || (e.labels && e.labels[0] && e.labels[0].textContent) || (e.getAttribute('aria-labelledby') && document.getElementById(e.getAttribute('aria-labelledby'))?.textContent) || e.textContent || e.title || e.placeholder || '').trim();
+    document.querySelectorAll('button,input,select,textarea,a[href],[role=button],[role=separator],[role=switch],[role=img],canvas').forEach(e => { if (e.type === 'hidden') return; if (!nm(e)) bad.push(e.outerHTML.slice(0, 60)); });
+    return { bad, dup, lang: document.documentElement.lang };
+  });
+  ok('78 無障礙:所有互動元素都有可讀名稱、無重複 id、html lang', a11y.bad.length === 0 && a11y.dup.length === 0 && a11y.lang === 'zh-Hant', JSON.stringify(a11y).slice(0, 200));
+  await pg.evaluate(() => document.activeElement.blur()); await pg.evaluate(() => window.scrollTo(0, 0));
+  await pg.keyboard.press('Tab'); const skipF = await pg.evaluate(() => document.activeElement.className === 'skip' && document.activeElement.getBoundingClientRect().top >= 0);
+  await pg.keyboard.press('Enter'); const skipT = await pg.evaluate(() => document.activeElement.id === 'code');
+  await pg.focus('#drawer>div'); const ex0 = await pg.getAttribute('#drawer>div', 'aria-expanded'); await pg.keyboard.press('Enter'); const ex1 = await pg.getAttribute('#drawer>div', 'aria-expanded'); await pg.keyboard.press(' '); const ex2 = await pg.getAttribute('#drawer>div', 'aria-expanded');
+  ok('79 鍵盤:第一個 Tab 是「跳到程式碼」、Enter 進入編輯器;問題抽屜可用 Enter/空白鍵開關且 aria-expanded 同步', skipF && skipT && ex0 === 'false' && ex1 === 'true' && ex2 === 'false', [skipF, skipT, ex0, ex1, ex2].join(','));
+  // 手機:底部導覽
+  await pg.setViewportSize({ width: 390, height: 844 }); await pg.reload(); await pg.waitForFunction("document.querySelectorAll('#profile option').length>3"); await pg.waitForTimeout(200);
+  const mob = await pg.evaluate(() => { const n = document.getElementById('nav').getBoundingClientRect(), bs = [...document.querySelectorAll('#nav button')].filter(b => b.offsetParent);
+    return { bottom: Math.round(innerHeight - n.bottom), h: Math.min(...bs.map(b => b.getBoundingClientRect().height)), nb: bs.length, code: !!document.getElementById('codepane').offsetParent, pane: !!document.getElementById('tabpane').offsetParent, sx: document.documentElement.scrollWidth - innerWidth, sy: document.documentElement.scrollHeight - innerHeight, split: !!document.getElementById('split').offsetParent }; });
+  ok('80 手機 390px:底部導覽列 7 鍵(≥44px)、預設顯示頁籤內容、無分欄把手、無整頁捲動', mob.bottom === 0 && mob.nb === 7 && mob.h >= 44 && !mob.code && mob.pane && !mob.split && mob.sx <= 0 && mob.sy <= 0, JSON.stringify(mob));
+  await pg.screenshot({ path: SS7 + 'mobile_390_gen.png' });
+  await pg.click('#nav button[data-t=code]');
+  const mc = await pg.evaluate(() => ({ code: !!document.getElementById('codepane').offsetParent, pane: !!document.getElementById('tabpane').offsetParent, on: document.querySelector('#nav .mcode').classList.contains('on'), others: document.querySelectorAll('#nav button.on').length }));
+  await pg.screenshot({ path: SS7 + 'mobile_390_code.png' });
+  await pg.click('#nav button[data-t=sim]'); const ms = await pg.evaluate(() => !!document.getElementById('tabpane').offsetParent && !document.getElementById('codepane').offsetParent && document.getElementById('tab_sim').classList.contains('on'));
+  ok('81 手機:「程式碼」鍵切到編輯器、再點頁籤切回內容', mc.code && !mc.pane && mc.on && mc.others === 1 && ms, JSON.stringify(mc));
+  ok('81b 手機:切回頁籤後「程式碼」鍵不再標示為目前頁', await pg.evaluate(() => !document.querySelector('#nav .mcode').classList.contains('on') && document.querySelector('#nav .mcode').getAttribute('aria-current') === 'false'));
+  await pg.evaluate(() => { document.getElementById('batchbtn').closest('details').open = true; }); await pg.click('#batchbtn'); await pg.waitForTimeout(500); await pg.screenshot({ path: SS7 + 'mobile_390_sim.png' });
+  await pg.click('#nav button[data-t=gen]');
+  await pg.evaluate(() => { code.value = 'PROGRAM X\nVAR a:INT; END_VAR\nb := 1;\nEND_PROGRAM'; }); await pg.evaluate(() => chk());
+  await pg.waitForFunction("document.querySelector('#chkout .iss')"); await pg.evaluate(() => openDrawer(true));
+  await pg.click('#chkout .iss'); const jumped = await pg.evaluate(() => !!document.getElementById('codepane').offsetParent && document.activeElement.id === 'code');
+  ok('82 手機:點問題自動切到編輯器並定位', jumped);
+  await pg.screenshot({ path: SS7 + 'mobile_390_jump.png' });
+  await pg.evaluate(() => { openDrawer(); code.value = document.getElementById('code').defaultValue; }); await pg.click('#nav button[data-t=gen]');
+  for (const [w, h, f] of [[768, 1024, 'tablet_768.png'], [1280, 800, 'desktop_1280.png'], [1920, 1080, 'desktop_1920.png'], [390, 844, 'mobile_390.png']]) {
+    await pg.setViewportSize({ width: w, height: h }); await pg.waitForTimeout(250);
+    const o = await pg.evaluate(() => [document.documentElement.scrollWidth - innerWidth, document.documentElement.scrollHeight - innerHeight]);
+    ok(`83 ${w}×${h} 無水平/垂直整頁捲動`, o[0] <= 0 && o[1] <= 0, o.join(','));
+    await pg.screenshot({ path: SS7 + f });
+  }
   await pg.setViewportSize({ width: 1280, height: 800 });
   // 10. mobile width
   await pg.setViewportSize({ width: 390, height: 844 });
