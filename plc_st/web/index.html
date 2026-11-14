@@ -98,13 +98,19 @@ header select{width:auto;padding:5px 8px}
 .pill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:var(--ok-bg)}
 .pill.er{color:var(--er);border-color:color-mix(in srgb,var(--er) 45%,transparent);background:var(--er-bg)}
 .pill.wn{color:var(--wn);border-color:color-mix(in srgb,var(--wn) 45%,transparent);background:var(--wn-bg)}
-#app{flex:1;min-height:0;display:grid;grid-template-columns:84px minmax(0,1fr) minmax(0,1fr)}
+#app{flex:1;min-height:0;display:grid;grid-template-columns:84px minmax(0,var(--lw,1fr)) 7px minmax(0,var(--rw,1fr))}
+/* UI7 可拖曳分欄 */
+#split{cursor:col-resize;background:var(--surface);border-left:1px solid var(--bd);position:relative;touch-action:none}
+#split::after{content:"";position:absolute;left:1px;top:50%;width:3px;height:36px;margin-top:-18px;border-radius:2px;background:var(--bd-strong);transition:background var(--dur)}
+#split:hover::after,#split.drag::after,#split:focus-visible::after{background:var(--ac)}#split:focus-visible{outline-offset:-2px}
+nav .mcode{display:none}
+.skip{position:absolute;left:8px;top:-60px;z-index:100;background:var(--ac);color:#fff;padding:6px 12px;border-radius:var(--r-md);text-decoration:none}.skip:focus{top:8px}
 nav{display:flex;flex-direction:column;gap:2px;padding:var(--sp-2) 6px;border-right:1px solid var(--bd);background:var(--surface)}
 nav button{flex-direction:column;gap:3px;background:transparent;border-color:transparent;color:var(--fg-muted);margin:0;padding:8px 4px;font-size:var(--fs-sm);border-radius:var(--r-md)}
 nav button .ico{width:20px;height:20px}
 nav button:hover{background:var(--surface-2);border-color:transparent;color:var(--fg)}
 nav button.on{background:var(--ac-bg);color:var(--ac);border-color:transparent;font-weight:600}
-#codepane{display:flex;flex-direction:column;padding:var(--sp-3);min-width:0;min-height:0;border-right:1px solid var(--bd);background:var(--surface)}
+#codepane{display:flex;flex-direction:column;padding:var(--sp-3);min-width:0;min-height:0;background:var(--surface)}
 #codepane h2{flex:none}
 /* ===== 程式碼編輯器(UI3):行號 + 語法色彩 + 問題行標記;textarea 疊在上色層之上 ===== */
 .ed{--lh:20px;flex:1;min-height:0;display:flex;border:1px solid var(--bd);border-radius:var(--r-sm);background:var(--surface-2);overflow:hidden;font:13px/var(--lh) var(--font-code);transition:border-color var(--dur),box-shadow var(--dur)}
@@ -275,9 +281,17 @@ ol.tl li.sel .tlbody{box-shadow:0 0 0 2px var(--ac)}
 @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){*,*::before{animation-duration:.001s!important;transition-duration:.001s!important}}
 
-@media(max-width:820px){body{overflow:auto}#app{display:flex;flex-direction:column;flex:none}nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--bd)}
- nav button{flex:1;min-width:64px}#codepane{border-right:0;height:60vh}#tabpane{overflow:visible}header .sub{display:none}}
+/* UI7 手機/平板:底部導覽列,程式碼與頁籤內容上下切換(一次一個),狀態列單行橫向捲動 */
+@media(max-width:820px){html,body{height:100dvh}body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}header{padding:6px var(--sp-3);gap:var(--sp-2)}header .sub,#themelbl{display:none}.brand{white-space:nowrap}#profile{max-width:42vw}
+ #statusbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:5px var(--sp-2)}#statusbar::-webkit-scrollbar{display:none}.pill{white-space:nowrap;flex:none}
+ #app{display:flex;flex-direction:column}#split{display:none}
+ nav{position:fixed;left:0;right:0;bottom:0;z-index:40;flex-direction:row;gap:0;border-right:0;border-top:1px solid var(--bd);padding:3px 2px calc(3px + env(safe-area-inset-bottom));box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+ nav button{flex:1;min-width:0;min-height:52px;padding:5px 1px;font-size:11px;gap:2px}nav .mcode{display:flex}
+ #codepane,#tabpane{flex:1;min-height:0}
+ body:not(.mv-code) #codepane{display:none}body.mv-code #tabpane{display:none}
+ #toasts{bottom:calc(96px + env(safe-area-inset-bottom))}}
 </style></head><body>
+<a class="skip" href="#code" onclick="mview('code')">跳到程式碼編輯器</a>
 <!-- 內嵌 SVG 圖示(離線,無外部 CDN) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
  <symbol id="i-logo" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3M9 9h6v6H9z"/></symbol>
@@ -327,12 +341,13 @@ ol.tl li.sel .tlbody{box-shadow:0 0 0 2px var(--ac)}
 </div>
 <div id="app">
 <nav id="nav" aria-label="功能頁籤">
- <button data-t="gen" class="on" title="Alt+1"><svg class="ico"><use href="#i-gen"/></svg>產生</button>
- <button data-t="sim" title="Alt+2"><svg class="ico"><use href="#i-sim"/></svg>模擬</button>
- <button data-t="test" title="Alt+3"><svg class="ico"><use href="#i-test"/></svg>測試</button>
- <button data-t="exp" title="Alt+4"><svg class="ico"><use href="#i-exp"/></svg>匯出</button>
- <button data-t="rag" title="Alt+5"><svg class="ico"><use href="#i-rag"/></svg>文件</button>
- <button data-t="set" title="Alt+6"><svg class="ico"><use href="#i-set"/></svg>設定</button>
+ <button data-t="code" class="mcode" title="程式碼"><svg class="ico"><use href="#i-code"/></svg>程式碼</button>
+ <button data-t="gen" class="on" title="Alt+1" aria-keyshortcuts="Alt+1"><svg class="ico"><use href="#i-gen"/></svg>產生</button>
+ <button data-t="sim" title="Alt+2" aria-keyshortcuts="Alt+2"><svg class="ico"><use href="#i-sim"/></svg>模擬</button>
+ <button data-t="test" title="Alt+3" aria-keyshortcuts="Alt+3"><svg class="ico"><use href="#i-test"/></svg>測試</button>
+ <button data-t="exp" title="Alt+4" aria-keyshortcuts="Alt+4"><svg class="ico"><use href="#i-exp"/></svg>匯出</button>
+ <button data-t="rag" title="Alt+5" aria-keyshortcuts="Alt+5"><svg class="ico"><use href="#i-rag"/></svg>文件</button>
+ <button data-t="set" title="Alt+6" aria-keyshortcuts="Alt+6"><svg class="ico"><use href="#i-set"/></svg>設定</button>
 </nav>
 <section id="codepane"><h2><svg class="ico"><use href="#i-code"/></svg>ST 程式碼</h2>
  <div class="ed" id="editor"><div id="gutter" aria-hidden="true"></div><div class="edwrap"><div id="hl" aria-hidden="true"></div><textarea id="code" spellcheck="false" wrap="off" autocapitalize="off" autocomplete="off" aria-label="ST 程式碼" aria-describedby="edhelp">PROGRAM Motor
@@ -347,6 +362,7 @@ END_PROGRAM</textarea></div></div>
  <div class="codebar"><input type="file" id="codefile" accept=".st,.txt" aria-label="載入 .st 檔"> <button onclick="chk()"><svg class="ico"><use href="#i-check"/></svg>靜態檢查</button><button class="s" onclick="dl()"><svg class="ico"><use href="#i-dl"/></svg>下載 .st</button><span id="curpos" title="游標位置">行 1,欄 1</span></div>
  <div id="edhelp" class="hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> 執行模擬 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> 檢查 · <kbd>Ctrl</kbd>+<kbd>/</kbd> 註解 · <kbd>Tab</kbd> 縮排(<kbd>Esc</kbd> 後 Tab 離開)· 點問題可跳到該行</div>
 </section>
+<div id="split" role="separator" aria-orientation="vertical" aria-controls="codepane" aria-label="調整程式碼與頁籤寬度" tabindex="0" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50" title="拖曳調整寬度(←/→ 鍵亦可),雙擊還原"></div>
 <div id="tabpane">
 <div class="tab on" id="tab_gen">
  <div class="card"><h2><svg class="ico"><use href="#i-rag"/></svg>需求輸入</h2>
@@ -448,16 +464,48 @@ END_PROGRAM</textarea></div></div>
   <div><label for="base">Base URL(可選)</label><input id="base"></div></div>
   <label for="rounds">自動修正輪數</label><input id="rounds" type="number" value="3" min="0" max="10">
  </div>
+ <div class="card"><h2><svg class="ico"><use href="#i-set"/></svg>介面記憶</h2>
+  <p class="hint">會記住 provider/model/base URL、修正輪數、廠牌 profile、模擬參數、最後的頁籤、分欄寬度與程式碼草稿(只存在這台瀏覽器)。<b>API Key 一律不儲存。</b></p>
+  <div class="row"><label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" id="keepcode" checked style="width:auto">記住程式碼草稿</label>
+  <button class="s" type="button" onclick="clearMem()" style="flex:0 0 auto"><svg class="ico"><use href="#i-trash"/></svg>清除記憶</button></div>
+ </div>
 </div>
 </div></div>
-<div id="drawer"><div onclick="openDrawer()"><b>問題 / 輸出</b><span id="drawerinfo" class="wn"></span><svg class="ico" style="margin-left:auto"><use href="#i-chev"/></svg></div><pre id="chkout" hidden></pre></div>
+<div id="drawer"><div role="button" tabindex="0" aria-controls="chkout" aria-expanded="false" onclick="openDrawer()" onkeydown="if(event.key=='Enter'||event.key==' '){event.preventDefault();openDrawer()}"><b>問題 / 輸出</b><span id="drawerinfo" class="wn"></span><svg class="ico" style="margin-left:auto"><use href="#i-chev"/></svg></div><pre id="chkout" hidden></pre></div>
 <div id="toasts" aria-live="polite"></div>
 <script>
 const $=id=>document.getElementById(id);
-function tab(t){if(t=='exp'&&typeof expRefresh=='function')expRefresh();if(t=='test'&&typeof scnVars=='function')scnVars();document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id=='tab_'+t));document.querySelectorAll('#nav button').forEach(e=>{const on=e.dataset.t==t;e.classList.toggle('on',on);e.setAttribute('aria-current',on?'page':'false')})}
+function tab(t){if(t=='code'){mview('code');return}mview('tab');mem.set('tab',t);if(t=='exp'&&typeof expRefresh=='function')expRefresh();if(t=='test'&&typeof scnVars=='function')scnVars();document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id=='tab_'+t));document.querySelectorAll('#nav button').forEach(e=>{const on=e.dataset.t==t;e.classList.toggle('on',on);e.setAttribute('aria-current',on?'page':'false')})}
 document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 document.addEventListener('keydown',e=>{if(e.altKey&&/^[1-6]$/.test(e.key)){tab(['gen','sim','test','exp','rag','set'][e.key-1]);e.preventDefault()}});
-function openDrawer(v){const p=$('chkout');p.hidden=v===true?false:!p.hidden}
+function openDrawer(v){const p=$('chkout');p.hidden=v===true?false:!p.hidden;$('drawer').firstElementChild.setAttribute('aria-expanded',!p.hidden)}
+// ---- UI7:手機上程式碼/頁籤切換 ----
+const isMobile=()=>matchMedia('(max-width:820px)').matches;
+function mview(v){document.body.classList.toggle('mv-code',v=='code');document.querySelectorAll('#nav .mcode').forEach(b=>{b.classList.toggle('on',v=='code');b.setAttribute('aria-current',v=='code'?'page':'false')})
+ if(v=='code')document.querySelectorAll('#nav button:not(.mcode)').forEach(b=>{if(isMobile()){b.classList.remove('on');b.setAttribute('aria-current','false')}});
+ else{const cur=document.querySelector('.tab.on');if(cur)document.querySelectorAll('#nav button:not(.mcode)').forEach(b=>{const on='tab_'+b.dataset.t==cur.id;b.classList.toggle('on',on);b.setAttribute('aria-current',on?'page':'false')})}}
+matchMedia('(max-width:820px)').addEventListener('change',e=>{if(!e.matches)mview('tab')});
+// ---- UI7:設定記憶(localStorage,前綴 plcst.;API Key 永不儲存) ----
+const MEM_IDS=['prov','model','base','rounds','userag','usescn','embsel','scan','cycles','keepcode'],MEM_NEVER=['key','embkey'];
+const mem={get(k,d){try{const v=localStorage.getItem('plcst.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('plcst.'+k,JSON.stringify(v))}catch(e){}}};
+function memSave(){const o={};for(const id of MEM_IDS){const e=$(id);if(e)o[id]=e.type=='checkbox'?e.checked:e.value}o.profile=$('profile').value||mem.get('settings',{}).profile;mem.set('settings',o)}
+function memLoad(){const o=mem.get('settings',{});for(const id of MEM_IDS){const e=$(id);if(!e||!(id in o)||MEM_NEVER.includes(id))continue;
+ if(e.type=='checkbox')e.checked=!!o[id];else if(e.tagName=='SELECT'){if([...e.options].some(x=>x.value==o[id]))e.value=o[id]}else e.value=o[id]}}
+function memCode(){if($('keepcode').checked)mem.set('code',$('code').value);else try{localStorage.removeItem('plcst.code')}catch(e){}}
+function clearMem(){try{Object.keys(localStorage).filter(k=>k.startsWith('plcst.')&&k!='plcst.theme').forEach(k=>localStorage.removeItem(k))}catch(e){}setSplit(50,false);toast('已清除介面記憶(主題偏好保留)','ok')}
+document.addEventListener('change',e=>{if(MEM_IDS.includes(e.target.id)||e.target.id=='profile')memSave();if(e.target.id=='keepcode')memCode()});
+document.addEventListener('input',e=>{if(MEM_IDS.includes(e.target.id))memSave()});
+// ---- UI7:可拖曳分欄(滑鼠/觸控/鍵盤),25%–75%,雙擊或 Enter 還原 ----
+function setSplit(p,save){p=Math.round(Math.max(25,Math.min(75,p)));const a=$('app'),s=$('split');a.style.setProperty('--lw',p+'fr');a.style.setProperty('--rw',(100-p)+'fr');
+ s.setAttribute('aria-valuenow',p);s.setAttribute('aria-valuetext','程式碼 '+p+'%');if(save!==false)mem.set('split',p);if(typeof lastWave!='undefined'&&lastWave)requestAnimationFrame(()=>draw(lastWave))}
+(()=>{const s=$('split');let drag=null;
+ s.addEventListener('pointerdown',e=>{if(e.button)return;e.preventDefault();s.focus();s.setPointerCapture(e.pointerId);s.classList.add('drag');
+  const r=$('codepane').getBoundingClientRect();drag={x0:r.left,w:r.width+$('tabpane').getBoundingClientRect().width}});
+ s.addEventListener('pointermove',e=>{if(drag)setSplit((e.clientX-drag.x0-3)/drag.w*100,false)});
+ const end=()=>{if(!drag)return;drag=null;s.classList.remove('drag');mem.set('split',+s.getAttribute('aria-valuenow'))};
+ s.addEventListener('pointerup',end);s.addEventListener('pointercancel',end);
+ s.addEventListener('dblclick',()=>setSplit(50));
+ s.addEventListener('keydown',e=>{const v=+s.getAttribute('aria-valuenow'),d=e.shiftKey?10:2,m={ArrowLeft:v-d,ArrowRight:v+d,Home:25,End:75,Enter:50}[e.key];if(m!=null){e.preventDefault();setSplit(m)}})})();
 function pill(id,txt,cls){const e=$(id);e.textContent=txt;e.className='pill '+(cls||'')}
 function llmPill(){pill('st_llm','LLM:'+$('prov').value+($('model').value?'·'+$('model').value:''))}
 $('prov').onchange=$('model').oninput=llmPill;
@@ -485,7 +533,7 @@ function show(id,html,cls){const e=$(id);e.hidden=false;e.className=cls||'';e.in
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if(f){$(target).value=await f.text();if(target!='code')$(target).dispatchEvent(new Event('input'));toast('已載入 '+f.name,'info')}}}
 fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');
-api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('');liveCheck()});
+api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('');const pf=mem.get('settings',{}).profile;if(pf&&ps.some(p=>p.name==pf))$('profile').value=pf;liveCheck()});
 $('profile').addEventListener('change',liveCheck);
 const issuesHtml=l=>l.length?l.map(i=>{const c=i.severity=='error'?'er':'wn';
  return i.line?`<button type="button" class="iss ${c}" data-line="${i.line}" title="跳到第 ${i.line} 行">${i.severity} <b>line ${i.line}</b>: ${esc(i.msg)}</button>`
@@ -516,10 +564,9 @@ function edCaret(){const n=edLine(),ta=ed.ta,col=ta.selectionStart-ta.value.last
  $('curpos').textContent=`行 ${n},欄 ${col}`;if(n!=ed.cur){ed.cur=n;edRender()}}
 function setMarks(l){ed.marks.clear();for(const i of l){if(!i.line)continue;const sev=i.severity=='error'?'er':'wn',o=ed.marks.get(i.line);
  if(!o)ed.marks.set(i.line,{sev,msg:i.msg});else{if(sev=='er')o.sev='er';o.msg+='\n'+i.msg}}edRender()}
-function jumpTo(n){const ta=ed.ta,lines=ta.value.split('\n');n=Math.max(1,Math.min(n,lines.length));
+function jumpTo(n){if(isMobile())mview('code');const ta=ed.ta,lines=ta.value.split('\n');n=Math.max(1,Math.min(n,lines.length));
  let st=0;for(let k=0;k<n-1;k++)st+=lines[k].length+1;ta.focus({preventScroll:true});ta.setSelectionRange(st,st+lines[n-1].length);
  const lh=parseFloat(getComputedStyle($('editor')).lineHeight)||20;ta.scrollTop=Math.max(0,(n-1)*lh-ta.clientHeight/3);
- if(matchMedia('(max-width:820px)').matches)$('codepane').scrollIntoView({block:'start'});
  ed.cur=n;ed.flash=n;edRender();edCaret();clearTimeout(ed.ft);ed.ft=setTimeout(()=>{ed.flash=0;edRender()},1300)}
 // 程式化設定 .value(產生/匯入/載入檔案)時也要重繪並清除舊標記
 (()=>{const d=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value');
@@ -807,4 +854,9 @@ async function expPreview(f){try{const j=await api('/api/export',{code:$('code')
 ['input','codeset'].forEach(t=>ed.ta.addEventListener(t,()=>{if($('tab_exp').classList.contains('on')){clearTimeout(xp.timer);xp.timer=setTimeout(expRefresh,700)}}));
 setTheme(document.documentElement.dataset.theme||'auto');
 edRender();edCaret();
+// ---- UI7:還原記憶(設定、分欄、程式碼草稿、最後頁籤) ----
+memLoad();llmPill();setSplit(mem.get('split',50),false);
+{const c=mem.get('code',null);if($('keepcode').checked&&typeof c=='string'&&c.trim())$('code').value=c}
+{let mt;['input','codeset'].forEach(t=>ed.ta.addEventListener(t,()=>{clearTimeout(mt);mt=setTimeout(memCode,400)}))}
+{const t=mem.get('tab',null);if(['gen','sim','test','exp','rag','set'].includes(t))tab(t);else mview('tab')}
 </script></body></html>
