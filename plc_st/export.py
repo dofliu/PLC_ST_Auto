@@ -72,6 +72,38 @@ def split_program(src):
     return name, blocks, src[i0:last].strip(), src[last:i1].strip()
 
 
+_POU = re.compile(r"\b(FUNCTION_BLOCK|FUNCTION|PROGRAM)\s+(\w+)(.*?)\bEND_\1\b", re.S | re.I)
+_KIND = {"FUNCTION": "function", "FUNCTION_BLOCK": "fb", "PROGRAM": "program"}
+
+
+def split_pous(src):
+    """依原始順序切出所有 POU:[{kind: function|fb|program, name, rtype, blocks, decl, body}]。
+    blocks = [(VAR 區段, [(name, type, init)])];decl / body 為原文(保留註解)。"""
+    nocom, masked = _views(src)
+    out = []
+    for m in _POU.finditer(masked):
+        kind, (i0, i1) = _KIND[m.group(1).upper()], m.span(3)
+        rtype = None
+        if kind == "function":
+            r = re.match(r"\s*:\s*(\w+)", masked[i0:i1])
+            if not r:
+                raise STError(f"export: FUNCTION {m.group(2)} 缺少回傳型別")
+            rtype, i0 = r.group(1), i0 + r.end()
+        blocks, last = [], i0
+        for b in _BLOCK.finditer(masked, i0, i1):
+            decls = []
+            for names, typ, init in _decls(nocom, masked, *b.span(2)):
+                decls += [(n, typ, init) for n in names]
+            blocks.append((b.group(1).upper(), decls))
+            last = b.end()
+        out.append({"kind": kind, "name": m.group(2), "rtype": rtype, "blocks": blocks,
+                    "decl": src[i0:last].strip(), "body": src[last:i1].strip()})
+    if sum(p["kind"] == "program" for p in out) != 1:
+        raise STError("export: 找不到 PROGRAM ... END_PROGRAM" if not any(p["kind"] == "program" for p in out)
+                      else "export: 僅支援單一 PROGRAM")
+    return out
+
+
 def _const_int(text, where):
     """陣列邊界:完整解析並計算整數常數運算式(+ - * / MOD、括號、負號)。
     無法完整解析或含變數/實數時明確報錯,不做部分比對。"""
@@ -191,8 +223,13 @@ def _datatypes(src):
     return out
 
 
+_POUTYPE = {"function": "function", "fb": "functionBlock", "program": "program"}
+
+
 def to_plcopen(src, project="PLC_ST_Auto"):
-    name, blocks, _, body = split_program(src)
+    """PROGRAM + 自訂 FUNCTION / FUNCTION_BLOCK → TC6 <pou>(function 帶 returnType);只有 PROGRAM 掛到 task。"""
+    pous = split_pous(src)
+    name = next(p["name"] for p in pous if p["kind"] == "program")
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     o = ['<?xml version="1.0" encoding="utf-8"?>',
          '<project xmlns="http://www.plcopen.org/xml/tc6_0201">',
@@ -200,20 +237,24 @@ def to_plcopen(src, project="PLC_ST_Auto"):
          f'  <contentHeader name={quoteattr(project)}><coordinateInfo>'
          '<fbd><scaling x="1" y="1"/></fbd><ld><scaling x="1" y="1"/></ld><sfc><scaling x="1" y="1"/></sfc>'
          '</coordinateInfo></contentHeader>',
-         '  <types><dataTypes>' + "".join(_datatypes(src)) + '</dataTypes><pous>',
-         f'    <pou name={quoteattr(name)} pouType="program"><interface>']
-    for kind, decls in blocks:
-        if not decls:
-            continue
-        o.append(f"      <{_SECTION[kind]}>")
-        for n, t, init in decls:
-            typ = _tc6_vartype(t, n)
-            iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init else ""
-            o.append(f"        <variable name={quoteattr(n)}><type>{typ}</type>{iv}</variable>")
-        o.append(f"      </{_SECTION[kind]}>")
-    o += ["    </interface><body><ST>",
-          f'      <xhtml xmlns="http://www.w3.org/1999/xhtml">{escape(body)}</xhtml>',
-          "    </ST></body></pou>", "  </pous></types>",
+         '  <types><dataTypes>' + "".join(_datatypes(src)) + '</dataTypes><pous>']
+    for p in pous:
+        o.append(f'    <pou name={quoteattr(p["name"])} pouType="{_POUTYPE[p["kind"]]}"><interface>')
+        if p["rtype"]:
+            o.append(f'      <returnType>{_tc6_type(p["rtype"])}</returnType>')
+        for kind, decls in p["blocks"]:
+            if not decls:
+                continue
+            o.append(f"      <{_SECTION[kind]}>")
+            for n, t, init in decls:
+                typ = _tc6_vartype(t, n)
+                iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init else ""
+                o.append(f"        <variable name={quoteattr(n)}><type>{typ}</type>{iv}</variable>")
+            o.append(f"      </{_SECTION[kind]}>")
+        o += ["    </interface><body><ST>",
+              f'      <xhtml xmlns="http://www.w3.org/1999/xhtml">{escape(p["body"])}</xhtml>',
+              "    </ST></body></pou>"]
+    o += ["  </pous></types>",
           '  <instances><configurations><configuration name="Config"><resource name="Res">'
           f'<task name="MainTask" interval="T#10ms" priority="1"><pouInstance name="{name}_inst" typeName={quoteattr(name)}/></task>'
           "</resource></configuration></configurations></instances>",
@@ -260,15 +301,85 @@ def _scl_types(src):
     return names, "\n".join(out)
 
 
+_SCL_ZERO = {"BOOL": "FALSE", "REAL": "0.0", "LREAL": "0.0", "TIME": "T#0s", "STRING": "''"}
+
+
+def _scl_calls(text, funcs):
+    """自訂 FUNCTION 呼叫改寫為 TIA 語法:名稱加雙引號、位置引數補成具名(`F(a, 1)` → `"F"(x := a, y := 1)`)。
+    funcs = {小寫名稱: (名稱, [參數名…])};字串與註解內不改寫(引數內的註解會被移除)。"""
+    if not funcs:
+        return text
+    nocom, masked = _views(text)
+    out, pos = [], 0
+    for m in re.finditer(r"(?<![\w.\"])(\w+)\s*\(", masked):
+        f = funcs.get(m.group(1).lower())
+        if m.start() < pos or not f:
+            continue
+        depth, j = 1, m.end()
+        while j < len(masked) and depth:
+            depth += (masked[j] == "(") - (masked[j] == ")")
+            j += 1
+        if depth:
+            raise STError(f"export scl: {f[0]}( 呼叫括號不成對")
+        args = _split_top(nocom[m.end():j - 1])
+        if len(args) > len(f[1]):
+            raise STError(f"export scl: {f[0]} 呼叫引數 {len(args)} 個,超過參數 {len(f[1])} 個")
+        named = []
+        for k, a in enumerate(args):
+            a = _scl_calls(a, funcs)
+            top = re.sub(r"\([^()]*\)", "", _views(a)[1])
+            while re.search(r"\([^()]*\)", top):
+                top = re.sub(r"\([^()]*\)", "", top)
+            named.append(a if ":=" in top or "=>" in top else f"{f[1][k]} := {a}")
+        out.append(text[pos:m.start()] + f'"{f[0]}"(' + ", ".join(named) + ")")
+        pos = j
+    return "".join(out) + text[pos:]
+
+
+def _scl_function(p, names, funcs):
+    """FUNCTION → TIA FC:區域 VAR 改為 VAR_TEMP(FC 無靜態區),並在本體開頭補上初值指派,
+    使行為與 IEC(每次呼叫重新初始化)及虛擬 PLC 一致。"""
+    decl, pre = [], []
+    for kind, decls in p["blocks"]:
+        if not decls:
+            continue
+        local = kind == "VAR"
+        decl.append("   " + ("VAR_TEMP" if local else kind))
+        for n, t, init in decls:
+            if local:
+                if _array_type(t, f'{p["name"]}.{n}') or t.upper() not in _BASE:
+                    if init:
+                        raise STError(f'export scl: FUNCTION {p["name"]} 的區域變數 {n} 為陣列/結構且有初始值,'
+                                      "TIA FC 的 Temp 無法帶初值,請改在本體內指派")
+                    pre.append(f"   // 注意:{n} 為 Temp,TIA 不會自動清零,使用前請先指派")
+                else:
+                    pre.append(f"   {n} := {init or _SCL_ZERO.get(t.upper(), '0')};")
+                init = None
+            decl.append(f"      {n} : {t}" + (f" := {init}" if init else "") + ";")
+        decl.append("   END_VAR")
+    body = "\n".join(pre + [_scl_calls(p["body"], funcs)])
+    return (f'FUNCTION "{p["name"]}" : {_scl_quote(": " + p["rtype"], names)[2:]}\n'
+            f"{{ S7_Optimized_Access := 'TRUE' }}\nVERSION : 0.1\n"
+            f'{_scl_quote(chr(10).join(decl), names)}\nBEGIN\n{body}\nEND_FUNCTION\n')
+
+
 def to_scl(src):
-    """Siemens TIA:PROGRAM → ORGANIZATION_BLOCK(SCL 外部來源檔 .scl);TYPE STRUCT → UDT(置於 OB 之前)。"""
-    name, _, decl, body = split_program(src)
+    """Siemens TIA(SCL 外部來源檔 .scl):TYPE STRUCT → UDT、FUNCTION → FC、FUNCTION_BLOCK → FB、
+    PROGRAM → ORGANIZATION_BLOCK;依原始順序輸出(被呼叫者在前)。"""
+    pous = split_pous(src)
     names, types = _scl_types(src)
-    decl = _scl_quote(decl, names)
-    if types:
-        types += "\n"
-    return (f'{types}ORGANIZATION_BLOCK "{name}"\n{{ S7_Optimized_Access := \'TRUE\' }}\nVERSION : 0.1\n'
-            f"{decl}\nBEGIN\n{body}\nEND_ORGANIZATION_BLOCK\n")
+    names = names + [p["name"] for p in pous if p["kind"] == "fb"]
+    funcs = {p["name"].lower(): (p["name"], [n for k, d in p["blocks"] if k in ("VAR_INPUT", "VAR_IN_OUT") for n, _, _ in d])
+             for p in pous if p["kind"] == "function"}
+    out = [types] if types else []
+    for p in pous:
+        if p["kind"] == "function":
+            out.append(_scl_function(p, names, funcs))
+            continue
+        block = "FUNCTION_BLOCK" if p["kind"] == "fb" else "ORGANIZATION_BLOCK"
+        out.append(f'{block} "{p["name"]}"\n{{ S7_Optimized_Access := \'TRUE\' }}\nVERSION : 0.1\n'
+                   f'{_scl_quote(p["decl"], names)}\nBEGIN\n{_scl_calls(p["body"], funcs)}\nEND_{block}\n')
+    return "\n".join(out)
 
 
 _L5X_TYPE = {"TON": "TIMER", "TOF": "TIMER", "TP": "TIMER", "CTU": "COUNTER", "CTD": "COUNTER",
@@ -413,9 +524,12 @@ _FUNCPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
 
 
 def export(src, fmt):
-    pat = _FUNCPOU if fmt in ("plcopen", "scl", "l5x") else _USERPOU
-    if fmt in FORMATS and fmt != "st" and pat.search(_views(src)[1]):
+    masked = _views(src)[1]
+    if fmt in ("gxworks", "sysmac") and _USERPOU.search(masked):
         raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK/TYPE(STRUCT),此格式尚未支援(僅 st 格式可完整匯出)")
+    if fmt == "l5x" and _FUNCPOU.search(masked):
+        raise STError("export l5x: 含自訂 FUNCTION/FUNCTION_BLOCK;Logix 須以 Add-On Instruction 實作,尚未支援"
+                      "(可改用 plcopen / scl / st 匯出)")
     try:
         return FORMATS[fmt][1](src)
     except KeyError:

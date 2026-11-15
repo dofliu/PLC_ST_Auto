@@ -346,6 +346,37 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   ok('51 程式改變後卡片自動更新:GX Works3 不支援 STRUCT 並說明原因、下載停用', (await pg.innerText('.xcard[data-fmt=gxworks] .why')).includes('STRUCT') && await pg.isDisabled('.xcard[data-fmt=gxworks] .xdl') && await pg.evaluate(() => document.querySelector('.xcard[data-fmt=l5x]').classList.contains('ok')));
   await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'export_unsupported.png' });
   await pg.evaluate(() => setTheme('dark')); await pg.waitForTimeout(150); await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'dark_export.png' });
+  // ===== M33 自訂 FUNCTION / FUNCTION_BLOCK 匯出 =====
+  {
+    const SSM = path.resolve(process.env.M33_SHOTS || S) + '/'; fs.mkdirSync(SSM, { recursive: true });
+    const clr = () => pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; });
+    await pg.evaluate(() => setTheme('light'));
+    await pg.fill('#code', fs.readFileSync(R + 'examples/userpou_export.st', 'utf8'));
+    await pg.waitForFunction("document.querySelector('.xcard[data-fmt=l5x]') && document.querySelector('.xcard[data-fmt=l5x]').classList.contains('no')", null, { timeout: 4000 });
+    const st = await pg.evaluate(() => Object.fromEntries([...document.querySelectorAll('.xcard')].map(c => [c.dataset.fmt, c.className.split(' ')[1]])));
+    ok('84 自訂 POU:PLCopen / SCL / ST 可匯出,L5X / GX Works3 / Sysmac 標示不支援', st.plcopen === 'ok' && st.scl === 'ok' && st.st === 'ok' && st.l5x === 'no' && st.gxworks === 'no' && st.sysmac === 'no', JSON.stringify(st));
+    ok('85 L5X 卡片說明原因(Add-On Instruction)且下載停用', (await pg.innerText('.xcard[data-fmt=l5x] .why')).includes('Add-On Instruction') && await pg.isDisabled('.xcard[data-fmt=l5x] .xdl'));
+    await pg.click('.xcard[data-fmt=scl] button:has-text("預覽")');
+    await pg.waitForFunction("document.getElementById('exppv').textContent.includes('FUNCTION_BLOCK \"Latch\"')", null, { timeout: 4000 }).catch(() => {});
+    const pv = await pg.innerText('#exppv');
+    ok('86 SCL 預覽:FC / FB / OB、位置引數改具名、Temp 初值移入本體', pv.includes('FUNCTION "Scale" : REAL') && pv.includes('FUNCTION_BLOCK "Latch"') && pv.includes('ORGANIZATION_BLOCK "Main"') && pv.includes('"Scale"(raw := level_raw, hi := 200.0)') && pv.includes('VAR_TEMP') && pv.includes('k := 100.0;'));
+    await clr(); await pg.screenshot({ path: SSM + 'export_cards_userpou.png' });
+    await pg.locator('#exppv').screenshot({ path: SSM + 'scl_preview.png' }).catch(() => {});
+    const [d1] = await Promise.all([pg.waitForEvent('download'), pg.click('.xcard[data-fmt=plcopen] .xdl')]);
+    const x1 = fs.readFileSync(await d1.path(), 'utf8');
+    ok('87 下載 PLCopen XML:4 個 pou(function×2、functionBlock、program)與 returnType', (x1.match(/<pou /g) || []).length === 4 && (x1.match(/pouType="function"/g) || []).length === 2 && x1.includes('pouType="functionBlock"') && x1.includes('<returnType><REAL/></returnType>'), d1.suggestedFilename() + ' ' + x1.length + ' chars');
+    const [d2] = await Promise.all([pg.waitForEvent('download'), pg.click('.xcard[data-fmt=scl] .xdl')]);
+    const x2 = fs.readFileSync(await d2.path(), 'utf8');
+    ok('88 下載 SCL 與預覽一致', d2.suggestedFilename().endsWith('.scl') && x2.includes('END_FUNCTION_BLOCK') && x2.includes('l1 : "Latch";'), d2.suggestedFilename());
+    await pg.click('.xcard[data-fmt=plcopen] button:has-text("預覽")');
+    await pg.waitForFunction("document.getElementById('exppv').textContent.includes('functionBlock')", null, { timeout: 4000 }).catch(() => {});
+    ok('89 PLCopen 預覽含 functionBlock', (await pg.innerText('#exppv')).includes('pouType="functionBlock"'));
+    await clr(); await pg.screenshot({ path: SSM + 'plcopen_preview.png' });
+    // 同一份程式在虛擬 PLC 上可執行(匯出前先驗證)
+    await T('sim'); await pg.click('text=靜態檢查').catch(() => {});
+    await pg.evaluate(() => setTheme('dark')); await pg.waitForTimeout(150);
+    await T('exp'); await pg.waitForSelector('.xcard[data-fmt=scl].ok'); await clr(); await pg.screenshot({ path: SSM + 'dark_export_userpou.png' });
+  }
   await pg.fill('#code', motor); await T('test'); await pg.click('#scnmode_j');
   await pg.fill('#scn', '{"scan_ms": 100, "steps": [\n {"name": "start", "set": {"start": true}, "ms": 600, "expect": {"motor": true, "t.Q": true}},\n {"name": "stop", "set": {"start": false, "stop": true}, "cycles": 1, "expect": {"motor": false}}\n]}');
   await pg.click('#scnmode_t'); await pg.click('#tstbtn'); await pg.waitForSelector('#scnbody tr.pass');

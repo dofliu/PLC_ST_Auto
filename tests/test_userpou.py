@@ -103,5 +103,7 @@ class ExportGuard(unittest.TestCase):
     def test_export(self):
         from plc_st.export import export
         self.assertIn("FUNCTION Scale", export(SRC, "st"))
-        with self.assertRaises(STError):
-            export(SRC, "plcopen")
+        self.assertIn('pouType="functionBlock"', export(SRC, "plcopen"))  # M33:plcopen / scl 已支援
+        for fmt in ("l5x", "gxworks", "sysmac"):
+            with self.assertRaises(STError):
+                export(SRC, fmt)

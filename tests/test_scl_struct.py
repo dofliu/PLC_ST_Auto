@@ -33,9 +33,9 @@ class SclStruct(unittest.TestCase):
         out = export("PROGRAM P VAR x : INT; END_VAR x := 1; END_PROGRAM", "scl")
         self.assertTrue(out.startswith("ORGANIZATION_BLOCK"))
 
-    def test_function_pou_still_rejected(self):
-        with self.assertRaises(STError):
-            export("FUNCTION F : INT END_FUNCTION PROGRAM P END_PROGRAM", "scl")
+    def test_function_pou_exported(self):  # M33
+        out = export("FUNCTION F : INT END_FUNCTION PROGRAM P END_PROGRAM", "scl")
+        self.assertIn('FUNCTION "F" : INT', out)
 
 
 if __name__ == "__main__":
