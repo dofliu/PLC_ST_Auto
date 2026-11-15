@@ -44,9 +44,9 @@ class StructExport(unittest.TestCase):
             with self.assertRaises(STError):
                 export(SRC, fmt)
 
-    def test_user_function_still_rejected_for_plcopen(self):
-        with self.assertRaises(STError):
-            export("FUNCTION F : INT END_FUNCTION\nPROGRAM P\nEND_PROGRAM", "plcopen")
+    def test_user_function_exported_for_plcopen(self):  # M33
+        out = export("FUNCTION F : INT END_FUNCTION\nPROGRAM P\nEND_PROGRAM", "plcopen")
+        self.assertIn('pouType="function"', out)
 
     def test_schema_valid(self):
         try:

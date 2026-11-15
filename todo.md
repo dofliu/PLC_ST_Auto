@@ -6,8 +6,14 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31、M32、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M33、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M33 ✅ 自訂 FUNCTION / FUNCTION_BLOCK 匯出 PLCopen XML 與 Siemens SCL(`docs/test_report_M33.md`)
+- [x] `split_pous()`:依序切出 FUNCTION / FUNCTION_BLOCK / PROGRAM(註解、字串內關鍵字不誤判)
+- [x] PLCopen:`pouType=function|functionBlock|program`、`returnType`,TC6 XSD 驗證通過
+- [x] SCL:FC / FB / OB、呼叫加引號 + 位置引數改具名、FC 區域變數改 VAR_TEMP 並補初值
+- [x] L5X 明確說明需 AOI;單元 21 項、E2E 6 項、截圖 `docs/screenshots/m33/`
+- [ ] **待實機**:TIA Portal 匯入 .scl 確認(FC 內未加 `#` 的區域變數、OB 的 VAR_INPUT 區段)
 ## M31 ✅ 檢查器補合法 IEC 語法 + 評測保存每輪程式碼(`docs/test_report_M31.md`)
 - [x] lexer:型別前綴常數 `INT#5` `REAL#1.5` `BOOL#1`、進位常數 `16#FF` `8#17` `2#1010`、底線分隔 `1_000`
 - [x] 標準轉換函式:`*_TO_TIME`、`TIME_TO_*`、其餘缺少的 `*_TO_*`(依 profile 型別)
@@ -133,4 +139,6 @@
 - [ ] 匯出時展開 VAR CONSTANT 陣列邊界
 - [ ] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位
 - [ ] GX Works3 / Sysmac STRUCT 匯出
-- [ ] 自訂 POU 的 PLCopen/SCL 匯出
+- [x] 自訂 POU 的 PLCopen/SCL 匯出(M33)
+- [ ] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction
+- [ ] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(目前修飾詞會被併入變數名稱)

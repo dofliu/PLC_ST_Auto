@@ -33,3 +33,4 @@
 - M30 ✅ LLM 評測工具(`eval`)、Logix 方言對應、計時器邊緣時序修正
 - M31 ✅ 檢查器補合法 IEC 語法(型別前綴/進位常數、TIME 轉換、陣列重複初值)+ 評測保存每輪程式碼
 - M32 ✅ EXIT 位置、字串 $ 跳脫、REAL→INT 捨入
+- M33 ✅ 自訂 FUNCTION / FUNCTION_BLOCK 匯出 PLCopen XML(TC6 XSD 驗證)與 Siemens SCL(FC/FB/OB)
