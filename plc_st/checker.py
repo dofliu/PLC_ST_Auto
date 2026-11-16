@@ -88,6 +88,7 @@ def check(src, profile="iec"):
         def __init__(self, d):
             self.inputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] in ("input", "inout")}
             self.outputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] == "output"}
+            self.inouts = {x["name"].upper() for x in d["decls"] if x["section"] == "inout"}
 
     def fb_of(t):
         if t in FB_TYPES:
@@ -233,11 +234,16 @@ def check(src, profile="iec"):
             uf = ufn.get(e[1].lower())
             if uf:
                 ins = [x["name"].lower() for x in uf["decls"] if x["section"] in ("input", "inout")]
+                io = {x["name"].lower() for x in uf["decls"] if x["section"] == "inout"}
                 pos = 0
                 for nm, op, v in e[2]:
                     ty(v, ln)
                     if op == "=>":
+                        const_guard(v, ln)  # 輸出會寫回引數
                         continue
+                    key = nm.lower() if nm else (ins[pos] if pos < len(ins) else None)
+                    if key in io:
+                        const_guard(v, ln)  # VAR_IN_OUT 會寫回引數
                     if nm is None:
                         pos += 1
                     elif nm.lower() not in ins:
@@ -415,7 +421,7 @@ def check(src, profile="iec"):
         outs = {k.upper() for k in fb.outputs_t}
         for name, op, v in s[2]:
             ty(v, ln)
-            if op == "=>":
+            if op == "=>" or (name and name.upper() in getattr(fb, "inouts", ())):
                 const_guard(v, ln)
             if name and name.upper() not in (outs if op == "=>" else ins):
                 err(ln, f"{d['type']} has no {'output' if op == '=>' else 'input'} {name}")
