@@ -13,6 +13,7 @@
 - [x] 檢查器:寫入 CONSTANT、位址大小不符、位址重疊(依廠牌定址);方言:Siemens/Rockwell/Mitsubishi/Omron 位址與 VAR_TEMP 提示
 - [x] 匯出:修飾詞不再併入變數名稱;PLCopen 屬性/address、SCL PLC 變數表、L5X Constant+初值、GX/Sysmac 欄位;常數陣列邊界展開
 - [x] 點位表 `address` 欄與 CONST/RETAIN、情境 `restart`、UI 標籤與「斷電重啟」;單元 45 項、UI 18 項、截圖 `docs/screenshots/m34/`
+- [x] M34b 審查修正:FB 內 RETAIN 暖重啟、SCL 不改字串、VAR_TEMP 陣列(當機修正 + 匯出逐元素指派)、L5X 初值範圍、常數回寫檢查(`tests/test_m34_review.py` 18 項)
 - [ ] **待實機**:TIA OB 內 VAR CONSTANT/RETAIN、Studio 5000 `<Data>` 初值匯入
 ## M33 ✅ 自訂 FUNCTION / FUNCTION_BLOCK 匯出 PLCopen XML 與 Siemens SCL(`docs/test_report_M33.md`)
 - [x] `split_pous()`:依序切出 FUNCTION / FUNCTION_BLOCK / PROGRAM(註解、字串內關鍵字不誤判)
@@ -148,6 +149,7 @@
 - [x] 自訂 POU 的 PLCopen/SCL 匯出(M33)
 - [ ] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction
 - [x] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(M34)
+- [ ] 靜態檢查:初值超出宣告型別範圍(目前只有 L5X 匯出時檢查)
 - [ ] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、GVL 匯出)
 - [ ] 虛擬 PLC 模擬位址共用記憶體(%MW0 與 %MX0.0 重疊時同步)
 - [ ] 點位表匯出為各廠牌可匯入格式(TIA PLC tags xlsx/xml、GX Works3 全域標籤 CSV)

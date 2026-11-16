@@ -99,11 +99,14 @@ class SclTests(unittest.TestCase):
             self.assertIn(stmt, out)
         self.assertIn('x := "F"();', out)
 
-    def test_temp_array_with_init_rejected_and_plain_array_noted(self):
-        base = "FUNCTION F : INT\nVAR a : ARRAY[0..1] OF INT%s; END_VAR\nF := a[0];\nEND_FUNCTION\nPROGRAM P\nEND_PROGRAM"
+    def test_temp_array_expanded_or_rejected(self):
+        # M34 審查修正:小型基本型別陣列逐元素指派(行為與虛擬 PLC 一致);過大的陣列才提醒或報錯
+        base = "FUNCTION F : INT\nVAR a : ARRAY[0..%d] OF INT%s; END_VAR\nF := a[0];\nEND_FUNCTION\nPROGRAM P\nEND_PROGRAM"
+        self.assertIn("   a[0] := 1;\n   a[1] := 2;", to_scl(base % (1, " := [1, 2]")))
+        self.assertIn("   a[0] := 0;\n   a[1] := 0;", to_scl(base % (1, "")))
         with self.assertRaises(STError):
-            to_scl(base % " := [1, 2]")
-        self.assertIn("// 注意:a 為 Temp", to_scl(base % ""))
+            to_scl(base % (99, " := [1, 2]"))
+        self.assertIn("// 注意:a 為暫存變數", to_scl(base % (99, "")))
 
     def test_calls_quoted_and_positional_args_named(self):
         self.assertIn('level := "Scale"(raw := level_raw, hi := 200.0);', self.out)

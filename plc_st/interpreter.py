@@ -555,20 +555,34 @@ class VirtualPLC:
     def _reinit_temps(self, sc, decls):
         """VAR_TEMP 不保留跨週期/跨呼叫的值:每次執行前重新初始化。"""
         temps = [d for d in decls if d["section"] == "temp"]
+        for d in temps:  # 先清掉舊值(含 STRUCT 展開的 name.field),否則 ARRAY OF STRUCT 重建時會沿用舊鍵
+            n = d["name"].lower()
+            for tbl in ("vars", "types", "arrays", "sarr", "fbs"):
+                for k in [k for k in sc[tbl] if k == n or k.startswith(n + ".")]:
+                    del sc[tbl][k]
         if temps:
             self._build(temps, into=sc)
 
     def restart(self, warm=True):
         """模擬斷電再上電。warm:RETAIN / PERSISTENT 變數保留,其餘回到初始值;cold:全部回到初始值。"""
         old = self._get_scope()
-        keep = [d["name"].lower() for d in self.ast["decls"] if warm and d.get("retain")]
         sc = self._build(self.ast["decls"])
-        for n in keep:
-            for tbl in ("vars", "fbs"):
-                for k, v in old[tbl].items():
-                    if k == n or k.startswith(n + "."):
-                        sc[tbl][k] = v
+        if warm:
+            self._carry_retain(old, sc, self.ast["decls"])
         self._set_scope(sc)
+
+    def _carry_retain(self, old, new, decls):
+        """把 RETAIN 變數的值從舊 scope 搬到新 scope;非 RETAIN 的自訂 FB 實例則往內遞迴,
+        保留該 FB 內部宣告為 VAR RETAIN 的變數(其餘內部變數回初值)。"""
+        for d in decls:
+            n = d["name"].lower()
+            if d.get("retain"):
+                for tbl in ("vars", "fbs"):
+                    for k, v in old[tbl].items():
+                        if k == n or k.startswith(n + "."):
+                            new[tbl][k] = v
+            elif isinstance(old["fbs"].get(n), UserFB) and isinstance(new["fbs"].get(n), UserFB):
+                self._carry_retain(old["fbs"][n].sc, new["fbs"][n].sc, new["fbs"][n].d["decls"])
 
     def _const_guard(self, target):
         b = target
@@ -794,6 +808,7 @@ class VirtualPLC:
     def for_loop(self, s):
         _, var, a, b, step, body = s
         n = var.lower()
+        self._const_guard(("var", var))
         i, end, st = self.eval(a), self.eval(b), self.eval(step)
         if st == 0:
             raise STError("FOR step is 0")

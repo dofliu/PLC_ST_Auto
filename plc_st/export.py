@@ -45,7 +45,21 @@ _SECTION = {"VAR": "localVars", "VAR_INPUT": "inputVars", "VAR_OUTPUT": "outputV
             "VAR_TEMP": "tempVars"}
 
 
-_LIT = re.compile(r"'[^']*'|\(\*.*?\*\)|//[^\n]*", re.S)
+# 字串需認得 IEC 跳脫($' 是字串內的單引號),否則遮罩會提早結束,字串後半被當成程式碼改寫
+_LIT = re.compile(r"'(?:\$.|[^'$])*'|\(\*.*?\*\)|//[^\n]*", re.S)
+
+
+def _sub_code(pattern, repl, text, flags=0):
+    """只在程式碼上取代:於遮罩文字(註解變空白、字串內容變 '_')比對,套用到原文同一區間。
+    比對區間內含註解或字串(原文與遮罩不同)時略過,確保字串與註解內容不被改動。"""
+    masked = _views(text)[1]
+    out, pos = [], 0
+    for m in re.finditer(pattern, masked, flags):
+        if m.start() < pos or text[m.start():m.end()] != m.group():
+            continue
+        out.append(text[pos:m.start()] + (repl(m) if callable(repl) else m.expand(repl)))
+        pos = m.end()
+    return "".join(out) + text[pos:]
 
 
 def _views(src):
@@ -200,9 +214,13 @@ _TYPEDEF = re.compile(r"TYPE\s+(\w+)\s*:\s*STRUCT(.*?)END_STRUCT\s*;?\s*END_TYPE
 
 def _split_top(text):
     """依最外層逗號切分(括號/中括號/字串內不切)。"""
-    parts, depth, cur, q = [], 0, [], False
+    parts, depth, cur, q, esc = [], 0, [], False, False
     for ch in text:
-        if ch == "'":
+        if esc:  # $' 等跳脫字元不結束字串
+            esc = False
+        elif q and ch == "$":
+            esc = True
+        elif ch == "'":
             q = not q
         if not q:
             if ch in "([":
@@ -252,20 +270,53 @@ def _expand_text(text, where, consts):
     return text
 
 
-def _temp_init(blocks, where, note):
+_TEMP_MAX = 64  # 暫存陣列逐元素展開的上限
+
+
+def _array_items(init):
+    """陣列初值文字 `[1, 2, 3(0)]` → 逐元素清單(展開重複初值 n(v))。"""
+    v = init.strip()
+    if not (v.startswith("[") and v.endswith("]")):
+        raise STError(f"export: 陣列初值 {init!r} 須為 [..] 形式")
+    out = []
+    for item in _split_top(v[1:-1]):
+        m = re.fullmatch(r"(\d+)\s*\((.*)\)", item, re.S)
+        out += [m.group(2).strip()] * int(m.group(1)) if m else [item]
+    return out
+
+
+def _temp_init(blocks, where, note, consts=None):
     """VAR_TEMP 在 IEC / 虛擬 PLC 每次執行都重新初始化;目標平台的暫存或區域變數不保證,
-    因此回傳要補在本體開頭的指派敘述(純量)或提醒註解(陣列/結構)。"""
+    因此回傳要補在本體開頭的指派敘述:純量一行;基本型別陣列(≤ _TEMP_MAX 個元素)逐元素指派,
+    使匯出後的行為與虛擬 PLC 一致。結構或過大的陣列無法自動展開:有初值時報錯,無初值時加提醒註解。"""
     pre = []
     for kind, decls in blocks:
         if kind != "VAR_TEMP":
             continue
         for n, t, init in decls:
-            if re.match(r"(?i)ARRAY\b", t) or t.upper() not in _BASE:
-                if init:
-                    raise STError(f"export: {where} 的 VAR_TEMP {n} 為陣列/結構且有初始值,目標平台無法帶初值,請改在本體內指派")
-                pre.append(f"// 注意:{n} 為暫存變數,{note},使用前請先指派")
-            else:
+            arr = _array_type(t, f"{where}.{n}", consts)
+            if not arr and t.upper() in _BASE:
                 pre.append(f"{n} := {init or _SCL_ZERO.get(t.upper(), '0')};")
+                continue
+            size = 1
+            for lo, hi in (arr[0] if arr else []):
+                size *= hi - lo + 1
+            if not arr or arr[1].upper() not in _BASE or size > _TEMP_MAX:
+                if init:
+                    raise STError(f"export: {where} 的 VAR_TEMP {n} 為結構或超過 {_TEMP_MAX} 個元素的陣列且有初始值,"
+                                  "無法自動展開,請改在本體內指派")
+                pre.append(f"// 注意:{n} 為暫存變數,{note},使用前請先指派")
+                continue
+            items = _array_items(init) if init else []
+            if len(items) > size:
+                raise STError(f"export: {where} 的 VAR_TEMP {n} 初始值 {len(items)} 個,超過陣列大小 {size}")
+            zero = _SCL_ZERO.get(arr[1].upper(), "0")
+            for k in range(size):  # 列優先,與虛擬 PLC 相同
+                idx, r = [], k
+                for lo, hi in reversed(arr[0]):
+                    idx.append(lo + r % (hi - lo + 1))
+                    r //= hi - lo + 1
+                pre.append(f"{n}[{', '.join(map(str, reversed(idx)))}] := {items[k] if k < len(items) else zero};")
     return pre
 
 
@@ -354,7 +405,7 @@ def validate_plcopen(xml_text, xsd=TC6_XSD):
 def _scl_quote(text, names):
     """把已定義的 STRUCT 型別名稱在型別位置加上雙引號(SCL UDT 引用語法)。"""
     for n in names:
-        text = re.sub(rf'(:\s*|\bOF\s+){re.escape(n)}\b(?!")', lambda m: f'{m.group(1)}"{n}"', text, flags=re.I)
+        text = _sub_code(rf'(:\s*|\bOF\s+){re.escape(n)}\b(?!")', lambda m: f'{m.group(1)}"{n}"', text, re.I)
     return text
 
 
@@ -425,13 +476,9 @@ def _scl_function(p, names, funcs):
         for n, t, init in decls:
             t = _expand(t, f'{p["name"]}.{n}', consts)
             if local:
-                if _array_type(t, f'{p["name"]}.{n}', consts) or t.upper() not in _BASE:
-                    if init:
-                        raise STError(f'export scl: FUNCTION {p["name"]} 的區域變數 {n} 為陣列/結構且有初始值,'
-                                      "TIA FC 的 Temp 無法帶初值,請改在本體內指派")
-                    pre.append(f"   // 注意:{n} 為 Temp,TIA 不會自動清零,使用前請先指派")
-                else:
-                    pre.append(f"   {n} := {init or _SCL_ZERO.get(t.upper(), '0')};")
+                one = _Kind("VAR_TEMP")  # 與 FB / OB 的 VAR_TEMP 同一套規則:純量一行、小陣列逐元素、其餘提醒或報錯
+                pre += ["   " + x for x in _temp_init([(one, [(n, t, init)])], f'FUNCTION {p["name"]}',
+                                                      "TIA 不會自動清零", consts)]
                 init = None
             decl.append(f"      {n} : {t}" + (f" := {init}" if init else "") + ";")
         decl.append("   END_VAR")
@@ -468,7 +515,7 @@ def _scl_block(p, names):
                     raise STError(f"export scl: FUNCTION_BLOCK {where} 內不可宣告直接位址(AT),請移到 PROGRAM")
                 tags.append((n, t, kind.addrs[n], init))
                 text = _cut_stmt(text, rf"[ \t]*\b{re.escape(n)}\s+AT\s+%[\w.]+\s*:[^;]*;[ \t]*\n?")
-    pre = _temp_init(p["blocks"], where, "TIA 不保證清零")
+    pre = _temp_init(p["blocks"], where, "TIA 不保證清零", _consts(p["blocks"], where))
     masked = _views(text)[1]
     for b in reversed(list(_BLOCK.finditer(masked))):  # VAR_TEMP 不能帶初值:移除 `:= 值`
         if b.group(1).upper() != "VAR_TEMP":
@@ -486,7 +533,7 @@ def _scl_block(p, names):
     masked = _views(text)[1]
     for m in reversed(list(re.finditer(r"\b(VAR\w*)((?:\s+(?:CONSTANT|RETAIN|NON_RETAIN|PERSISTENT)\b)+)", masked, re.I))):
         text = text[:m.start()] + header(m) + text[m.end():]
-    text = re.sub(r"\bVAR\w*(?:[ \t]+\w+)*\s*END_VAR[ \t]*\n?", "", text, flags=re.I)  # 清掉變空的區段
+    text = _sub_code(r"\bVAR\w*(?:[ \t]+\w+)*\s*END_VAR[ \t]*\n?", "", text, re.I)  # 清掉變空的區段(字串/註解內不算)
     text = _expand_text(text, where, _consts(p["blocks"], where))
     return _scl_quote(text.strip(), names), pre, tags
 
@@ -588,8 +635,15 @@ def _l5x_datatypes(src):
     return out
 
 
-def _l5x_data(dt, src_type, init):
-    """純量字面量初值 → L5X <Data Format="Decorated">;無法表示(運算式/字串等)回傳 None。"""
+_L5X_RANGE = {"SINT": (-2**7, 2**7 - 1), "INT": (-2**15, 2**15 - 1), "DINT": (-2**31, 2**31 - 1),
+              "LINT": (-2**63, 2**63 - 1)}
+_REAL_MAX = 3.4028235e38
+
+
+def _l5x_data(dt, src_type, init, name=""):
+    """純量字面量初值 → L5X <Data Format="Decorated">;無法表示(運算式/字串等)回傳 None。
+    值超出 Logix 目標型別範圍時報錯(例:UINT 對映為 INT 後 60000 放不下、TIME 以 DINT 毫秒最多約 24.8 天),
+    不輸出會被匯入端截斷或拒絕的數值。"""
     v = (init or "").strip()
     if not v:
         return None
@@ -612,6 +666,12 @@ def _l5x_data(dt, src_type, init):
             return None
     except (KeyError, ValueError):
         return None
+    mapped = "" if src_type.upper() == dt else f"(原型別 {src_type.upper()} 對映為 {dt})"
+    if dt in _L5X_RANGE and not _L5X_RANGE[dt][0] <= int(val) <= _L5X_RANGE[dt][1]:
+        raise STError(f"export l5x: 標籤 {name} 的初值 {v} 超出 Logix {dt} 範圍 "
+                      f"{_L5X_RANGE[dt][0]}..{_L5X_RANGE[dt][1]}{mapped}")
+    if dt == "REAL" and not abs(float(val)) <= _REAL_MAX:  # 也擋掉 inf / nan
+        raise STError(f"export l5x: 標籤 {name} 的初值 {v} 超出 Logix REAL(單精度)範圍{mapped}")
     radix = "Float" if dt == "REAL" else "Decimal"
     return f'<Data Format="Decorated"><DataValue DataType="{dt}" Radix="{radix}" Value="{val}"/></Data>'
 
@@ -630,7 +690,7 @@ def to_l5x(src, project="PLC_ST_Auto"):
          "<Programs>",
          f'<Program Use="Target" Name={quoteattr(name)} MainRoutineName="MainRoutine"><Tags>']
     consts = _consts(blocks, name)
-    pre = _temp_init(blocks, name, "Logix 區域標籤會保留上一次掃描的值")
+    pre = _temp_init(blocks, name, "Logix 區域標籤會保留上一次掃描的值", consts)
     for kind, decls in blocks:
         usage = {"VAR_INPUT": "Input", "VAR_OUTPUT": "Output", "VAR_IN_OUT": "InOut"}.get(kind, "Local")
         const = "CONSTANT" in kind.mods
@@ -646,7 +706,7 @@ def to_l5x(src, project="PLC_ST_Auto"):
                 dimattr = ' Dimensions="' + " ".join(str(hi + 1) for _, hi in rs) + '"'
             dt = _L5X_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)
             # 純量字面量初值寫入 <Data>(VAR_TEMP 的初值改由本體開頭指派);尚未以 Studio 5000 實機匯入確認
-            data = None if arr or kind == "VAR_TEMP" else _l5x_data(dt, src_type, init)
+            data = None if arr or kind == "VAR_TEMP" else _l5x_data(dt, src_type, init, n)
             if const and data is None:
                 raise STError(f"export l5x: 常數 {n} 的值 {init!r} 無法寫入標籤(僅支援純量字面量),"
                               "匯出後常數會變成 0,請改為字面量或改用 plcopen / st")
@@ -693,7 +753,7 @@ def to_gxworks(src, project="PLC_ST_Auto"):
             dt = _MELSEC_TYPE.get(t.upper(), _expand(t, n, consts))
             o.append(f"{cls}\t{n}\t{dt}\t{'' if kind == 'VAR_TEMP' else init or ''}"
                      + (f"\t{kind.addrs.get(n, '')}" if located else ""))
-    o += ["(* === ST Program Body === *)", *_temp_init(blocks, name, "GX Works3 的 VAR 會保留上一次掃描的值"), body, ""]
+    o += ["(* === ST Program Body === *)", *_temp_init(blocks, name, "GX Works3 的 VAR 會保留上一次掃描的值", consts), body, ""]
     return "\n".join(o)
 
 
@@ -720,7 +780,7 @@ def to_sysmac(src, project="PLC_ST_Auto"):
                      f"\t{'' if kind == 'VAR_TEMP' else init or ''}\t{_OMRON_CLASS.get(kind, 'Internal')}"
                      + (f"\t{'TRUE' if kind.mods & {'RETAIN', 'PERSISTENT'} else 'FALSE'}"
                         f"\t{'TRUE' if 'CONSTANT' in kind.mods else 'FALSE'}\t{kind.addrs.get(n, '')}" if extra else ""))
-    o += ["(* === ST Program Body === *)", *_temp_init(blocks, name, "Sysmac 的內部變數會保留上一次掃描的值"), body, ""]
+    o += ["(* === ST Program Body === *)", *_temp_init(blocks, name, "Sysmac 的內部變數會保留上一次掃描的值", consts), body, ""]
     return "\n".join(o)
 
 
