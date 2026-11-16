@@ -93,6 +93,7 @@ class UserFB:
         self.v = _View(self)
 
     def call(self, dt):
+        self.plc._reinit_temps(self.sc, self.d["decls"])
         self.plc._exec_in(self.sc, self.d["body"])
 
 
@@ -351,20 +352,24 @@ class VirtualPLC:
     # -- scopes (program / user FUNCTION / user FUNCTION_BLOCK instance)
     def _get_scope(self):
         return {"vars": self.vars, "types": self.types, "section": self.section,
-                "fbs": self.fbs, "arrays": self.arrays, "sarr": self.sarr}
+                "fbs": self.fbs, "arrays": self.arrays, "sarr": self.sarr, "meta": self.meta}
 
     def _set_scope(self, sc):
         self.vars, self.types, self.section = sc["vars"], sc["types"], sc["section"]
         self.fbs, self.arrays, self.sarr = sc["fbs"], sc["arrays"], sc["sarr"]
+        self.meta = sc["meta"]
 
-    def _build(self, decls):
-        sc = {"vars": {}, "types": {}, "section": {}, "fbs": {}, "arrays": {}, "sarr": {}}
+    def _build(self, decls, into=None):
+        """Create the variables of `decls`. With `into`, (re)create them inside that existing scope
+        (used to re-initialise VAR_TEMP each scan/call and for warm restarts)."""
+        sc = into or {"vars": {}, "types": {}, "section": {}, "fbs": {}, "arrays": {}, "sarr": {}, "meta": {}}
         saved = self._get_scope() if hasattr(self, "vars") else None
         self._set_scope(sc)
         try:
             for d in decls:
                 n = d["name"].lower()
                 self.section[n] = d["section"]
+                self.meta[n] = d
                 t = d["type"]
                 if t in FB_TYPES:
                     self.fbs[n] = FB_TYPES[t]()
@@ -547,6 +552,31 @@ class VirtualPLC:
             return None if b is None else f"{b}.{e[2].lower()}"
         return None
 
+    def _reinit_temps(self, sc, decls):
+        """VAR_TEMP 不保留跨週期/跨呼叫的值:每次執行前重新初始化。"""
+        temps = [d for d in decls if d["section"] == "temp"]
+        if temps:
+            self._build(temps, into=sc)
+
+    def restart(self, warm=True):
+        """模擬斷電再上電。warm:RETAIN / PERSISTENT 變數保留,其餘回到初始值;cold:全部回到初始值。"""
+        old = self._get_scope()
+        keep = [d["name"].lower() for d in self.ast["decls"] if warm and d.get("retain")]
+        sc = self._build(self.ast["decls"])
+        for n in keep:
+            for tbl in ("vars", "fbs"):
+                for k, v in old[tbl].items():
+                    if k == n or k.startswith(n + "."):
+                        sc[tbl][k] = v
+        self._set_scope(sc)
+
+    def _const_guard(self, target):
+        b = target
+        while b[0] in ("index", "member"):
+            b = b[1]
+        if b[0] == "var" and (self.meta.get(b[1].lower()) or {}).get("const"):
+            raise STError(f"write to CONSTANT {b[1]}")
+
     def _exec_in(self, sc, body):
         """Run `body` with `sc` as the active variable scope (RETURN ends the body)."""
         self.depth += 1
@@ -645,6 +675,8 @@ class VirtualPLC:
         n, idx = self._split_index(name)
         if n not in self.vars:
             raise STError(f"unknown variable {name}")
+        if (self.meta.get(n.split(".")[0]) or {}).get("const"):
+            raise STError(f"{name} is CONSTANT and cannot be forced")
         if idx is not None:
             self.vars[n][self._elem(n, idx)] = self.wrap(self.types[n], value)
         elif n in self.arrays:
@@ -689,6 +721,7 @@ class VirtualPLC:
 
     def scan(self, cycles=1):
         for _ in range(cycles):
+            self._reinit_temps(self._get_scope(), self.ast["decls"])
             try:
                 self.run(self.ast["body"])
             except _Return:
@@ -826,6 +859,7 @@ class VirtualPLC:
         return True
 
     def assign(self, target, value):
+        self._const_guard(target)
         if target[0] == "var":
             n = target[1].lower()
             if n not in self.vars:

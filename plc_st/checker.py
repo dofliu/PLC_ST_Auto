@@ -5,10 +5,49 @@ from dataclasses import dataclass
 from .dialect import dialect_issues
 from .interpreter import FB_TYPES, FUNCS, INT_RANGES
 from .lexer import STError
-from .parser import parse
+from .parser import parse, parse_addr
 from .profiles import get_profile
 
 _NUM = set(INT_RANGES) | {"REAL", "LREAL"}
+_BITS = {"BOOL": 1, "SINT": 8, "USINT": 8, "BYTE": 8, "INT": 16, "UINT": 16, "WORD": 16,
+         "DINT": 32, "UDINT": 32, "DWORD": 32, "REAL": 32, "TIME": 32,
+         "LINT": 64, "ULINT": 64, "LWORD": 64, "LREAL": 64}
+
+
+def _addr_issues(decls, prof, in_pou=None):
+    """直接位址(AT %I/%Q/%M)檢查:大小與型別相符、位址重疊;CONSTANT 需有初值。"""
+    out, used = [], []
+    byte_addr = prof.name.split("-")[0] == "siemens"  # S7:%IW1 = byte 1..2;IEC/CODESYS:%IW1 = word 1
+    for d in decls:
+        ln = d.get("line", 0)
+        if d.get("const") and d.get("init") is None:
+            out.append(Issue("warning", ln, f"CONSTANT {d['name']} has no initial value"))
+        if d.get("const") and d.get("addr"):
+            out.append(Issue("error", ln, f"CONSTANT {d['name']} cannot have a direct address"))
+        if not d.get("addr"):
+            continue
+        a = parse_addr(d["addr"])
+        if in_pou:
+            out.append(Issue("warning", ln, f"direct address {d['addr']} inside {in_pou}: located variables "
+                                            "belong in PROGRAM (or global) declarations"))
+        if d["section"] == "temp":
+            out.append(Issue("error", ln, f"VAR_TEMP {d['name']} cannot have a direct address"))
+        tb = _BITS.get(d["type"])
+        if tb is None:
+            out.append(Issue("error", ln, f"{d['name']}: type {d['type']} cannot be placed at {d['addr']}"))
+        elif tb != a["bits"]:
+            out.append(Issue("error", ln, f"{d['name']}: {d['type']} ({tb} bit) does not fit address "
+                                          f"{d['addr']} ({a['bits']} bit)"))
+        if a["size"] == "X":
+            start = a["index"] * 8 + (a["bit"] or 0)
+        else:
+            start = a["index"] * (8 if byte_addr else a["bits"])
+        for area, s0, s1, other, oaddr in used:
+            if area == a["area"] and start < s1 and s0 < start + a["bits"]:
+                out.append(Issue("warning", ln, f"{d['name']} at {d['addr']} overlaps {other} at {oaddr}; "
+                                                "the virtual PLC does not simulate shared memory"))
+        used.append((a["area"], start, start + a["bits"], d["name"], d["addr"]))
+    return out
 
 
 @dataclass(frozen=True)
@@ -84,6 +123,17 @@ def check(src, profile="iec"):
                 issues.append(Issue("error", 0, f"type {ft} of {owner}.{f['name']} not supported by profile {prof.name}"))
 
     load_scope(prog["decls"])
+    issues += _addr_issues(prog["decls"], prof)
+
+    def const_guard(target, ln):
+        b = target
+        while b[0] in ("index", "member"):
+            b = b[1]
+        d = env.get(b[1].lower()) if b[0] == "var" else None
+        if d and d.get("const"):
+            err(ln, f"write to CONSTANT {b[1]}")
+            return True
+        return False
 
     def err(ln, msg, sev="error"):
         if not any(i.line == ln and i.msg == msg and i.severity == sev for i in issues):
@@ -282,6 +332,9 @@ def check(src, profile="iec"):
         return None
 
     def assign(target, e, ln):
+        if const_guard(target, ln):
+            ty(e, ln)
+            return
         st = stype(target, ln)
         if st:
             if stype(e, ln) != st:
@@ -331,6 +384,7 @@ def check(src, profile="iec"):
                 stmts(s[3], depth)
             elif k == "for":
                 ty(("var", s[1]), 0)
+                const_guard(("var", s[1]), 0)
                 for x in s[2:5]:
                     ty(x, 0)
                 stmts(s[5], depth + 1)
@@ -361,6 +415,8 @@ def check(src, profile="iec"):
         outs = {k.upper() for k in fb.outputs_t}
         for name, op, v in s[2]:
             ty(v, ln)
+            if op == "=>":
+                const_guard(v, ln)
             if name and name.upper() not in (outs if op == "=>" else ins):
                 err(ln, f"{d['type']} has no {'output' if op == '=>' else 'input'} {name}")
 
@@ -372,6 +428,7 @@ def check(src, profile="iec"):
                 err(0, f"return type {fn['type']} of {fn['name']} not supported by profile {prof.name}")
             decls.append({"name": fn["name"], "type": fn["type"], "section": "local", "init": None, "array": None})
         load_scope(decls)
+        issues += _addr_issues(fn["decls"], prof, f"{'FUNCTION' if fn['kind'] == 'function' else 'FUNCTION_BLOCK'} {fn['name']}")
         stmts(fn["body"])
     issues += [Issue("warning", ln, f"dialect: {m}") for ln, m in dialect_issues(src, prof.name)]
     return issues

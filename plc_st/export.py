@@ -6,14 +6,43 @@ import re
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape, quoteattr
 
-from .lexer import STError
+from .lexer import STError, parse_time
 from .parser import Parser
 
 _PROG = re.compile(r"PROGRAM\s+(\w+)(.*?)END_PROGRAM", re.S | re.I)
-_BLOCK = re.compile(r"(VAR(?:_INPUT|_OUTPUT|_IN_OUT)?)\b(.*?)END_VAR", re.S | re.I)
+_BLOCK = re.compile(r"\b(VAR(?:_INPUT|_OUTPUT|_IN_OUT|_TEMP)?)\b((?:\s+(?:CONSTANT|RETAIN|NON_RETAIN|PERSISTENT)\b)*)(.*?)\bEND_VAR\b",
+                    re.S | re.I)
+_AT = re.compile(r"(\w+)\s+AT\s+(%[\w.]+)$", re.I)
+
+
+class _Kind(str):
+    """VAR 區段名稱(字串,與舊介面相容),另帶 mods(CONSTANT/RETAIN/PERSISTENT…)與 addrs {變數: 位址}。"""
+    mods = frozenset()
+    addrs = {}
+
+
+def _blocks(nocom, masked, i0, i1):
+    """[i0, i1) 內的 VAR 區段 → ([( _Kind, [(name, type, init)] )], 最後一個 END_VAR 之後的位置)。"""
+    blocks, last = [], i0
+    for b in _BLOCK.finditer(masked, i0, i1):
+        kind = _Kind(b.group(1).upper())
+        kind.mods = frozenset(b.group(2).upper().split())
+        kind.addrs = {}
+        decls = []
+        for names, typ, init in _decls(nocom, masked, *b.span(3)):
+            for n in names:
+                m = _AT.match(n)
+                if m:
+                    n = m.group(1)
+                    kind.addrs[n] = m.group(2).upper()
+                decls.append((n, typ, init))
+        blocks.append((kind, decls))
+        last = b.end()
+    return blocks, last
 _BASE = {"BOOL", "SINT", "INT", "DINT", "LINT", "USINT", "UINT", "UDINT", "ULINT",
          "BYTE", "WORD", "DWORD", "REAL", "LREAL", "TIME", "STRING"}
-_SECTION = {"VAR": "localVars", "VAR_INPUT": "inputVars", "VAR_OUTPUT": "outputVars", "VAR_IN_OUT": "inOutVars"}
+_SECTION = {"VAR": "localVars", "VAR_INPUT": "inputVars", "VAR_OUTPUT": "outputVars", "VAR_IN_OUT": "inOutVars",
+            "VAR_TEMP": "tempVars"}
 
 
 _LIT = re.compile(r"'[^']*'|\(\*.*?\*\)|//[^\n]*", re.S)
@@ -62,13 +91,7 @@ def split_program(src):
     if not m:
         raise STError("export: 找不到 PROGRAM ... END_PROGRAM")
     name, (i0, i1) = m.group(1), m.span(2)
-    blocks, last = [], i0
-    for b in _BLOCK.finditer(masked, i0, i1):
-        decls = []
-        for names, typ, init in _decls(nocom, masked, *b.span(2)):
-            decls += [(n, typ, init) for n in names]
-        blocks.append((b.group(1).upper(), decls))
-        last = b.end()
+    blocks, last = _blocks(nocom, masked, i0, i1)
     return name, blocks, src[i0:last].strip(), src[last:i1].strip()
 
 
@@ -89,13 +112,7 @@ def split_pous(src):
             if not r:
                 raise STError(f"export: FUNCTION {m.group(2)} 缺少回傳型別")
             rtype, i0 = r.group(1), i0 + r.end()
-        blocks, last = [], i0
-        for b in _BLOCK.finditer(masked, i0, i1):
-            decls = []
-            for names, typ, init in _decls(nocom, masked, *b.span(2)):
-                decls += [(n, typ, init) for n in names]
-            blocks.append((b.group(1).upper(), decls))
-            last = b.end()
+        blocks, last = _blocks(nocom, masked, i0, i1)
         out.append({"kind": kind, "name": m.group(2), "rtype": rtype, "blocks": blocks,
                     "decl": src[i0:last].strip(), "body": src[last:i1].strip()})
     if sum(p["kind"] == "program" for p in out) != 1:
@@ -104,8 +121,23 @@ def split_pous(src):
     return out
 
 
-def _const_int(text, where):
-    """陣列邊界:完整解析並計算整數常數運算式(+ - * / MOD、括號、負號)。
+def _consts(blocks, where=""):
+    """VAR CONSTANT 區段中可算出整數值的常數 {小寫名稱: 值}(可引用先前宣告的常數)。"""
+    out = {}
+    for kind, decls in blocks:
+        if "CONSTANT" not in kind.mods:
+            continue
+        for n, t, init in decls:
+            if init and not re.match(r"(?i)ARRAY\b", t):
+                try:
+                    out[n.lower()] = _const_int(init, where, out)
+                except STError:
+                    pass
+    return out
+
+
+def _const_int(text, where, consts=None):
+    """陣列邊界:完整解析並計算整數常數運算式(+ - * / MOD、括號、負號、VAR CONSTANT 整數常數)。
     無法完整解析或含變數/實數時明確報錯,不做部分比對。"""
     try:
         p = Parser(text)
@@ -117,6 +149,8 @@ def _const_int(text, where):
     def ev(e):
         if e[0] == "num" and isinstance(e[1], int):
             return e[1]
+        if e[0] == "var" and consts and e[1].lower() in consts:
+            return consts[e[1].lower()]
         if e[0] == "neg":
             return -ev(e[1])
         if e[0] == "bin" and e[1] in ("+", "-", "*", "/", "MOD"):
@@ -129,11 +163,11 @@ def _const_int(text, where):
                 return a - b * int(a / b)
             return {"+": a + b, "-": a - b, "*": a * b}[e[1]]
         raise STError(f"export: {where} 陣列邊界 {text.strip()!r} 須為整數常數運算式"
-                      "(不支援變數/常數名稱/實數)")
+                      "(僅支援整數與 VAR CONSTANT 整數常數,不支援變數/實數)")
     return ev(e)
 
 
-def _array_type(t, where):
+def _array_type(t, where, consts=None):
     """'ARRAY[lo..hi, ...] OF T' → ([(lo, hi), ...], 'T');非陣列回傳 None。"""
     t = t.strip()
     if not re.match(r"(?i)ARRAY\b", t):
@@ -146,7 +180,7 @@ def _array_type(t, where):
         lo, sep, hi = part.partition("..")
         if not sep:
             raise STError(f"export: {where} 陣列範圍 {part!r} 須為 lo..hi")
-        a, b = _const_int(lo, where), _const_int(hi, where)
+        a, b = _const_int(lo, where, consts), _const_int(hi, where, consts)
         if b < a:
             raise STError(f"export: {where} 陣列上界 {b} < 下界 {a}")
         dims.append((a, b))
@@ -201,8 +235,42 @@ def _tc6_value(v):
     return f"<simpleValue value={quoteattr(v)}/>"
 
 
-def _tc6_vartype(t, where=""):
-    arr = _array_type(t, where)
+def _expand(t, where, consts):
+    """型別文字中的陣列邊界改寫為數字(`ARRAY[1..N] OF INT` → `ARRAY[1..4] OF INT`);非陣列原樣回傳。"""
+    arr = _array_type(t, where, consts)
+    if not arr:
+        return t
+    return "ARRAY[" + ", ".join(f"{a}..{b}" for a, b in arr[0]) + f"] OF {arr[1]}"
+
+
+def _expand_text(text, where, consts):
+    """宣告原文中引用常數名稱的陣列邊界改寫為數字(註解與字串不動)。"""
+    masked = _views(text)[1]
+    for m in reversed(list(re.finditer(r"(?i)\bARRAY\s*\[[^\]]*\]\s*OF\s+\w+", masked))):
+        if re.search(r"[A-Za-z_]", m.group().split("]")[0][5:]):
+            text = text[:m.start()] + _expand(text[m.start():m.end()], where, consts) + text[m.end():]
+    return text
+
+
+def _temp_init(blocks, where, note):
+    """VAR_TEMP 在 IEC / 虛擬 PLC 每次執行都重新初始化;目標平台的暫存或區域變數不保證,
+    因此回傳要補在本體開頭的指派敘述(純量)或提醒註解(陣列/結構)。"""
+    pre = []
+    for kind, decls in blocks:
+        if kind != "VAR_TEMP":
+            continue
+        for n, t, init in decls:
+            if re.match(r"(?i)ARRAY\b", t) or t.upper() not in _BASE:
+                if init:
+                    raise STError(f"export: {where} 的 VAR_TEMP {n} 為陣列/結構且有初始值,目標平台無法帶初值,請改在本體內指派")
+                pre.append(f"// 注意:{n} 為暫存變數,{note},使用前請先指派")
+            else:
+                pre.append(f"{n} := {init or _SCL_ZERO.get(t.upper(), '0')};")
+    return pre
+
+
+def _tc6_vartype(t, where="", consts=None):
+    arr = _array_type(t, where, consts)
     if arr:
         dims = "".join(f'<dimension lower="{a}" upper="{b}"/>' for a, b in arr[0])
         return f"<array>{dims}<baseType>{_tc6_type(arr[1])}</baseType></array>"
@@ -242,14 +310,19 @@ def to_plcopen(src, project="PLC_ST_Auto"):
         o.append(f'    <pou name={quoteattr(p["name"])} pouType="{_POUTYPE[p["kind"]]}"><interface>')
         if p["rtype"]:
             o.append(f'      <returnType>{_tc6_type(p["rtype"])}</returnType>')
+        consts = _consts(p["blocks"], p["name"])
         for kind, decls in p["blocks"]:
             if not decls:
                 continue
-            o.append(f"      <{_SECTION[kind]}>")
+            attrs = "".join(f' {a}="true"' for a, k in (("constant", "CONSTANT"), ("retain", "RETAIN"),
+                                                         ("nonretain", "NON_RETAIN"), ("persistent", "PERSISTENT"))
+                            if k in kind.mods)
+            o.append(f"      <{_SECTION[kind]}{attrs}>")
             for n, t, init in decls:
-                typ = _tc6_vartype(t, n)
+                typ = _tc6_vartype(t, n, consts)
                 iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init else ""
-                o.append(f"        <variable name={quoteattr(n)}><type>{typ}</type>{iv}</variable>")
+                at = f" address={quoteattr(kind.addrs[n])}" if n in kind.addrs else ""
+                o.append(f"        <variable name={quoteattr(n)}{at}><type>{typ}</type>{iv}</variable>")
             o.append(f"      </{_SECTION[kind]}>")
         o += ["    </interface><body><ST>",
               f'      <xhtml xmlns="http://www.w3.org/1999/xhtml">{escape(p["body"])}</xhtml>',
@@ -340,14 +413,19 @@ def _scl_function(p, names, funcs):
     """FUNCTION → TIA FC:區域 VAR 改為 VAR_TEMP(FC 無靜態區),並在本體開頭補上初值指派,
     使行為與 IEC(每次呼叫重新初始化)及虛擬 PLC 一致。"""
     decl, pre = [], []
+    consts = _consts(p["blocks"], p["name"])
     for kind, decls in p["blocks"]:
         if not decls:
             continue
-        local = kind == "VAR"
-        decl.append("   " + ("VAR_TEMP" if local else kind))
+        if kind.addrs:
+            raise STError(f'export scl: FUNCTION {p["name"]} 內不可宣告直接位址(AT),請移到 PROGRAM')
+        const = "CONSTANT" in kind.mods
+        local = kind in ("VAR", "VAR_TEMP") and not const
+        decl.append("   " + ("VAR_TEMP" if local else "VAR CONSTANT" if const else kind))
         for n, t, init in decls:
+            t = _expand(t, f'{p["name"]}.{n}', consts)
             if local:
-                if _array_type(t, f'{p["name"]}.{n}') or t.upper() not in _BASE:
+                if _array_type(t, f'{p["name"]}.{n}', consts) or t.upper() not in _BASE:
                     if init:
                         raise STError(f'export scl: FUNCTION {p["name"]} 的區域變數 {n} 為陣列/結構且有初始值,'
                                       "TIA FC 的 Temp 無法帶初值,請改在本體內指派")
@@ -361,6 +439,72 @@ def _scl_function(p, names, funcs):
     return (f'FUNCTION "{p["name"]}" : {_scl_quote(": " + p["rtype"], names)[2:]}\n'
             f"{{ S7_Optimized_Access := 'TRUE' }}\nVERSION : 0.1\n"
             f'{_scl_quote(chr(10).join(decl), names)}\nBEGIN\n{body}\nEND_FUNCTION\n')
+
+
+def _scl_addr(a):
+    """IEC 位址 → TIA 寫法:位元位址不寫 X(%IX0.0 → %I0.0),其餘相同。"""
+    return re.sub(r"^(%[IQM])X", r"\1", a.upper())
+
+
+_SCL_TAGTYPE = {"BOOL": "Bool", "SINT": "SInt", "USINT": "USInt", "BYTE": "Byte", "INT": "Int", "UINT": "UInt",
+                "WORD": "Word", "DINT": "DInt", "UDINT": "UDInt", "DWORD": "DWord", "REAL": "Real", "TIME": "Time",
+                "LINT": "LInt", "ULINT": "ULInt", "LREAL": "LReal"}
+
+
+def _cut_stmt(text, pattern):
+    """在遮罩文字上找到 pattern,從原文刪除同一區間(註解/字串內不比對)。"""
+    m = re.search(pattern, _views(text)[1], re.I | re.S)
+    return (text[:m.start()] + text[m.end():]) if m else text
+
+
+def _scl_block(p, names):
+    """FB / OB 的宣告原文與本體前置敘述:直接位址變數移出(改為 PLC 變數表)、VAR_TEMP 初值移到本體開頭、
+    PERSISTENT → RETAIN、引用常數的陣列邊界展開為數字。回傳 (decl, pre, tags=[(name, type, addr, init)])。"""
+    text, tags, where = p["decl"], [], p["name"]
+    for kind, decls in p["blocks"]:
+        for n, t, init in decls:
+            if n in kind.addrs:
+                if p["kind"] != "program":
+                    raise STError(f"export scl: FUNCTION_BLOCK {where} 內不可宣告直接位址(AT),請移到 PROGRAM")
+                tags.append((n, t, kind.addrs[n], init))
+                text = _cut_stmt(text, rf"[ \t]*\b{re.escape(n)}\s+AT\s+%[\w.]+\s*:[^;]*;[ \t]*\n?")
+    pre = _temp_init(p["blocks"], where, "TIA 不保證清零")
+    masked = _views(text)[1]
+    for b in reversed(list(_BLOCK.finditer(masked))):  # VAR_TEMP 不能帶初值:移除 `:= 值`
+        if b.group(1).upper() != "VAR_TEMP":
+            continue
+        a, e = b.span(3)
+        for m in reversed(list(re.finditer(r":=[^;]*(?=;)", masked[a:e]))):
+            text = text[:a + m.start()].rstrip() + text[a + m.end():]
+    def header(m):
+        mods = []
+        for w in m.group(2).upper().split():
+            w = "RETAIN" if w == "PERSISTENT" else w
+            if w not in mods:
+                mods.append(w)
+        return m.group(1) + "".join(" " + w for w in mods)
+    masked = _views(text)[1]
+    for m in reversed(list(re.finditer(r"\b(VAR\w*)((?:\s+(?:CONSTANT|RETAIN|NON_RETAIN|PERSISTENT)\b)+)", masked, re.I))):
+        text = text[:m.start()] + header(m) + text[m.end():]
+    text = re.sub(r"\bVAR\w*(?:[ \t]+\w+)*\s*END_VAR[ \t]*\n?", "", text, flags=re.I)  # 清掉變空的區段
+    text = _expand_text(text, where, _consts(p["blocks"], where))
+    return _scl_quote(text.strip(), names), pre, tags
+
+
+def _scl_tagrefs(body, tags):
+    """本體中引用 PLC 變數表變數處加雙引號(`start` → `"start"`);FB 呼叫的具名參數(`IN := …`)不動。"""
+    if not tags:
+        return body
+    masked = _views(body)[1]
+    pat = re.compile(r'(?<![\w.#"])(' + "|".join(re.escape(t[0]) for t in tags) + r')(?![\w"])', re.I)
+    out, pos = [], 0
+    for m in pat.finditer(masked):
+        before, after = masked[:m.start()].rstrip(), masked[m.end():].lstrip()
+        if before[-1:] in ("(", ",") and (after.startswith(":=") or after.startswith("=>")):
+            continue
+        out.append(body[pos:m.start()] + f'"{body[m.start():m.end()]}"')
+        pos = m.end()
+    return "".join(out) + body[pos:]
 
 
 def to_scl(src):
@@ -377,8 +521,17 @@ def to_scl(src):
             out.append(_scl_function(p, names, funcs))
             continue
         block = "FUNCTION_BLOCK" if p["kind"] == "fb" else "ORGANIZATION_BLOCK"
+        decl, pre, tags = _scl_block(p, names)
+        body = "\n".join(pre + [_scl_tagrefs(_scl_calls(p["body"], funcs), tags)])
+        if tags:
+            head = ["// === PLC 變數表(PLC tags):匯入本檔前,請先在 TIA Portal 建立下列變數 ===",
+                    "// Name\tData Type\tLogical Address"]
+            for n, t, a, init in tags:
+                head.append(f'// {n}\t{_SCL_TAGTYPE.get(t.upper(), t)}\t{_scl_addr(a)}'
+                            + (f"\t(初始值 {init} 未匯出:PLC 變數無初值)" if init else ""))
+            out.insert(0, "\n".join(head) + "\n")
         out.append(f'{block} "{p["name"]}"\n{{ S7_Optimized_Access := \'TRUE\' }}\nVERSION : 0.1\n'
-                   f'{_scl_quote(p["decl"], names)}\nBEGIN\n{_scl_calls(p["body"], funcs)}\nEND_{block}\n')
+                   f'{decl}\nBEGIN\n{body}\nEND_{block}\n')
     return "\n".join(out)
 
 
@@ -435,6 +588,34 @@ def _l5x_datatypes(src):
     return out
 
 
+def _l5x_data(dt, src_type, init):
+    """純量字面量初值 → L5X <Data Format="Decorated">;無法表示(運算式/字串等)回傳 None。"""
+    v = (init or "").strip()
+    if not v:
+        return None
+    v = re.sub(r"(?i)^[A-Z]+#(?=[\d\-+TF]|16#|8#|2#)", "", v) if not re.match(r"(?i)T(IME)?#", v) else v
+    try:
+        if dt == "BOOL":
+            val = {"TRUE": "1", "FALSE": "0", "1": "1", "0": "0"}[v.upper()]
+        elif src_type.upper() == "TIME":
+            if not re.fullmatch(r"(?i)T(IME)?#[\w.\-]+", v):
+                return None
+            val = str(parse_time(v))
+        elif dt == "REAL":
+            val = repr(float(v.replace("_", "")))
+        elif dt in ("SINT", "INT", "DINT", "LINT"):
+            m = re.fullmatch(r"(-?)\s*(?:(2|8|16)#)?([0-9A-Fa-f_]+)", v)
+            if not m or (not m.group(2) and not m.group(3).replace("_", "").isdigit()):
+                return None
+            val = str(int(m.group(3).replace("_", ""), int(m.group(2) or 10)) * (-1 if m.group(1) else 1))
+        else:
+            return None
+    except (KeyError, ValueError):
+        return None
+    radix = "Float" if dt == "REAL" else "Decimal"
+    return f'<Data Format="Decorated"><DataValue DataType="{dt}" Radix="{radix}" Value="{val}"/></Data>'
+
+
 def to_l5x(src, project="PLC_ST_Auto"):
     """Rockwell Studio 5000:Program(Tags + ST Routine)L5X 匯入檔。
     型別對映:TON/TOF→TIMER、CTU/CTD→COUNTER、TIME→DINT 等;函式塊呼叫語法需在 Logix 端人工調整(見 dialect 警告)。"""
@@ -448,11 +629,15 @@ def to_l5x(src, project="PLC_ST_Auto"):
          *(["<DataTypes>" + "".join(dts) + "</DataTypes>"] if dts else []),
          "<Programs>",
          f'<Program Use="Target" Name={quoteattr(name)} MainRoutineName="MainRoutine"><Tags>']
+    consts = _consts(blocks, name)
+    pre = _temp_init(blocks, name, "Logix 區域標籤會保留上一次掃描的值")
     for kind, decls in blocks:
         usage = {"VAR_INPUT": "Input", "VAR_OUTPUT": "Output", "VAR_IN_OUT": "InOut"}.get(kind, "Local")
+        const = "CONSTANT" in kind.mods
         for n, t, init in decls:
             dimattr = ""
-            arr = _array_type(t, n)
+            src_type = t
+            arr = _array_type(t, n, consts)
             if arr:
                 rs, t = arr
                 if len(rs) > 3 or any(lo != 0 for lo, _ in rs):
@@ -460,10 +645,18 @@ def to_l5x(src, project="PLC_ST_Auto"):
                 # Tag 的 Dimensions 以空白分隔(例 "2 3");尚未以 Studio 5000 實機匯入確認,見 docs/test_report_M29.md
                 dimattr = ' Dimensions="' + " ".join(str(hi + 1) for _, hi in rs) + '"'
             dt = _L5X_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)
-            o.append(f'<Tag Name={quoteattr(n)} TagType="Base" DataType={quoteattr(dt)}{dimattr} '
-                     f'Usage={quoteattr(usage)} Constant="false" ExternalAccess="Read/Write"/>')
+            # 純量字面量初值寫入 <Data>(VAR_TEMP 的初值改由本體開頭指派);尚未以 Studio 5000 實機匯入確認
+            data = None if arr or kind == "VAR_TEMP" else _l5x_data(dt, src_type, init)
+            if const and data is None:
+                raise STError(f"export l5x: 常數 {n} 的值 {init!r} 無法寫入標籤(僅支援純量字面量),"
+                              "匯出後常數會變成 0,請改為字面量或改用 plcopen / st")
+            desc = (f"<Description><![CDATA[IEC address {kind.addrs[n]}: alias this tag to the module point]]></Description>"
+                    if n in kind.addrs else "")
+            head = (f'<Tag Name={quoteattr(n)} TagType="Base" DataType={quoteattr(dt)}{dimattr} '
+                    f'Usage={quoteattr(usage)} Constant="{"true" if const else "false"}" ExternalAccess="Read/Write"')
+            o.append(head + (f">{desc}{data or ''}</Tag>" if desc or data else "/>"))
     o += ["</Tags><Routines>", '<Routine Name="MainRoutine" Type="ST"><STContent>']
-    for i, line in enumerate(body.splitlines()):
+    for i, line in enumerate(pre + body.splitlines()):
         o.append(f'<Line Number="{i}"><![CDATA[{line.replace("]]>", "]]]]><![CDATA[>")}]]></Line>')
     o += ["</STContent></Routine></Routines></Program></Programs></Controller></RSLogix5000Content>", ""]
     return "\n".join(o)
@@ -486,11 +679,21 @@ def to_gxworks(src, project="PLC_ST_Auto"):
     o = [f"(* GX Works3 export: {project} / {name} *)",
          "(* === Label Setting(Tab 分隔:Class / Label Name / Data Type / Initial Value)=== *)",
          "Class\tLabel Name\tData Type\tInitial Value"]
+    consts = _consts(blocks, name)
+    located = any(kind.addrs for kind, _ in blocks)
+    if located:  # MELSEC 裝置編號(X/Y 為 16 或 8 進位)無法由 IEC 位址可靠換算,列出原位址由使用者指定裝置
+        o[-1] += "\tIEC Address (assign a device: X / Y / M / D)"
     for kind, decls in blocks:
+        cls = _MELSEC_CLASS.get(kind, "VAR")
+        if "CONSTANT" in kind.mods:
+            cls += "_CONSTANT"
+        elif kind.mods & {"RETAIN", "PERSISTENT"}:
+            cls += "_RETAIN"
         for n, t, init in decls:
-            dt = _MELSEC_TYPE.get(t.upper(), t)
-            o.append(f"{_MELSEC_CLASS[kind]}\t{n}\t{dt}\t{init or ''}")
-    o += ["(* === ST Program Body === *)", body, ""]
+            dt = _MELSEC_TYPE.get(t.upper(), _expand(t, n, consts))
+            o.append(f"{cls}\t{n}\t{dt}\t{'' if kind == 'VAR_TEMP' else init or ''}"
+                     + (f"\t{kind.addrs.get(n, '')}" if located else ""))
+    o += ["(* === ST Program Body === *)", *_temp_init(blocks, name, "GX Works3 的 VAR 會保留上一次掃描的值"), body, ""]
     return "\n".join(o)
 
 
@@ -506,10 +709,18 @@ def to_sysmac(src, project="PLC_ST_Auto"):
     o = [f"(* Sysmac Studio export: {project} / {name} *)",
          "(* === Variable Table(Tab 分隔:Name / Data Type / Initial Value / Class)=== *)",
          "Name\tData Type\tInitial Value\tClass"]
+    consts = _consts(blocks, name)
+    extra = any(kind.addrs or kind.mods for kind, _ in blocks)
+    if extra:  # Sysmac 的 I/O 由 I/O Map 指定,IEC 位址僅供對照
+        o[-1] += "\tRetain\tConstant\tIEC Address (assign in I/O Map)"
     for kind, decls in blocks:
         for n, t, init in decls:
-            o.append(f"{n}\t{_OMRON_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)}\t{init or ''}\t{_OMRON_CLASS[kind]}")
-    o += ["(* === ST Program Body === *)", body, ""]
+            t = _expand(t, n, consts)
+            o.append(f"{n}\t{_OMRON_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)}"
+                     f"\t{'' if kind == 'VAR_TEMP' else init or ''}\t{_OMRON_CLASS.get(kind, 'Internal')}"
+                     + (f"\t{'TRUE' if kind.mods & {'RETAIN', 'PERSISTENT'} else 'FALSE'}"
+                        f"\t{'TRUE' if 'CONSTANT' in kind.mods else 'FALSE'}\t{kind.addrs.get(n, '')}" if extra else ""))
+    o += ["(* === ST Program Body === *)", *_temp_init(blocks, name, "Sysmac 的內部變數會保留上一次掃描的值"), body, ""]
     return "\n".join(o)
 
 

@@ -28,7 +28,7 @@ print(plc.get("motor"))
 python -m plc_st run examples/motor.st --cycles 10 --scan-ms 100 --set stop=false --at 1:start=true --trace out.csv
 python -m plc_st tags examples/points.csv   # CSV 點位表 → VAR 宣告
 ```
-點位表欄位: `name,type,direction(IN/OUT/INOUT/VAR),init,comment`。
+點位表欄位: `name,type,direction(IN/OUT/INOUT/VAR/CONST/RETAIN),init,comment,address`。`address` 選用,填 IEC 直接位址(`%IX0.0`、`%QW2`…)時宣告為 `name AT %IX0.0 : BOOL;`(範例 `examples/points_addr.csv`)。
 
 ## 靜態檢查 (M4)
 ```
@@ -98,6 +98,12 @@ E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node test
 ## 陣列 (M17)
 支援一維 `ARRAY[lo..hi] OF T`(可帶初始值 `:= [1,2,3]`),以 `a[i]` 讀寫;越界於靜態檢查(常數索引)與執行期皆報錯。
 `--set buf[2]=5`、情境與 trace 以 `buf[0]`、`buf[1]`… 欄位呈現。尚不支援多維陣列、STRUCT;PLCopen 匯出為 `<array>`,其他廠牌匯出保留原 ST 宣告文字。
+
+## 修飾詞與直接位址(M34)
+支援 `VAR CONSTANT`、`VAR RETAIN`(含 `PERSISTENT`)、`VAR_TEMP` 與 `name AT %IX0.0 : BOOL`(%I/%Q/%M),範例 `examples/qualifiers_m34.st`。
+- 虛擬 PLC:寫入常數會報錯;`VAR_TEMP` 每個掃描週期重新初始化;`%I` 變數是輸入、`%Q` 是輸出;Web UI「斷電重啟」或情境步驟 `"restart": "warm"|"cold"` 可驗證 RETAIN 行為。
+- 檢查:寫入常數、型別與位址大小不符為 error;位址重疊為 warning(Siemens 以 byte 定址,IEC/CODESYS 以大小定址)。虛擬 PLC 不模擬位址共用記憶體。
+- 匯出:PLCopen 帶 `constant`/`retain`/`address`;Siemens SCL 把位址變數移到檔頭的 PLC 變數表(需在 TIA 建立)並在本體加引號;L5X 以 `Constant="true"` + 初值、位址寫入 Description;GX Works3 / Sysmac 在表格列出類別與 IEC 位址,裝置需人工指定。細節與限制見 `docs/test_report_M34.md`。
 
 ## 匯出
 `python -m plc_st export examples/motor.st --format plcopen|scl|l5x|gxworks|sysmac|st -o out`(Web UI 亦有「匯出」按鈕)。PLCopen XML 可匯入 CODESYS 等;scl=Siemens TIA、l5x=Rockwell Studio 5000、gxworks=Mitsubishi GX Works3(標籤表+ST)、sysmac=Omron Sysmac Studio(變數表+ST);匯出後請在目標 IDE 編譯確認。

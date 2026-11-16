@@ -1,12 +1,32 @@
-"""CSV 點位表 → ST 變數宣告。欄位: name,type,direction,init,comment"""
+"""CSV 點位表 → ST 變數宣告。欄位: name,type,direction,init,comment,address(選用)
+
+direction:IN / OUT / INOUT / VAR,另有 CONST(VAR CONSTANT)、RETAIN(VAR RETAIN)。
+address(或 addr / 位址)填 IEC 直接位址(%IX0.0、%QW2…)時,變數宣告為 `name AT 位址 : 型別`,
+放在 VAR 區段(IEC 規定),輸入/輸出角色由 %I / %Q 決定。"""
 import csv
 import io
 import re
 
 from .interpreter import STError
+from .parser import parse_addr
 
-SECTIONS = {"IN": "VAR_INPUT", "OUT": "VAR_OUTPUT", "INOUT": "VAR_IN_OUT", "VAR": "VAR"}
-ORDER = ["VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR"]
+SECTIONS = {"IN": "VAR_INPUT", "OUT": "VAR_OUTPUT", "INOUT": "VAR_IN_OUT", "VAR": "VAR",
+            "CONST": "VAR CONSTANT", "CONSTANT": "VAR CONSTANT", "RETAIN": "VAR RETAIN"}
+ORDER = ["VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR CONSTANT", "VAR RETAIN", "VAR"]
+
+
+def _address(r, d):
+    """回傳 (位址大寫或 '', 錯誤訊息或 None)。"""
+    a = (r.get("address") or r.get("addr") or r.get("位址") or "").upper()
+    if not a:
+        return "", None
+    if parse_addr(a) is None:
+        return a, f"address {a!r} 不是合法的 IEC 直接位址(例:%IX0.0、%QW2、%MD10)"
+    if d in ("IN", "OUT") and a[1] != {"IN": "I", "OUT": "Q"}[d]:
+        return a, f"direction {d} 與位址 {a} 不一致(IN 用 %I、OUT 用 %Q)"
+    if d not in ("IN", "OUT", "VAR"):
+        return a, f"direction {d} 不可指定位址"
+    return a, None
 
 
 def parse_tags(text):
@@ -20,8 +40,11 @@ def parse_tags(text):
             raise STError(f"tag table line {i}: bad direction {d!r}")
         if not r.get("type"):
             raise STError(f"tag table line {i}: missing type")
-        rows.append({"name": r["name"], "type": r["type"].upper(), "section": SECTIONS[d],
-                     "init": r.get("init", ""), "comment": r.get("comment", "")})
+        addr, aerr = _address(r, d)
+        if aerr:
+            raise STError(f"tag table line {i}: {aerr}")
+        rows.append({"name": r["name"], "type": r["type"].upper(), "section": "VAR" if addr else SECTIONS[d],
+                     "init": r.get("init", ""), "comment": r.get("comment", ""), "address": addr})
     return rows
 
 
@@ -34,7 +57,7 @@ def tags_to_var_blocks(text):
             continue
         out.append(sec)
         for r in sel:
-            line = f"  {r['name']} : {r['type']}"
+            line = f"  {r['name']}{' AT ' + r['address'] if r['address'] else ''} : {r['type']}"
             if r["init"]:
                 line += f" := {r['init']}"
             line += ";"
@@ -62,6 +85,9 @@ def preview_tags(text):
             row = {"line": i, "name": r.get("name", ""), "type": (r.get("type") or "").upper(),
                    "direction": d, "section": SECTIONS.get(d, ""), "init": r.get("init", ""),
                    "comment": r.get("comment", ""), "error": None}
+            row["address"], aerr = _address(r, d)
+            if row["address"] and not aerr:
+                row["section"] = "VAR"
             if not row["name"]:
                 row["error"] = "缺少 name"
             elif not IDENT.match(row["name"]):
@@ -69,9 +95,11 @@ def preview_tags(text):
             elif row["name"].lower() in seen:
                 row["error"] = f"與第 {seen[row['name'].lower()]} 行名稱重複"
             elif d not in SECTIONS:
-                row["error"] = f"direction {d!r} 應為 IN / OUT / INOUT / VAR"
+                row["error"] = f"direction {d!r} 應為 IN / OUT / INOUT / VAR / CONST / RETAIN"
             elif not row["type"]:
                 row["error"] = "缺少 type"
+            elif aerr:
+                row["error"] = aerr
             if row["name"]:
                 seen.setdefault(row["name"].lower(), i)
             rows.append(row)

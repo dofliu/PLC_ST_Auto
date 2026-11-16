@@ -166,6 +166,9 @@ kbd{font:var(--fs-xs) var(--font-code);border:1px solid var(--bd-strong);border-
 .ior{display:flex;align-items:center;gap:var(--sp-2);min-height:26px;font-size:var(--fs-sm)}
 .ior .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-code)}
 .ior .ty{font-size:var(--fs-xs);color:var(--fg-muted)}
+.ior .ad{font:600 var(--fs-xs) var(--font-code);padding:0 5px;border-radius:4px;border:1px solid var(--bd);color:var(--fg-muted);white-space:nowrap}
+.pwr{display:block;font-size:var(--fs-xs);color:var(--wn);white-space:nowrap}
+.ior .ad.q{color:var(--wn);border-color:var(--wn)}
 .ior .val{font:600 var(--fs-sm) var(--font-code);min-width:44px;text-align:right}
 .ior input{width:84px;padding:2px 6px;font:var(--fs-sm) var(--font-code);text-align:right}
 .ior input.pend,.sw.pend{box-shadow:0 0 0 2px var(--wn-bg),0 0 0 3px var(--wn)}
@@ -368,7 +371,7 @@ END_PROGRAM</textarea></div></div>
  <div class="card"><h2><svg class="ico"><use href="#i-rag"/></svg>需求輸入</h2>
   <label for="req">需求文字(或上傳 .txt/.md 檔)</label><textarea id="req">按下 start 後馬達啟動,按 stop 停止;馬達連續運轉 500ms 後計數器加 1。</textarea>
   <input type="file" id="reqfile" accept=".txt,.md" aria-label="上傳需求檔">
-  <label for="tags">點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,comment"></textarea>
+  <label for="tags">點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,init,comment,address(address 選用,例 %IX0.0;direction 可用 IN/OUT/INOUT/VAR/CONST/RETAIN)"></textarea>
   <input type="file" id="tagsfile" accept=".csv,.txt" aria-label="上傳點位表">
   <button class="s" onclick="tagsToVar()"><svg class="ico"><use href="#i-table"/></svg>點位表 → VAR 宣告</button>
   <div id="tagpv" aria-live="polite"></div>
@@ -391,6 +394,7 @@ END_PROGRAM</textarea></div></div>
    <button id="sim_pause" class="s" onclick="simPause()" disabled title="暫停(Alt+P)"><svg class="ico"><use href="#i-pause"/></svg>暫停</button>
    <button id="sim_step" class="s" onclick="simStep()" title="執行一個掃描週期(Alt+S)"><svg class="ico"><use href="#i-step"/></svg>單步</button>
    <button id="sim_reset" class="s" onclick="simReset()" title="重新載入程式、變數回初值"><svg class="ico"><use href="#i-reset"/></svg>重設</button>
+   <button id="sim_power" class="s" onclick="simPower()" title="模擬斷電再上電(暖啟動):RETAIN 變數保留,其餘回到初值"><svg class="ico"><use href="#i-cpu"/></svg>斷電重啟</button>
    <label for="simspeed" class="sr">速度</label><select id="simspeed" title="模擬速度"><option value="0.2">×0.2 慢</option><option value="1" selected>×1 即時</option><option value="10">×10 快</option></select>
    <span class="clk" id="simclk">週期 0 · 0 ms</span>
   </div>
@@ -615,16 +619,17 @@ async function ragSearch(){const done=busy();try{const j=await api('/api/rag/sea
 function parseEv(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(\d+):([\w.]+)=(.+)$/);if(!m)throw new Error('事件格式錯誤: '+l);
  const v=m[3].toLowerCase()=='true'?true:m[3].toLowerCase()=='false'?false:Number(m[3]);return{cycle:+m[1],name:m[2],value:v}})}
 // ---- UI5 點位表預覽、產生時間軸、修正輪差異 ----
-const SECL={VAR_INPUT:['輸入','in'],VAR_OUTPUT:['輸出','ok'],VAR_IN_OUT:['輸入輸出','wn'],VAR:['內部','']};
+const SECL={VAR_INPUT:['輸入','in'],VAR_OUTPUT:['輸出','ok'],VAR_IN_OUT:['輸入輸出','wn'],'VAR CONSTANT':['常數',''],'VAR RETAIN':['保持',''],VAR:['內部','']};
+const tagRole=r=>r.address&&!r.error?({I:'VAR_INPUT',Q:'VAR_OUTPUT'}[r.address[1]]||'VAR'):r.section;
 let tagT=0,tagSeq=0;
 async function tagPreview(){const t=$('tags').value,seq=++tagSeq;if(!t.trim()){$('tagpv').innerHTML='';return}
  try{const j=await api('/api/tags/preview',{csv:t});if(seq==tagSeq)renderTagPv(j)}catch(e){if(seq==tagSeq)$('tagpv').innerHTML=`<div class="iss er">${esc(e.message)}</div>`}}
-function renderTagPv(j){const cnt={};j.rows.forEach(r=>{if(!r.error)cnt[r.section]=(cnt[r.section]||0)+1});
+function renderTagPv(j){const cnt={};j.rows.forEach(r=>{if(!r.error)cnt[tagRole(r)]=(cnt[tagRole(r)]||0)+1});
  const sum=Object.keys(SECL).filter(k=>cnt[k]).map(k=>`<span class="badge ${SECL[k][1]}">${SECL[k][0]} ${cnt[k]}</span>`).join('')
   +(j.errors?`<span class="badge no">✘ ${j.errors} 處錯誤</span>`:j.rows.length?'<span class="badge ok">✔ 可轉成 VAR 宣告</span>':'')
   +(j.fatal?`<span class="iss er">${esc(j.fatal)}</span>`:'');
- const rows=j.rows.map(r=>`<tr class="${r.error?'bad':''}"><td>${r.line}</td><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${r.section?esc(SECL[r.section][0]):esc(r.direction)}</td><td>${esc(r.init)}</td><td class="cm">${r.error?'✘ '+esc(r.error):esc(r.comment)}</td></tr>`).join('');
- $('tagpv').innerHTML=`<div class="tagsum"><b style="font-size:var(--fs-sm)">點位預覽</b>${sum}</div>`+(rows?`<div class="scnwrap" style="max-height:26vh"><table class="scn tagpv"><thead><tr><th>行</th><th>名稱</th><th>型別</th><th>方向</th><th>初值</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table></div>`:'')}
+ const rows=j.rows.map(r=>`<tr class="${r.error?'bad':''}"><td>${r.line}</td><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${r.section&&SECL[tagRole(r)]?esc(SECL[tagRole(r)][0]):esc(r.direction)}</td><td>${esc(r.address||'')}</td><td>${esc(r.init)}</td><td class="cm">${r.error?'✘ '+esc(r.error):esc(r.comment)}</td></tr>`).join('');
+ $('tagpv').innerHTML=`<div class="tagsum"><b style="font-size:var(--fs-sm)">點位預覽</b>${sum}</div>`+(rows?`<div class="scnwrap" style="max-height:26vh"><table class="scn tagpv"><thead><tr><th>行</th><th>名稱</th><th>型別</th><th>方向</th><th>位址</th><th>初值</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table></div>`:'')}
 $('tags').addEventListener('input',()=>{clearTimeout(tagT);tagT=setTimeout(tagPreview,250)});
 let genTL=[];
 function renderTL(j){genTL=j.timeline||[];const n=genTL.length,tot=genTL.reduce((a,t)=>a+t.ms,0),last=genTL[n-1];
@@ -667,7 +672,7 @@ function ioBuild(meta,live){const g={input:[],output:[],local:[]};meta.forEach((
    :`<input data-k="${k}" aria-label="${n}" ${m.type=='STRING'?'':'type="number" step="any"'} ${live?'':'disabled'}>`;
   else if(kind=='output'&&isB)ctl=`<span class="lamp" data-k="${k}" role="img" aria-label="${n}"></span>`;
   else ctl=`<span class="val" data-k="${k}"></span>`;
-  return `<div class="ior" title="${n} : ${esc(m.type)}"><span class="nm">${n}</span><span class="ty">${esc(m.type)}</span>${ctl}</div>`};
+  return `<div class="ior" title="${n} : ${esc(m.type)}"><span class="nm">${n}</span>${m.addr?`<span class="ad" title="直接位址">${esc(m.addr)}</span>`:''}${m.const?'<span class="ad q" title="VAR CONSTANT:不可寫入">CONST</span>':''}${m.retain?'<span class="ad q" title="VAR RETAIN:斷電重啟後保留">RETAIN</span>':''}<span class="ty">${esc(m.type)}</span>${ctl}</div>`};
  const grp=(kind,title,ico)=>g[kind].length?`<div class="iog" data-g="${kind}"><h3><svg class="ico"><use href="#${ico}"/></svg>${title}<span class="n">${g[kind].length}</span></h3><div class="list">${g[kind].map(x=>row(x,kind)).join('')}</div></div>`:'';
  $('io').innerHTML=grp('input','輸入','i-play')+grp('output','輸出','i-check')+grp('local','內部變數','i-cpu')||'<div class="empty" style="grid-column:1/-1">程式沒有可顯示的變數</div>';
  $('io').querySelectorAll('.sw').forEach(b=>b.onclick=()=>{const k=+b.dataset.k,v=b.getAttribute('aria-checked')!='true';sim.pend[meta[k].name]=v;b.setAttribute('aria-checked',v);b.classList.add('pend');if(sim.mode=='stop')simStep()});
@@ -701,6 +706,10 @@ async function simRun(){if(sim.run)return;try{await simEnsure()}catch(e){return 
   if(sim.run)sim.timer=setTimeout(loop,Math.max(0,iv-(performance.now()-t0)))};loop()}
 const MAX_STEP=500;
 function simPause(){simStopLoop();if(sim.id)simMode('pause');const r=sim.rows[sim.rows.length-1];if(r)pill('st_run',`⏸ 模擬 週期 ${r[0]}`,'ok')}
+async function simPower(){if(sim.busy)return;const was=sim.run;simStopLoop();sim.busy=true;
+ try{await simEnsure();sim.pend={};const j=await api('/api/sim/step',{id:sim.id,cycles:1,restart:'warm'});
+  sim.rows.push(...j.rows);ioShow(sim.rows[sim.rows.length-1]);draw(lastWave);simMode('pause');toast('已斷電重啟:RETAIN 變數保留,其餘回初值','info')}
+ catch(e){simErr(e)}finally{sim.busy=false}if(was)simRun()}
 async function simReset(){simStopLoop();if(sim.id)api('/api/sim/stop',{id:sim.id}).catch(()=>{});sim.id=null;sim.pend={};
  try{await simEnsure();toast('已重設虛擬 PLC','info')}catch(e){simErr(e)}}
 document.addEventListener('keydown',e=>{if(!e.altKey||e.ctrlKey||e.metaKey)return;const k=(e.code||'').replace('Key','').toLowerCase();
@@ -799,7 +808,7 @@ function scnRender(){const tb=$('scnbody');tb.innerHTML=scn.rows.map((r,i)=>{con
  else if(rs){res=`<b class="${rs.passed?'ok':'er'}"><svg class="ico"><use href="#${rs.passed?'i-check':'i-x'}"/></svg>${rs.passed?'通過':'失敗'}</b> <span class="hint ck">@${rs.t_ms} ms</span>`+
   rs.checks.map(c=>`<span class="${c.pass?'ok':'er'} ck" title="預期 ${esc(scV(c.expected))}">${c.pass?'✔':'✘'} ${esc(c.var)}=${esc(scV(c.actual))}${c.pass?'':` (預期 ${esc(scV(c.expected))})`}</span>`).join('')}
  const f=(k,ph)=>`<input data-i="${i}" data-k="${k}" value="${esc(r[k]).replace(/"/g,'&quot;')}" placeholder="${ph}"${r[k+'Err']?` class="bad" title="${esc(r[k+'Err']).replace(/"/g,'&quot;')}"`:''} aria-label="步驟 ${i+1} ${ph}">`;
- return`<tr class="main ${cls}" data-row="${i}"><td class="c-n">${i+1}</td><td>${f('name','名稱')}</td><td>${f('set','start=TRUE')}</td>
+ return`<tr class="main ${cls}" data-row="${i}"><td class="c-n">${i+1}${r.rest&&r.rest.restart?`<span class="pwr" title="此步驟先模擬斷電再上電(${r.rest.restart=='warm'?'暖啟動:RETAIN 保留':'冷啟動:全部回初值'});於 JSON 模式以 &quot;restart&quot; 設定">⏻${r.rest.restart=='warm'?'暖':'冷'}</span>`:''}</td><td>${f('name','名稱')}</td><td>${f('set','start=TRUE')}</td>
  <td class="c-w"><div class="wait"><input data-i="${i}" data-k="n" type="number" min="0" value="${esc(r.n)}" aria-label="步驟 ${i+1} 等待"><select data-i="${i}" data-k="unit" aria-label="步驟 ${i+1} 等待單位"><option value="ms"${r.unit=='ms'?' selected':''}>ms</option><option value="cyc"${r.unit!='ms'?' selected':''}>週期</option></select></div></td>
  <td>${f('expect','motor=TRUE')}</td>
  <td class="c-a"><button class="ghost" type="button" data-act="up" data-i="${i}" title="上移" aria-label="步驟 ${i+1} 上移"${i?'':' disabled'}>↑</button><button class="ghost" type="button" data-act="down" data-i="${i}" title="下移" aria-label="步驟 ${i+1} 下移"${i<scn.rows.length-1?'':' disabled'}>↓</button><button class="ghost" type="button" data-act="del" data-i="${i}" title="刪除" aria-label="刪除步驟 ${i+1}"><svg class="ico"><use href="#i-trash"/></svg></button></td></tr>`+

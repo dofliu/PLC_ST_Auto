@@ -6,8 +6,14 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M33、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M34、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M34 ✅ VAR CONSTANT / RETAIN / VAR_TEMP 與直接位址 AT %I/%Q/%M(`docs/test_report_M34.md`)
+- [x] 語法 + 虛擬 PLC:常數寫入保護、VAR_TEMP 每週期重新初始化、%I/%Q 變數作為輸入/輸出、斷電重啟(暖/冷)
+- [x] 檢查器:寫入 CONSTANT、位址大小不符、位址重疊(依廠牌定址);方言:Siemens/Rockwell/Mitsubishi/Omron 位址與 VAR_TEMP 提示
+- [x] 匯出:修飾詞不再併入變數名稱;PLCopen 屬性/address、SCL PLC 變數表、L5X Constant+初值、GX/Sysmac 欄位;常數陣列邊界展開
+- [x] 點位表 `address` 欄與 CONST/RETAIN、情境 `restart`、UI 標籤與「斷電重啟」;單元 45 項、UI 18 項、截圖 `docs/screenshots/m34/`
+- [ ] **待實機**:TIA OB 內 VAR CONSTANT/RETAIN、Studio 5000 `<Data>` 初值匯入
 ## M33 ✅ 自訂 FUNCTION / FUNCTION_BLOCK 匯出 PLCopen XML 與 Siemens SCL(`docs/test_report_M33.md`)
 - [x] `split_pous()`:依序切出 FUNCTION / FUNCTION_BLOCK / PROGRAM(註解、字串內關鍵字不誤判)
 - [x] PLCopen:`pouType=function|functionBlock|program`、`returnType`,TC6 XSD 驗證通過
@@ -136,9 +142,12 @@
 ## 下一步候選(≤2h)
 - [ ] 寬螢幕(≥1600px)右側同時顯示兩個頁籤(例:模擬+測試)
 - [ ] 產生流程串流顯示(每輪完成即更新時間軸)
-- [ ] 匯出時展開 VAR CONSTANT 陣列邊界
+- [x] 匯出時展開 VAR CONSTANT 陣列邊界(M34)
 - [ ] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位
 - [ ] GX Works3 / Sysmac STRUCT 匯出
 - [x] 自訂 POU 的 PLCopen/SCL 匯出(M33)
 - [ ] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction
-- [ ] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(目前修飾詞會被併入變數名稱)
+- [x] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(M34)
+- [ ] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、GVL 匯出)
+- [ ] 虛擬 PLC 模擬位址共用記憶體(%MW0 與 %MX0.0 重疊時同步)
+- [ ] 點位表匯出為各廠牌可匯入格式(TIA PLC tags xlsx/xml、GX Works3 全域標籤 CSV)

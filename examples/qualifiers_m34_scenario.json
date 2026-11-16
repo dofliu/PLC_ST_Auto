@@ -1,0 +1,10 @@
+{"scan_ms": 10,
+ "steps": [
+  {"name": "啟動", "set": {"start": true}, "expect": {"motor": true, "speed": 100}},
+  {"name": "第 1 件", "set": {"sensor": true}, "expect": {"total": 1, "batch": 1}},
+  {"name": "放開", "set": {"sensor": false}, "expect": {"total": 1}},
+  {"name": "第 2 件", "set": {"sensor": true}, "expect": {"total": 2, "batch": 2}},
+  {"name": "斷電重啟(暖)", "restart": "warm", "set": {"sensor": false}, "expect": {"total": 2, "batch": 0, "motor": false}},
+  {"name": "第 3 件", "set": {"sensor": true, "start": true}, "expect": {"total": 3, "batch": 1, "motor": true}},
+  {"name": "冷啟動", "restart": "cold", "expect": {"total": 0, "batch": 0}}
+ ]}

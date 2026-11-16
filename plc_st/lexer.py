@@ -5,11 +5,11 @@ class STError(Exception):
     pass
 
 KEYWORDS = {
-    "PROGRAM", "END_PROGRAM", "VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT",
+    "PROGRAM", "END_PROGRAM", "VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR_TEMP",
     "END_VAR", "IF", "THEN", "ELSIF", "ELSE", "END_IF", "CASE", "OF", "END_CASE",
     "FOR", "TO", "BY", "DO", "END_FOR", "WHILE", "END_WHILE", "REPEAT", "UNTIL",
     "END_REPEAT", "EXIT", "AND", "OR", "XOR", "NOT", "MOD", "TRUE", "FALSE",
-    "RETAIN", "CONSTANT", "ARRAY", "FUNCTION", "END_FUNCTION",
+    "RETAIN", "CONSTANT", "NON_RETAIN", "PERSISTENT", "ARRAY", "FUNCTION", "END_FUNCTION",
     "FUNCTION_BLOCK", "END_FUNCTION_BLOCK", "RETURN", "TYPE", "END_TYPE", "STRUCT", "END_STRUCT",
 }
 
@@ -24,6 +24,7 @@ _TOKEN = re.compile(r"""
   | (?P<based>(?:2|8|16)\#[0-9A-Fa-f][0-9A-Fa-f_]*)
   | (?P<real>\d[\d_]*\.\d[\d_]*(?:[eE][+-]?\d+)?)
   | (?P<int>\d[\d_]*)
+  | (?P<addr>%[A-Za-z]{1,2}\d+(?:\.\d+)*)
   | (?P<str>'(?:\$.|[^'$])*')
   | (?P<id>[A-Za-z_][A-Za-z_0-9]*)
   | (?P<op>:=|=>|<>|<=|>=|\*\*|\.\.|[-+*/=<>():;,.\[\]])
@@ -111,6 +112,8 @@ def tokenize(src):
             toks.append(("str", _unescape(text[1:-1], line), line))
         elif kind == "op":
             toks.append(("op", text, line))
+        elif kind == "addr":
+            toks.append(("addr", text.upper(), line))
         line += text.count("\n")
         pos = m.end()
     toks.append(("eof", None, line))
