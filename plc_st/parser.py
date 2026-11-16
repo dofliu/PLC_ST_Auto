@@ -1,7 +1,24 @@
 """Recursive-descent ST parser producing tuple ASTs."""
+import re
 from .lexer import tokenize, STError
 
-SECTIONS = {"VAR": "local", "VAR_INPUT": "input", "VAR_OUTPUT": "output", "VAR_IN_OUT": "inout"}
+SECTIONS = {"VAR": "local", "VAR_INPUT": "input", "VAR_OUTPUT": "output", "VAR_IN_OUT": "inout", "VAR_TEMP": "temp"}
+_QUALS = ("RETAIN", "CONSTANT", "NON_RETAIN", "PERSISTENT")
+_ADDR = re.compile(r"%([IQM])([XBWDL]?)(\d+)(?:\.(\d+))?$")
+_ADDR_BITS = {"X": 1, "B": 8, "W": 16, "D": 32, "L": 64}
+
+
+def parse_addr(text):
+    """'%IX0.3' → {area: I|Q|M, size: X|B|W|D|L, bits, index, bit};格式不符回傳 None。
+    省略大小字首(%I0.3)視為位元。"""
+    m = _ADDR.match(text.upper())
+    if not m:
+        return None
+    area, size, idx, bit = m.group(1), m.group(2) or "X", int(m.group(3)), m.group(4)
+    if bit is not None and (size != "X" or int(bit) > 7):
+        return None
+    return {"area": area, "size": size, "bits": _ADDR_BITS[size], "index": idx,
+            "bit": int(bit) if bit is not None else None}
 
 
 class Parser:
@@ -141,13 +158,25 @@ class Parser:
 
     def var_block(self):
         section = SECTIONS[self.next()[1]]
-        while self.accept("kw", "RETAIN") or self.accept("kw", "CONSTANT"):
-            pass
+        quals = set()
+        while self.peek()[0] == "kw" and self.peek()[1] in _QUALS:
+            quals.add(self.next()[1])
+        const, retain = "CONSTANT" in quals, bool(quals & {"RETAIN", "PERSISTENT"})
         out = []
         while not self.accept("kw", "END_VAR"):
+            ln = self.peek()[2]
             names = [self.expect("id")[1]]
             while self.accept("op", ","):
                 names.append(self.expect("id")[1])
+            addr = None
+            if self.peek()[0] == "id" and self.peek()[1].upper() == "AT":
+                self.next()
+                k, v, aln = self.next()
+                if k != "addr" or parse_addr(v) is None:
+                    raise STError(f"line {aln}: AT needs a direct address like %IX0.0 / %QW2 / %MD10")
+                if len(names) > 1:
+                    raise STError(f"line {aln}: AT address can only be given to a single variable")
+                addr = v
             self.expect("op", ":")
             arr = None
             if self.accept("kw", "ARRAY"):
@@ -166,8 +195,14 @@ class Parser:
             tname = self.expect("id")[1].upper()
             init = self.init_value() if self.accept("op", ":=") else None
             self.expect("op", ";")
+            # 直接位址決定模擬時的 I/O 角色:%I 視為輸入、%Q 視為輸出(%M 維持原區段)
+            eff = section
+            if addr and section == "local":
+                eff = {"I": "input", "Q": "output"}.get(addr[1], section)
             for n in names:
-                out.append({"name": n, "type": tname, "section": section, "init": init, "array": arr, "dims": dims if arr else None})
+                out.append({"name": n, "type": tname, "section": eff, "init": init, "array": arr,
+                            "dims": dims if arr else None, "const": const, "retain": retain,
+                            "addr": addr, "line": ln})
         return out
 
     def statements(self, stops):
@@ -377,6 +412,9 @@ class Parser:
                 self.next()
                 return ("func", v, self.call_args())
             return self.selectors(("var", v))
+        if k == "addr":
+            raise STError(f"line {ln}: direct address {v} cannot be used in code; "
+                          f"declare a variable for it, e.g. `name AT {v} : BOOL;`")
         raise STError(f"line {ln}: unexpected token {v!r}")
 
 

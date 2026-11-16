@@ -47,7 +47,9 @@ def _meta(plc, cols):
     out = []
     for c in cols:
         key = re.sub(r"\[[^\]]*\]", "", c.lower())
-        out.append({"name": c, "type": plc.types.get(key, ""), "section": plc.section.get(key, "local")})
+        d = plc.meta.get(key.split(".")[0]) or {}
+        out.append({"name": c, "type": plc.types.get(key, ""), "section": plc.section.get(key, "local"),
+                    "addr": d.get("addr"), "const": bool(d.get("const")), "retain": bool(d.get("retain"))})
     return out
 
 
@@ -89,6 +91,10 @@ def _sim_step(p, state):
     sets = p.get("set") or {}
     if not isinstance(sets, dict):
         raise STError("set must be an object {name: value}")
+    if p.get("restart") is not None:  # 模擬斷電再上電:warm 保留 RETAIN,cold 全部回初值
+        if p["restart"] not in ("warm", "cold"):
+            raise STError("restart must be 'warm' or 'cold'")
+        plc.restart(warm=p["restart"] == "warm")
     for n, v in sets.items():
         if plc.section.get(re.sub(r"\[[^\]]*\]", "", n.lower())) == "output":
             raise STError(f"{n} is an output; only inputs/locals can be forced")

@@ -1,0 +1,8 @@
+name,type,direction,init,comment,address
+start,BOOL,IN,,啟動按鈕,%IX0.0
+sensor,BOOL,IN,,計數感測器,%IX0.1
+motor,BOOL,OUT,,馬達接觸器,%QX0.0
+speed,INT,OUT,,速度命令,%QW2
+MAX_COUNT,DINT,CONST,1000,批量上限,
+total,DINT,RETAIN,,累計數量(斷電保持),
+batch,DINT,VAR,0,本批數量,

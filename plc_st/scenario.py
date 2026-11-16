@@ -2,7 +2,7 @@
 
 {"scan_ms": 100, "profile": "iec",
  "steps": [{"name": "start", "set": {"start": true}, "ms": 600, "expect": {"motor": true, "t.Q": true}}]}
-每個 step:先 set → 掃描 cycles 次(或 ms 毫秒,向上取整,預設 1 週期)→ 比對 expect。"""
+每個 step:(選用 "restart": "warm"|"cold" 模擬斷電再上電,warm 保留 RETAIN 變數)→ set → 掃描 cycles 次(或 ms 毫秒,向上取整,預設 1 週期)→ 比對 expect。"""
 import json
 import math
 
@@ -43,6 +43,10 @@ def run_scenario_detail(source, spec, profile=None, scan_ms=None):
             raise _at(STError(f"step #{i + 1}: must be an object"), i)
         label = st.get("name", f"#{i + 1}")
         try:
+            if st.get("restart") is not None:  # 斷電再上電:warm 保留 RETAIN,cold 全部回初值
+                if st["restart"] not in ("warm", "cold"):
+                    raise STError(f"step {label}: restart must be 'warm' or 'cold'")
+                plc.restart(warm=st["restart"] == "warm")
             for n, v in (st.get("set") or {}).items():
                 plc.set_input(n, v)
             if "ms" in st:
