@@ -6,8 +6,13 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M34、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M35、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M35 ✅ 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(`docs/test_report_M35.md`)
+- [x] AOI 定義:EnableIn/EnableOut、Input/Output(基本型別純量,含預設值)、InOut(Required)、LocalTags(陣列/巢狀 AOI/常數)、VAR_TEMP 重新初始化
+- [x] 呼叫改寫(程式與 AOI 內):具名/位置引數、`=>` 輸出、IF/CASE 內、字串/註解不動;不合法情況明確報錯
+- [x] 匯出閘門:只含 FUNCTION_BLOCK 可匯出 L5X,含 FUNCTION 仍拒絕並建議改寫;單元 25 項、UI 9 項、截圖 `docs/screenshots/m35/`
+- [ ] **待實機**:Studio 5000 匯入 AOI 定義(DefaultData 格式、InOut 的 Radix、AOI 內 R_TRIG 需改 OSRI)
 ## M34 ✅ VAR CONSTANT / RETAIN / VAR_TEMP 與直接位址 AT %I/%Q/%M(`docs/test_report_M34.md`)
 - [x] 語法 + 虛擬 PLC:常數寫入保護、VAR_TEMP 每週期重新初始化、%I/%Q 變數作為輸入/輸出、斷電重啟(暖/冷)
 - [x] 檢查器:寫入 CONSTANT、位址大小不符、位址重疊(依廠牌定址);方言:Siemens/Rockwell/Mitsubishi/Omron 位址與 VAR_TEMP 提示
@@ -147,7 +152,9 @@
 - [ ] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位
 - [ ] GX Works3 / Sysmac STRUCT 匯出
 - [x] 自訂 POU 的 PLCopen/SCL 匯出(M33)
-- [ ] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction
+- [x] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(M35)
+- [ ] VAR_IN_OUT 傳入整個陣列(虛擬 PLC/檢查器目前報 `array used without index`)
+- [ ] 自訂 FUNCTION → L5X(提升為 AOI 並把運算式內呼叫拆成暫存實例)
 - [x] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(M34)
 - [ ] 靜態檢查:初值超出宣告型別範圍(目前只有 L5X 匯出時檢查)
 - [ ] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、GVL 匯出)
