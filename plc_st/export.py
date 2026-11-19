@@ -676,17 +676,178 @@ def _l5x_data(dt, src_type, init, name=""):
     return f'<Data Format="Decorated"><DataValue DataType="{dt}" Radix="{radix}" Value="{val}"/></Data>'
 
 
+_L5X_ATOMIC = {"BOOL", "SINT", "INT", "DINT", "LINT", "REAL"}
+_AOI_RESERVED = {"enablein", "enableout"}
+
+
+def _l5x_fbinfo(pous):
+    """FUNCTION_BLOCK 介面 {小寫名稱: {name, inputs, outputs, inouts, order}};order = 位置引數順序(IN 與 IN_OUT 依宣告順序)。"""
+    fbs = {}
+    for p in pous:
+        if p["kind"] != "fb":
+            continue
+        info = {"name": p["name"], "inputs": [], "outputs": [], "inouts": [], "order": []}
+        for kind, decls in p["blocks"]:
+            key = {"VAR_INPUT": "inputs", "VAR_OUTPUT": "outputs", "VAR_IN_OUT": "inouts"}.get(kind)
+            if key:
+                info[key] += [n for n, _, _ in decls]
+                if key != "outputs":
+                    info["order"] += [n for n, _, _ in decls]
+        fbs[p["name"].lower()] = info
+    return fbs
+
+
+def _l5x_instances(blocks, fbs, where):
+    """宣告中自訂 FB 型別的實例 {小寫實例名: FB 小寫名};FB 實例陣列無法轉成 AOI 呼叫,報錯。"""
+    out = {}
+    for _, decls in blocks:
+        for n, t, _ in decls:
+            arr = re.match(r"(?is)ARRAY\s*\[.*\]\s*OF\s+(\w+)\s*$", t)
+            if arr and arr.group(1).lower() in fbs:
+                raise STError(f"export l5x: {where}.{n} 為 FUNCTION_BLOCK 實例陣列,AOI 呼叫需個別實例,尚未支援")
+            if t.strip().lower() in fbs:
+                out[n.lower()] = t.strip().lower()
+    return out
+
+
+def _l5x_fbcalls(body, insts, fbs, where):
+    """IEC FB 呼叫 `inst(a := x, q => y);` → Logix AOI 呼叫:
+    `inst.a := x;` / `Name(inst, <VAR_IN_OUT 引數…>);` / `y := inst.q;`。
+    非必要的 Input 參數以成員寫入(與 IEC 未給引數時保留上次值的行為相同),InOut 為 Logix 必要參數依宣告順序傳入。"""
+    if not insts:
+        return body
+    nocom, masked = _views(body)
+    out, pos = [], 0
+    for m in re.finditer(r"(?<![\w.#])(\w+)\s*\(", masked):
+        fbkey = insts.get(m.group(1).lower())
+        if m.start() < pos or not fbkey:
+            continue
+        fb, inst = fbs[fbkey], m.group(1)
+        depth, j = 1, m.end()
+        while j < len(masked) and depth:
+            depth += (masked[j] == "(") - (masked[j] == ")")
+            j += 1
+        if depth:
+            raise STError(f"export l5x: {where} 中 {inst}( 呼叫括號不成對")
+        semi = re.match(r"\s*;", masked[j:])
+        before = masked[:m.start()].rstrip()
+        stmt = not before or before[-1] == ";" or re.search(r"(?i)\b(THEN|ELSE|DO|REPEAT)$", before) \
+            or (before[-1] == ":" and not before.endswith(":="))
+        if not semi or not stmt:
+            raise STError(f"export l5x: {where} 中 {inst}(...) 須為獨立敘述(以 ; 結尾)")
+        end = j + semi.end()
+        lower = {n.lower(): n for n in fb["inputs"] + fb["outputs"] + fb["inouts"]}
+        pre, post, inout = [], [], {}
+        for k, a in enumerate(_split_top(nocom[m.end():j - 1])):
+            mm = re.fullmatch(r"\s*(\w+)\s*(:=|=>)(.*)", a, re.S)
+            if mm:
+                pname, op, val = lower.get(mm.group(1).lower()), mm.group(2), mm.group(3).strip()
+                if not pname:
+                    raise STError(f"export l5x: {where} 中 {inst} 沒有參數 {mm.group(1)}")
+            else:
+                if k >= len(fb["order"]):
+                    raise STError(f"export l5x: {where} 中 {inst} 位置引數過多")
+                pname, op, val = fb["order"][k], ":=", a.strip()
+            if op == "=>":
+                if pname not in fb["outputs"]:
+                    raise STError(f"export l5x: {where} 中 {inst}.{pname} 不是輸出,不可用 =>")
+                post.append(f"{val} := {inst}.{pname};")
+            elif pname in fb["inouts"]:
+                inout[pname] = val
+            elif pname in fb["inputs"]:
+                pre.append(f"{inst}.{pname} := {val};")
+            else:
+                raise STError(f"export l5x: {where} 中 {inst}.{pname} 是輸出,請用 => 取值")
+        missing = [n for n in fb["inouts"] if n not in inout]
+        if missing:
+            raise STError(f"export l5x: {where} 中 {inst} 未給 VAR_IN_OUT 引數 {', '.join(missing)}(Logix AOI 必要參數)")
+        call = f"{fb['name']}({', '.join([inst] + [inout[n] for n in fb['inouts']])});"
+        line0 = body.rfind("\n", 0, m.start()) + 1
+        ind = re.match(r"[ \t]*", body[line0:]).group()
+        out.append(body[pos:m.start()] + ("\n" + ind).join(pre + [call] + post))
+        pos = end
+    return "".join(out) + body[pos:]
+
+
+def _l5x_aoi(p, fbs, now):
+    """FUNCTION_BLOCK → <AddOnInstructionDefinition>:VAR_INPUT/OUTPUT → Input/Output 參數(Logix 限基本型別純量),
+    VAR_IN_OUT → InOut 必要參數(可為陣列/UDT/TIMER),VAR/VAR_TEMP/VAR CONSTANT → LocalTags。"""
+    name, where = p["name"], f"FUNCTION_BLOCK {p['name']}"
+    consts = _consts(p["blocks"], name)
+    sysp = ('<Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input" Radix="Decimal" Required="false" '
+            'Visible="false" ExternalAccess="Read Only"><Description><![CDATA[Enable Input - System Defined Parameter]]>'
+            '</Description></Parameter>'
+            '<Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output" Radix="Decimal" Required="false" '
+            'Visible="false" ExternalAccess="Read Only"><Description><![CDATA[Enable Output - System Defined Parameter]]>'
+            '</Description></Parameter>')
+    params, locs = [sysp], []
+    for kind, decls in p["blocks"]:
+        if kind.addrs:
+            raise STError(f"export l5x: {where} 內不可宣告直接位址(AT),請移到 PROGRAM")
+        usage = {"VAR_INPUT": "Input", "VAR_OUTPUT": "Output", "VAR_IN_OUT": "InOut"}.get(kind)
+        const = "CONSTANT" in kind.mods
+        for n, t, init in decls:
+            if n.lower() in _AOI_RESERVED:
+                raise STError(f"export l5x: {where} 的變數 {n} 與 AOI 系統參數同名,請改名")
+            src_type, dimattr = t, ""
+            arr = _array_type(t, f"{name}.{n}", consts)
+            if arr:
+                rs, t = arr
+                if len(rs) > 3 or any(lo != 0 for lo, _ in rs):
+                    raise STError(f"export l5x: {name}.{n} 陣列須 ≤3 維且下界為 0(Logix 陣列從 0 起算)")
+                dimattr = ' Dimensions="' + " ".join(str(hi + 1) for _, hi in rs) + '"'
+            dt = _L5X_TYPE.get(t.upper(), t.upper() if t.upper() in _BASE else t)
+            atomic = dt in _L5X_ATOMIC and not arr
+            if usage in ("Input", "Output") and not atomic:
+                raise STError(f"export l5x: {name}.{n}({src_type})— AOI 的 Input/Output 參數只能是基本型別純量"
+                              "(BOOL/SINT/INT/DINT/REAL…),陣列、STRING、STRUCT、計時器請改用 VAR_IN_OUT")
+            radix = f' Radix="{"Float" if dt == "REAL" else "Decimal"}"' if atomic else ""
+            data = None
+            if usage != "InOut" and kind != "VAR_TEMP" and not arr:
+                data = _l5x_data(dt, src_type, init, f"{name}.{n}")
+                if const and data is None:
+                    raise STError(f"export l5x: {name} 的常數 {n} 的值 {init!r} 無法寫入(僅支援純量字面量)")
+            default = data.replace("<Data ", "<DefaultData ").replace("</Data>", "</DefaultData>") if data else ""
+            desc = "<Description><![CDATA[VAR CONSTANT: do not write]]></Description>" if const else ""
+            if usage:
+                req = "true" if usage == "InOut" else "false"
+                acc = {"Input": ' ExternalAccess="Read/Write"', "Output": ' ExternalAccess="Read Only"', "InOut": ""}[usage]
+                head = (f'<Parameter Name={quoteattr(n)} TagType="Base" DataType={quoteattr(dt)}{dimattr} '
+                        f'Usage="{usage}"{radix} Required="{req}" Visible="true"{acc}')
+                params.append(head + (f">{desc}{default}</Parameter>" if desc or default else "/>"))
+            else:
+                head = f'<LocalTag Name={quoteattr(n)} DataType={quoteattr(dt)}{dimattr}{radix} ExternalAccess="None"'
+                locs.append(head + (f">{desc}{default}</LocalTag>" if desc or default else "/>"))
+    pre = _temp_init(p["blocks"], name, "AOI 區域標籤會保留上一次掃描的值", consts)
+    body = _l5x_fbcalls(p["body"], _l5x_instances(p["blocks"], fbs, name), fbs, where)
+    lines = [f'<Line Number="{i}"><![CDATA[{ln.replace("]]>", "]]]]><![CDATA[>")}]]></Line>'
+             for i, ln in enumerate(pre + body.splitlines())]
+    return (f'<AddOnInstructionDefinition Name={quoteattr(name)} Revision="1.0" ExecutePrescan="false" '
+            f'ExecutePostscan="false" ExecuteEnableInFalse="false" CreatedDate={quoteattr(now)} '
+            f'CreatedBy="PLC_ST_Auto" EditedDate={quoteattr(now)} EditedBy="PLC_ST_Auto" '
+            f'SoftwareRevision="v32.00"><Description><![CDATA[Converted from IEC FUNCTION_BLOCK {name}]]></Description>'
+            f'<Parameters>{"".join(params)}</Parameters>'
+            + (f'<LocalTags>{"".join(locs)}</LocalTags>' if locs else "")
+            + '<Routines><Routine Name="Logic" Type="ST"><STContent>' + "".join(lines)
+            + "</STContent></Routine></Routines></AddOnInstructionDefinition>")
+
+
 def to_l5x(src, project="PLC_ST_Auto"):
     """Rockwell Studio 5000:Program(Tags + ST Routine)L5X 匯入檔。
     型別對映:TON/TOF→TIMER、CTU/CTD→COUNTER、TIME→DINT 等;函式塊呼叫語法需在 Logix 端人工調整(見 dialect 警告)。"""
     name, blocks, _, body = split_program(src)
     dts = _l5x_datatypes(src)
     now = datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y")
+    pous = split_pous(src) if _FUNCPOU.search(_views(src)[1]) else []
+    fbs = _l5x_fbinfo(pous)
+    aois = [_l5x_aoi(p, fbs, now) for p in pous if p["kind"] == "fb"]
+    body = _l5x_fbcalls(body, _l5x_instances(blocks, fbs, name), fbs, f"PROGRAM {name}")
     o = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
          f'<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="32.00" TargetName={quoteattr(name)} '
          f'TargetType="Program" ContainsContext="false" ExportDate={quoteattr(now)}>',
          f'<Controller Use="Context" Name={quoteattr(project)}>',
          *(["<DataTypes>" + "".join(dts) + "</DataTypes>"] if dts else []),
+         *(["<AddOnInstructionDefinitions>" + "".join(aois) + "</AddOnInstructionDefinitions>"] if aois else []),
          "<Programs>",
          f'<Program Use="Target" Name={quoteattr(name)} MainRoutineName="MainRoutine"><Tags>']
     consts = _consts(blocks, name)
@@ -792,15 +953,16 @@ FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "l5x": ("L5X"
 _USERPOU = re.compile(r"^\s*(?:FUNCTION(?:_BLOCK)?\s+\w+|TYPE\s+\w+\s*:)", re.M | re.I)
 
 _FUNCPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
+_FUNCONLY = re.compile(r"^\s*FUNCTION\s+\w+", re.M | re.I)
 
 
 def export(src, fmt):
     masked = _views(src)[1]
     if fmt in ("gxworks", "sysmac") and _USERPOU.search(masked):
         raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK/TYPE(STRUCT),此格式尚未支援(僅 st 格式可完整匯出)")
-    if fmt == "l5x" and _FUNCPOU.search(masked):
-        raise STError("export l5x: 含自訂 FUNCTION/FUNCTION_BLOCK;Logix 須以 Add-On Instruction 實作,尚未支援"
-                      "(可改用 plcopen / scl / st 匯出)")
+    if fmt == "l5x" and _FUNCONLY.search(masked):
+        raise STError("export l5x: 含自訂 FUNCTION;Logix 無可在運算式中呼叫的使用者函式,尚未支援"
+                      "(可改寫為 FUNCTION_BLOCK 以 Add-On Instruction 匯出,或改用 plcopen / scl / st)")
     try:
         return FORMATS[fmt][1](src)
     except KeyError:
