@@ -769,6 +769,32 @@ def _l5x_fbcalls(body, insts, fbs, where):
     return "".join(out) + body[pos:]
 
 
+def _l5x_arraycopy(body, blocks, where, consts=None):
+    """整個陣列賦值 `dst := src;`(IEC 允許同型別陣列)→ Logix ST 無此語法,改寫為 `COP(src[0], dst[0], n);`。
+    兩邊須為同一 POU 內宣告的陣列、元素型別與每一維長度相同(下界皆為 0,已由標籤檢查保證)。"""
+    arrs = {}
+    for _, decls in blocks:
+        for n, t, _ in decls:
+            a = _array_type(t, f"{where}.{n}", consts)
+            if a:
+                arrs[n.lower()] = (n, a[0], a[1].upper())
+
+    def repl(m):
+        d, s_ = arrs.get(m.group(2).lower()), arrs.get(m.group(3).lower())
+        if not d or not s_:
+            return m.group()
+        if d[2] != s_[2] or [hi - lo for lo, hi in d[1]] != [hi - lo for lo, hi in s_[1]]:
+            raise STError(f"export l5x: {where} 中 {d[0]} := {s_[0]} 陣列型別或大小不同,無法以 COP 複製")
+        size = 1
+        for lo, hi in d[1]:
+            size *= hi - lo + 1
+        z = ",".join("0" for _ in d[1])
+        return f"{m.group(1)}COP({s_[0]}[{z}], {d[0]}[{z}], {size});"
+
+    return _sub_code(r"(?m)(^[ \t]*|(?<=;)[ \t]*|(?<=\bTHEN)\s+|(?<=\bELSE)\s+|(?<=\bDO)\s+)"
+                     r"(\w+)\s*:=\s*(\w+)\s*;", repl, body)
+
+
 def _l5x_aoi(p, fbs, now):
     """FUNCTION_BLOCK → <AddOnInstructionDefinition>:VAR_INPUT/OUTPUT → Input/Output 參數(Logix 限基本型別純量),
     VAR_IN_OUT → InOut 必要參數(可為陣列/UDT/TIMER),VAR/VAR_TEMP/VAR CONSTANT → LocalTags。"""
@@ -820,6 +846,7 @@ def _l5x_aoi(p, fbs, now):
                 locs.append(head + (f">{desc}{default}</LocalTag>" if desc or default else "/>"))
     pre = _temp_init(p["blocks"], name, "AOI 區域標籤會保留上一次掃描的值", consts)
     body = _l5x_fbcalls(p["body"], _l5x_instances(p["blocks"], fbs, name), fbs, where)
+    body = _l5x_arraycopy(body, p["blocks"], name, consts)
     lines = [f'<Line Number="{i}"><![CDATA[{ln.replace("]]>", "]]]]><![CDATA[>")}]]></Line>'
              for i, ln in enumerate(pre + body.splitlines())]
     return (f'<AddOnInstructionDefinition Name={quoteattr(name)} Revision="1.0" ExecutePrescan="false" '
@@ -842,6 +869,7 @@ def to_l5x(src, project="PLC_ST_Auto"):
     fbs = _l5x_fbinfo(pous)
     aois = [_l5x_aoi(p, fbs, now) for p in pous if p["kind"] == "fb"]
     body = _l5x_fbcalls(body, _l5x_instances(blocks, fbs, name), fbs, f"PROGRAM {name}")
+    body = _l5x_arraycopy(body, blocks, name, _consts(blocks, name))
     o = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
          f'<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="32.00" TargetName={quoteattr(name)} '
          f'TargetType="Program" ContainsContext="false" ExportDate={quoteattr(now)}>',

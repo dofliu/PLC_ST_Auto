@@ -136,6 +136,9 @@
 - [x] Rockwell 方言訊息:R_TRIG→OSRI 等逐一對應
 - [x] 修正虛擬 PLC 計時器提早一個掃描週期觸發(TON/TOF/TP)
 - [x] Haiku / Sonnet 對照已由使用者本機執行,結果與分析:`docs/eval_report_20261109_haiku_vs_sonnet.md`
+## M36 ✅
+- [x] 整個陣列傳入 VAR_IN_OUT / VAR_INPUT(解譯/檢查,形狀與型別檢查)、`a := b` 陣列整體賦值、L5X `COP` 改寫、初值超出型別範圍檢查;`tests/test_m36.py`、`tests/ui_m36.js`、`examples/array_inout.st`、`docs/test_report_M36.md`
+- [ ] **待實機**:Studio 5000 確認 COP 改寫與 AOI 陣列 InOut
 ## UI 改版(規劃中,詳見 `docs/ui_redesign_plan.md`)
 目標:一個畫面看完不用捲動、頁籤切換、重要資訊(檢查/模擬/情境/LLM 狀態)常駐、更有質感
 - [x] UI1 100vh 外框 + 常駐狀態列 + 左側頁籤 + 程式碼常駐 + 底部問題抽屜(功能不變)
@@ -153,10 +156,12 @@
 - [ ] GX Works3 / Sysmac STRUCT 匯出
 - [x] 自訂 POU 的 PLCopen/SCL 匯出(M33)
 - [x] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(M35)
-- [ ] VAR_IN_OUT 傳入整個陣列(虛擬 PLC/檢查器目前報 `array used without index`)
+- [x] VAR_IN_OUT / VAR_INPUT 傳入整個陣列、陣列整體賦值、L5X COP 改寫(M36)
 - [ ] 自訂 FUNCTION → L5X(提升為 AOI 並把運算式內呼叫拆成暫存實例)
 - [x] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(M34)
-- [ ] 靜態檢查:初值超出宣告型別範圍(目前只有 L5X 匯出時檢查)
+- [x] 靜態檢查:初值超出宣告型別範圍(M36)
 - [ ] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、GVL 匯出)
 - [ ] 虛擬 PLC 模擬位址共用記憶體(%MW0 與 %MX0.0 重疊時同步)
 - [ ] 點位表匯出為各廠牌可匯入格式(TIA PLC tags xlsx/xml、GX Works3 全域標籤 CSV)
+- [ ] ARRAY OF STRUCT 整體傳遞/賦值、`ARRAY[*]` 可變長度 VAR_IN_OUT
+- [ ] FB VAR_OUTPUT 陣列整體讀出 `x := fb.arr`
