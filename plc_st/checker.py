@@ -61,6 +61,31 @@ class Issue:
         return f"{self.severity}: {loc}{self.msg}"
 
 
+def _lit(x):
+    """integer value of a literal initialiser (n / -n), else None."""
+    if x[0] == "num" and isinstance(x[1], int) and not isinstance(x[1], bool):
+        return x[1]
+    if x[0] == "neg":
+        v = _lit(x[1])
+        return None if v is None else -v
+    return None
+
+
+def _init_range_issues(name, tname, init, ln):
+    """初值超出宣告型別範圍(例:SINT := 300、USINT := -1),含陣列初值每個元素。"""
+    if tname not in INT_RANGES or init is None:
+        return []
+    lo, hi = INT_RANGES[tname]
+    items = init[1] if init[0] == "arrinit" else [init]
+    out, seen = [], set()
+    for x in items:
+        v = _lit(x)
+        if v is not None and not lo <= v <= hi and v not in seen:
+            seen.add(v)
+            out.append(Issue("error", ln, f"initial value {v} of {name} out of range for {tname} [{lo}..{hi}]"))
+    return out
+
+
 def _kind(t):
     if t == "BOOL":
         return "bool"
@@ -89,6 +114,7 @@ def check(src, profile="iec"):
             self.inputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] in ("input", "inout")}
             self.outputs_t = {x["name"]: x["type"] for x in d["decls"] if x["section"] == "output"}
             self.inouts = {x["name"].upper() for x in d["decls"] if x["section"] == "inout"}
+            self.params = {x["name"].upper(): x for x in d["decls"] if x["section"] in ("input", "inout")}
 
     def fb_of(t):
         if t in FB_TYPES:
@@ -104,6 +130,7 @@ def check(src, profile="iec"):
                 issues.append(Issue("error", 0, f"duplicate declaration {d['name']}"))
             env[d["name"].lower()] = d
             t = d["type"]
+            issues.extend(_init_range_issues(d["name"], t, d.get("init"), d.get("line", 0)))
             if t.lower() in structs:
                 struct_types(t, d["name"], ())
             elif fb_of(t) is None and t not in prof.types:
@@ -116,6 +143,9 @@ def check(src, profile="iec"):
             return
         for f in sd["fields"]:
             ft = f["type"]
+            for i in _init_range_issues(f"{sd['name']}.{f['name']}", ft, f.get("init"), 0):
+                if i not in issues:
+                    issues.append(i)
             if ft.lower() in structs:
                 struct_types(ft, owner, stack + (t.lower(),))
             elif ft not in INT_RANGES and ft not in ("BOOL", "REAL", "LREAL", "TIME", "STRING"):
@@ -235,13 +265,15 @@ def check(src, profile="iec"):
             if uf:
                 ins = [x["name"].lower() for x in uf["decls"] if x["section"] in ("input", "inout")]
                 io = {x["name"].lower() for x in uf["decls"] if x["section"] == "inout"}
+                pdecl = {x["name"].lower(): x for x in uf["decls"] if x["section"] in ("input", "inout")}
                 pos = 0
                 for nm, op, v in e[2]:
-                    ty(v, ln)
                     if op == "=>":
+                        ty(v, ln)
                         const_guard(v, ln)  # 輸出會寫回引數
                         continue
                     key = nm.lower() if nm else (ins[pos] if pos < len(ins) else None)
+                    arg(pdecl.get(key), v, ln, uf["name"])
                     if key in io:
                         const_guard(v, ln)  # VAR_IN_OUT 會寫回引數
                     if nm is None:
@@ -337,9 +369,74 @@ def check(src, profile="iec"):
                 return t.lower()
         return None
 
+    def cval(x):
+        """compile-time integer value of an array bound (literal, -literal or VAR CONSTANT), else None."""
+        if x[0] == "num" and isinstance(x[1], int):
+            return x[1]
+        if x[0] == "neg":
+            v = cval(x[1])
+            return None if v is None else -v
+        if x[0] == "var":
+            d = env.get(x[1].lower())
+            if d and d.get("const") and d.get("init") is not None and not d.get("array"):
+                return cval(d["init"])
+        return None
+
+    def shape(d):
+        out = []
+        for lo, hi in d.get("dims") or [d["array"]]:
+            a, b = cval(lo), cval(hi)
+            if a is None or b is None:
+                return None
+            out.append(b - a + 1)
+        return out
+
+    def whole_array(e, ln):
+        """declaration of a bare (unindexed) array reference `a` / `s.f`, else None."""
+        if e[0] == "var":
+            d = env.get(e[1].lower())
+            return d if d and d.get("array") else None
+        if e[0] == "member":
+            f = field_of(e, ln, quiet=True)
+            return f if f and f.get("array") else None
+        return None
+
+    def array_match(dst, src, ln, what):
+        """whole-array assignment / argument: same element type and same shape."""
+        if dst["type"].lower() in structs or src["type"].lower() in structs:
+            err(ln, f"{what}: ARRAY OF STRUCT cannot be passed or assigned as a whole yet")
+            return
+        if dst["type"] != src["type"]:
+            err(ln, f"{what}: ARRAY OF {src['type']} given, ARRAY OF {dst['type']} expected")
+            return
+        a, b = shape(dst), shape(src)
+        if a is not None and b is not None and a != b:
+            err(ln, f"{what}: array shape {b} does not match {a}")
+
+    def arg(param, v, ln, owner):
+        """check one call argument; array parameters take a whole array variable."""
+        if param is None or not param.get("array"):
+            ty(v, ln)
+            return
+        src = whole_array(v, ln)
+        if src is None:
+            ty(v, ln)
+            err(ln, f"parameter {param['name']} of {owner} is an ARRAY; pass a whole array variable")
+            return
+        array_match(param, src, ln, f"argument {param['name']} of {owner}")
+
     def assign(target, e, ln):
         if const_guard(target, ln):
             ty(e, ln)
+            return
+        dst = whole_array(target, ln)
+        if dst is not None:
+            src = whole_array(e, ln)
+            if src is None:
+                n = target[1] if target[0] == "var" else target[2]
+                err(ln, f"cannot assign whole array {n}; use {n}[i] (or assign an array of the same shape)")
+                return
+            array_match(dst, src, ln, "array assignment")
             return
         st = stype(target, ln)
         if st:
@@ -419,8 +516,12 @@ def check(src, profile="iec"):
             return
         ins = {k.upper() for k in fb.inputs_t}
         outs = {k.upper() for k in fb.outputs_t}
+        params = getattr(fb, "params", {})
         for name, op, v in s[2]:
-            ty(v, ln)
+            if op != "=>" and name:
+                arg(params.get(name.upper()), v, ln, ufb.get(d["type"].lower(), {}).get("name", d["type"]))
+            else:
+                ty(v, ln)
             if op == "=>" or (name and name.upper() in getattr(fb, "inouts", ())):
                 const_guard(v, ln)
             if name and name.upper() not in (outs if op == "=>" else ins):

@@ -160,7 +160,7 @@ class UnindexedArrayWrite(unittest.TestCase):
 
     def test_checker_flags_unindexed_write(self):
         msgs = [str(i) for i in check(H + "PROGRAM P VAR a : R; END_VAR a.buf := 7; END_PROGRAM")]
-        self.assertTrue(any("without index" in m for m in msgs), msgs)
+        self.assertTrue(any("without index" in m or "whole array" in m for m in msgs), msgs)
 
 
 class InstanceArrayInit(unittest.TestCase):

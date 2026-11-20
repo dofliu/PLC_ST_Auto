@@ -109,4 +109,6 @@ E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node test
 `python -m plc_st export examples/motor.st --format plcopen|scl|l5x|gxworks|sysmac|st -o out`(Web UI 亦有「匯出」按鈕)。PLCopen XML 可匯入 CODESYS 等;scl=Siemens TIA、l5x=Rockwell Studio 5000、gxworks=Mitsubishi GX Works3(標籤表+ST)、sysmac=Omron Sysmac Studio(變數表+ST);匯出後請在目標 IDE 編譯確認。
 
 自訂 `FUNCTION` / `FUNCTION_BLOCK`(M33,範例 `examples/userpou_export.st`):PLCopen XML 每個 POU 輸出一個 `<pou>`(`function` 帶 `returnType`、`functionBlock`、`program`,通過 TC6 XSD);Siemens SCL 輸出 `FUNCTION "F" : T`(FC)/`FUNCTION_BLOCK`/`ORGANIZATION_BLOCK`,函式呼叫自動改為 `"F"(x := a, …)` 具名引數,FC 區域變數改 `VAR_TEMP` 並在本體開頭補初值。Rockwell L5X(M35,範例 `examples/aoi_l5x.st`):每個 `FUNCTION_BLOCK` 轉成 `<AddOnInstructionDefinition>`(VAR_INPUT/OUTPUT → Input/Output 參數、VAR_IN_OUT → 必要 InOut 參數、其餘 → LocalTags),呼叫 `inst(a := x, q => y);` 自動改寫為 `inst.a := x; FB(inst, <InOut…>); y := inst.q;`;L5X 仍不支援 `FUNCTION`(Logix 無運算式內可呼叫的使用者函式),GX Works3、Sysmac 尚未支援,匯出卡片會說明原因。
+
+陣列參數與整體賦值(M36,範例 `examples/array_inout.st`):`VAR_IN_OUT` / `VAR_INPUT` 可宣告為陣列並傳入整個陣列變數(元素型別與每維長度須相同,下界可不同;VAR_IN_OUT 呼叫後寫回),`b := a;` 可整體複製同形狀陣列;L5X 匯出自動改寫為 `COP(a[0], b[0], n);`。靜態檢查也會指出整數初值超出型別範圍(例 `SINT := 300`)。
 PLCopen 可加 `--validate` 以官方 TC6 v2.01 XSD(`plc_st/schemas/`)驗證結構,失敗時 exit 1(需 `pip install lxml`)。

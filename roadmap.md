@@ -36,3 +36,4 @@
 - M33 ✅ 自訂 FUNCTION / FUNCTION_BLOCK 匯出 PLCopen XML(TC6 XSD 驗證)與 Siemens SCL(FC/FB/OB)
 - M34 ✅ VAR CONSTANT / RETAIN / VAR_TEMP、直接位址 AT %I/%Q/%M(解譯/檢查/方言/六種匯出)、點位表位址欄、斷電重啟模擬
 - M35 ✅ 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(參數/區域標籤/巢狀 AOI、IEC 呼叫改寫為 Logix AOI 呼叫)
+- M36 ✅ 整個陣列傳入 VAR_IN_OUT / VAR_INPUT、陣列整體賦值(L5X 轉 COP)、初值超出型別範圍的靜態檢查

@@ -625,12 +625,54 @@ class VirtualPLC:
                 key = name.lower()
                 if key not in ins:
                     raise STError(f"function {fn['name']} has no input {name}")
-            sc["vars"][key] = self.wrap(sc["types"][key], self.eval(e))
+            if key in sc["arrays"]:
+                self._copy_array_in(sc, key, e, fn["name"])
+            else:
+                sc["vars"][key] = self.wrap(sc["types"][key], self.eval(e))
         self._exec_in(sc, fn["body"])
         for name, e in outs:
             self.assign(e, sc["vars"][name.lower()])
         self._write_back(fn["decls"], args, lambda k: sc["vars"][k], ins, fn["name"])
         return sc["vars"][fn["name"].lower()]
+
+    def _whole_array(self, e):
+        """bare array reference `a` / `s.f` / `fb.arr` (no index) -> array key in the current scope, else None."""
+        p = self._path(e) if e[0] in ("var", "member") else None
+        if p is None:
+            return None
+        return p if p in self.arrays else None  # ARRAY OF STRUCT (sarr) is not a plain array
+
+    @staticmethod
+    def _shape(dims):
+        return [hi - lo + 1 for lo, hi in dims]
+
+    def _copy_array_in(self, sc, key, e, owner):
+        """copy-in of a whole-array argument into array parameter `key` of scope `sc`."""
+        src = self._whole_array(e)
+        if src is None:
+            raise STError(f"parameter {key} of {owner} is an ARRAY; pass a whole array variable "
+                          "(ARRAY OF STRUCT arguments are not supported yet)")
+        if self._shape(self.arrays[src]) != self._shape(sc["arrays"][key]):
+            raise STError(f"array {self.disp.get(src, src)} {self._shape(self.arrays[src])} does not match "
+                          f"parameter {key} of {owner} {self._shape(sc['arrays'][key])}")
+        t = sc["types"][key]
+        sc["vars"][key] = [self.wrap(t, v) for v in self.vars[src]]
+
+    def _array_copy(self, target, src):
+        """whole-array assignment `a := b` (same shape); True if handled."""
+        tk = self._whole_array(target)
+        if tk is None:
+            return False
+        self._const_guard(target)
+        sk = self._whole_array(src)
+        if sk is None:
+            raise STError(f"cannot assign a scalar to whole array {self.disp.get(tk, tk)}; use {self.disp.get(tk, tk)}[i]")
+        if self._shape(self.arrays[tk]) != self._shape(self.arrays[sk]):
+            raise STError(f"array assignment needs the same shape: {self._shape(self.arrays[tk])} vs "
+                          f"{self._shape(self.arrays[sk])}")
+        t = self.types[tk]
+        self.vars[tk] = [self.wrap(t, v) for v in self.vars[sk]]
+        return True
 
     def _write_back(self, decls, args, getter, ins, owner):
         """Copy VAR_IN_OUT values back to the caller's variables."""
@@ -648,7 +690,14 @@ class VirtualPLC:
             if key in io:
                 if e[0] not in ("var", "index", "member"):
                     raise STError(f"VAR_IN_OUT {key} of {owner} needs a variable argument")
-                self.assign(e, getter(key))
+                v = getter(key)
+                if isinstance(v, list):
+                    dst = self._whole_array(e)
+                    self._const_guard(e)
+                    t = self.types[dst]
+                    self.vars[dst] = [self.wrap(t, x) for x in v]
+                else:
+                    self.assign(e, v)
 
     # -- external interface
     def _split_index(self, name):
@@ -753,7 +802,7 @@ class VirtualPLC:
                 try:
                     if op == "call":
                         self.call_fb(s[1], s[2])
-                    elif not self._struct_copy(s[1], s[2]):
+                    elif not self._array_copy(s[1], s[2]) and not self._struct_copy(s[1], s[2]):
                         self.assign(s[1], self.eval(s[2]))
                 except STError as e:
                     # 執行期錯誤補上行號(最內層先補,外層不重複),讓 UI 能標記到正確行
@@ -914,6 +963,8 @@ class VirtualPLC:
         for name, op, e in args:
             if op == "=>":
                 outs.append((name, e))
+            elif isinstance(fb, UserFB) and name and name.lower() in fb.sc["arrays"]:
+                self._copy_array_in(fb.sc, name.lower(), e, fb.d["name"])
             else:
                 fb.v[name.upper()] = self.eval(e)
         fb.call(self.scan_ms)
