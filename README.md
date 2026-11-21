@@ -102,7 +102,8 @@ E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node test
 ## 修飾詞與直接位址(M34)
 支援 `VAR CONSTANT`、`VAR RETAIN`(含 `PERSISTENT`)、`VAR_TEMP` 與 `name AT %IX0.0 : BOOL`(%I/%Q/%M),範例 `examples/qualifiers_m34.st`。
 - 虛擬 PLC:寫入常數會報錯;`VAR_TEMP` 每個掃描週期重新初始化;`%I` 變數是輸入、`%Q` 是輸出;Web UI「斷電重啟」或情境步驟 `"restart": "warm"|"cold"` 可驗證 RETAIN 行為。
-- 檢查:寫入常數、型別與位址大小不符為 error;位址重疊為 warning(Siemens 以 byte 定址,IEC/CODESYS 以大小定址)。虛擬 PLC 不模擬位址共用記憶體。
+- 檢查:寫入常數、型別與位址大小不符為 error;位址**部分**重疊為 warning(Siemens 以 byte 定址,IEC/CODESYS 以大小定址);完全包含的別名(位元在字內、REAL 與 DWORD 同位址)不警告。
+- 共用記憶體(M37,範例 `examples/shared_memory.st`):重疊的直接位址在虛擬 PLC 中共用位元組,寫入 `%MW0` 時 `%MX0.0` 立即同步,強制 `%IB0` 即可一次設定 8 個輸入位元。位元組順序依 profile:IEC/CODESYS little-endian(`%MX0.0` = `%MW0` bit 0),Siemens big-endian(`%M0.0` = `%MW0` bit 8)。模擬面板以 ⇄ 標記共用的變數。
 - 匯出:PLCopen 帶 `constant`/`retain`/`address`;Siemens SCL 把位址變數移到檔頭的 PLC 變數表(需在 TIA 建立)並在本體加引號;L5X 以 `Constant="true"` + 初值、位址寫入 Description;GX Works3 / Sysmac 在表格列出類別與 IEC 位址,裝置需人工指定。細節與限制見 `docs/test_report_M34.md`。
 
 ## 匯出

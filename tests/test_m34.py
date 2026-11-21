@@ -152,9 +152,9 @@ class CheckerTest(unittest.TestCase):
         src = prog("VAR\n a AT %MW0 : INT;\n b AT %MW1 : INT;\n x AT %MX0.3 : BOOL;\nEND_VAR")
         iec = [m for m in msgs(src) if "overlaps" in m]
         s7 = [m for m in msgs(src, "siemens-s7-1500") if "overlaps" in m]
-        self.assertEqual(len(iec), 1)  # IEC:%MW1 是第 1 個 word(byte 2..3),只有 %MX0.3 與 %MW0 重疊
-        self.assertEqual(len(s7), 2)   # S7:%MW1 = byte 1..2,與 %MW0(byte 0..1)重疊
-        self.assertIn("b at %MW1 overlaps a at %MW0", s7[0])
+        self.assertEqual(len(iec), 0)  # IEC:%MW1 是第 1 個 word(byte 2..3);%MX0.3 完全在 %MW0 內(刻意別名,M37 起不警告)
+        self.assertEqual(len(s7), 1)   # S7:%MW1 = byte 1..2,與 %MW0(byte 0..1)部分重疊
+        self.assertIn("b at %MW1 partially overlaps a at %MW0", s7[0])
 
     def test_write_to_input_address_warns(self):
         self.assertIn("write to input variable s", msgs(prog("VAR s AT %IX0.0 : BOOL; END_VAR", "s := TRUE;"), sev="warning"))

@@ -44,8 +44,12 @@ def _addr_issues(decls, prof, in_pou=None):
             start = a["index"] * (8 if byte_addr else a["bits"])
         for area, s0, s1, other, oaddr in used:
             if area == a["area"] and start < s1 and s0 < start + a["bits"]:
-                out.append(Issue("warning", ln, f"{d['name']} at {d['addr']} overlaps {other} at {oaddr}; "
-                                                "the virtual PLC does not simulate shared memory"))
+                # 一個完全包含另一個(位元在位元組/字內、REAL 與 DWORD 同位址)是常見的刻意別名,虛擬 PLC 會同步模擬;
+                # 只有部分重疊(例:S7 的 %MW0 與 %MW1 共用 byte 1)才多半是定址錯誤
+                inside = (s0 <= start and start + a["bits"] <= s1) or (start <= s0 and s1 <= start + a["bits"])
+                if not inside:
+                    out.append(Issue("warning", ln, f"{d['name']} at {d['addr']} partially overlaps {other} at {oaddr}; "
+                                                    "they share bytes (the virtual PLC keeps them in sync)"))
         used.append((a["area"], start, start + a["bits"], d["name"], d["addr"]))
     return out
 
