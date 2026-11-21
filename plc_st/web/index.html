@@ -164,10 +164,12 @@ kbd{font:var(--fs-xs) var(--font-code);border:1px solid var(--bd-strong);border-
 .iog h3 .n{margin-left:auto;font-weight:400}
 .iog .list{max-height:168px;overflow:auto}
 .ior{display:flex;align-items:center;gap:var(--sp-2);min-height:26px;font-size:var(--fs-sm)}
-.ior .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-code)}
+.ior .nm{flex:1;min-width:6ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-code)}
 .ior .ty{font-size:var(--fs-xs);color:var(--fg-muted)}
 .ior .ad{font:600 var(--fs-xs) var(--font-code);padding:0 5px;border-radius:4px;border:1px solid var(--bd);color:var(--fg-muted);white-space:nowrap}
 .pwr{display:block;font-size:var(--fs-xs);color:var(--wn);white-space:nowrap}
+.ior .ad~.ty{display:none} /* 有位址標記時型別改由 tooltip 顯示,留空間給名稱 */
+.ior .ad.sh{color:var(--ac);border-color:var(--ac);padding:0 3px;cursor:help}
 .ior .ad.q{color:var(--wn);border-color:var(--wn)}
 .ior .val{font:600 var(--fs-sm) var(--font-code);min-width:44px;text-align:right}
 .ior input{width:84px;padding:2px 6px;font:var(--fs-sm) var(--font-code);text-align:right}
@@ -672,7 +674,7 @@ function ioBuild(meta,live){const g={input:[],output:[],local:[]};meta.forEach((
    :`<input data-k="${k}" aria-label="${n}" ${m.type=='STRING'?'':'type="number" step="any"'} ${live?'':'disabled'}>`;
   else if(kind=='output'&&isB)ctl=`<span class="lamp" data-k="${k}" role="img" aria-label="${n}"></span>`;
   else ctl=`<span class="val" data-k="${k}"></span>`;
-  return `<div class="ior" title="${n} : ${esc(m.type)}"><span class="nm">${n}</span>${m.addr?`<span class="ad" title="直接位址">${esc(m.addr)}</span>`:''}${m.const?'<span class="ad q" title="VAR CONSTANT:不可寫入">CONST</span>':''}${m.retain?'<span class="ad q" title="VAR RETAIN:斷電重啟後保留">RETAIN</span>':''}<span class="ty">${esc(m.type)}</span>${ctl}</div>`};
+  return `<div class="ior" title="${n} : ${esc(m.type)}"><span class="nm">${n}</span>${m.addr?`<span class="ad" title="直接位址">${esc(m.addr)}</span>`:''}${m.shared&&m.shared.length?`<span class="ad sh" title="與 ${esc(m.shared.join(', '))} 共用記憶體(位址重疊):寫入任一個,其他立即同步" aria-label="共用記憶體:${esc(m.shared.join(', '))}">⇄</span>`:''}${m.const?'<span class="ad q" title="VAR CONSTANT:不可寫入">CONST</span>':''}${m.retain?'<span class="ad q" title="VAR RETAIN:斷電重啟後保留">RETAIN</span>':''}<span class="ty">${esc(m.type)}</span>${ctl}</div>`};
  const grp=(kind,title,ico)=>g[kind].length?`<div class="iog" data-g="${kind}"><h3><svg class="ico"><use href="#${ico}"/></svg>${title}<span class="n">${g[kind].length}</span></h3><div class="list">${g[kind].map(x=>row(x,kind)).join('')}</div></div>`:'';
  $('io').innerHTML=grp('input','輸入','i-play')+grp('output','輸出','i-check')+grp('local','內部變數','i-cpu')||'<div class="empty" style="grid-column:1/-1">程式沒有可顯示的變數</div>';
  $('io').querySelectorAll('.sw').forEach(b=>b.onclick=()=>{const k=+b.dataset.k,v=b.getAttribute('aria-checked')!='true';sim.pend[meta[k].name]=v;b.setAttribute('aria-checked',v);b.classList.add('pend');if(sim.mode=='stop')simStep()});

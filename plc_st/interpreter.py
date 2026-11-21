@@ -3,6 +3,7 @@ import math
 import re
 from .lexer import STError
 from .parser import parse
+from .memory import LocatedVars, ProcessImage
 from .profiles import get_profile
 
 INT_RANGES = {
@@ -343,7 +344,7 @@ class VirtualPLC:
         self.depth = 0
         self.cycles = 0
         self.time_ms = 0
-        self._set_scope(self._build(self.ast["decls"]))
+        self._set_scope(self._image(self._build(self.ast["decls"])))
         self.names = {d["name"].lower(): d["name"] for d in self.ast["decls"]}
 
     def wrap(self, t, v):
@@ -566,10 +567,18 @@ class VirtualPLC:
     def restart(self, warm=True):
         """模擬斷電再上電。warm:RETAIN / PERSISTENT 變數保留,其餘回到初始值;cold:全部回到初始值。"""
         old = self._get_scope()
-        sc = self._build(self.ast["decls"])
+        sc = self._image(self._build(self.ast["decls"]))
         if warm:
             self._carry_retain(old, sc, self.ast["decls"])
         self._set_scope(sc)
+
+    def _image(self, sc):
+        """位址重疊的直接位址變數改用共用記憶體(M37);沒有重疊時維持一般 dict。"""
+        img = ProcessImage(self.ast["decls"], sc["types"], self.profile.name.startswith("siemens"))
+        if img:
+            sc["vars"] = LocatedVars(sc["vars"], img)
+        self.image = img
+        return sc
 
     def _carry_retain(self, old, new, decls):
         """把 RETAIN 變數的值從舊 scope 搬到新 scope;非 RETAIN 的自訂 FB 實例則往內遞迴,

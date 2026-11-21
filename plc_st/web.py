@@ -49,7 +49,8 @@ def _meta(plc, cols):
         key = re.sub(r"\[[^\]]*\]", "", c.lower())
         d = plc.meta.get(key.split(".")[0]) or {}
         out.append({"name": c, "type": plc.types.get(key, ""), "section": plc.section.get(key, "local"),
-                    "addr": d.get("addr"), "const": bool(d.get("const")), "retain": bool(d.get("retain"))})
+                    "addr": d.get("addr"), "const": bool(d.get("const")), "retain": bool(d.get("retain")),
+                    "shared": [plc.names.get(k, k) for k in plc.image.peers.get(key, [])]})
     return out
 
 

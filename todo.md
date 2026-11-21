@@ -6,8 +6,14 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M35、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M37、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M37 ✅ 虛擬 PLC 直接位址共用記憶體(`docs/test_report_M37.md`)
+- [x] `plc_st/memory.py` process image:重疊位址變數共用位元組;IEC/CODESYS little-endian + 依大小定址,Siemens big-endian + byte 定址
+- [x] 所有寫入路徑同步(指派、強制、FB `=>` 輸出、FOR 變數、初值、暖/冷重啟、RETAIN);REAL⇄DWORD、INT⇄UINT 別名
+- [x] 檢查器:完全包含的別名不再警告,只有部分重疊(例 S7 `%MW0`/`%MW1`)警告
+- [x] Web UI ⇄ 共用標記(tooltip 列出共用對象)、I/O 列名稱不再被位址標記擠掉;單元 17 項、UI 7 項、截圖 `docs/screenshots/m37/`
+- [ ] **待實機**:CODESYS / TIA Portal 確認 %MX 與 %MW 位元對應
 ## M35 ✅ 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(`docs/test_report_M35.md`)
 - [x] AOI 定義:EnableIn/EnableOut、Input/Output(基本型別純量,含預設值)、InOut(Required)、LocalTags(陣列/巢狀 AOI/常數)、VAR_TEMP 重新初始化
 - [x] 呼叫改寫(程式與 AOI 內):具名/位置引數、`=>` 輸出、IF/CASE 內、字串/註解不動;不合法情況明確報錯
@@ -161,7 +167,7 @@
 - [x] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(M34)
 - [x] 靜態檢查:初值超出宣告型別範圍(M36)
 - [ ] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、GVL 匯出)
-- [ ] 虛擬 PLC 模擬位址共用記憶體(%MW0 與 %MX0.0 重疊時同步)
+- [x] 虛擬 PLC 模擬位址共用記憶體(%MW0 與 %MX0.0 重疊時同步)(M37)
 - [ ] 點位表匯出為各廠牌可匯入格式(TIA PLC tags xlsx/xml、GX Works3 全域標籤 CSV)
 - [ ] ARRAY OF STRUCT 整體傳遞/賦值、`ARRAY[*]` 可變長度 VAR_IN_OUT
 - [ ] FB VAR_OUTPUT 陣列整體讀出 `x := fb.arr`
