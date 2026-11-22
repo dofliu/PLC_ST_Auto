@@ -19,6 +19,8 @@
 - [x] 檢查器:完全包含的別名不再警告,只有部分重疊(例 S7 `%MW0`/`%MW1`)警告
 - [x] Web UI ⇄ 共用標記(tooltip 列出共用對象)、I/O 列名稱不再被位址標記擠掉;單元 17 項、UI 7 項、截圖 `docs/screenshots/m37/`
 - [ ] **待實機**:CODESYS / TIA Portal 確認 %MX 與 %MW 位元對應
+- [x] M37b 審查修正:同位址 REAL 讀回同精度、陣列重疊位址必警告(陣列不同步);`tests/test_m37_review.py` 14 項、`docs/test_report_M37b.md`
+- [ ] 虛擬 PLC 同步陣列元素與重疊純量(目前僅警告)
 ## M35 ✅ 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(`docs/test_report_M35.md`)
 - [x] AOI 定義:EnableIn/EnableOut、Input/Output(基本型別純量,含預設值)、InOut(Required)、LocalTags(陣列/巢狀 AOI/常數)、VAR_TEMP 重新初始化
 - [x] 呼叫改寫(程式與 AOI 內):具名/位置引數、`=>` 輸出、IF/CASE 內、字串/註解不動;不合法情況明確報錯
