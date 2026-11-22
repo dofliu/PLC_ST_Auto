@@ -27,6 +27,7 @@ print(plc.get("motor"))
 ```
 python -m plc_st run examples/motor.st --cycles 10 --scan-ms 100 --set stop=false --at 1:start=true --trace out.csv
 python -m plc_st tags examples/points.csv   # CSV 點位表 → VAR 宣告
+python -m plc_st tags examples/points_addr.csv --format tia -o tags.xlsx   # 點位表 → 各廠牌標籤表(M38)
 ```
 點位表欄位: `name,type,direction(IN/OUT/INOUT/VAR/CONST/RETAIN),init,comment,address`。`address` 選用,填 IEC 直接位址(`%IX0.0`、`%QW2`…)時宣告為 `name AT %IX0.0 : BOOL;`(範例 `examples/points_addr.csv`)。
 
@@ -110,6 +111,13 @@ E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node test
 `python -m plc_st export examples/motor.st --format plcopen|scl|l5x|gxworks|sysmac|st -o out`(Web UI 亦有「匯出」按鈕)。PLCopen XML 可匯入 CODESYS 等;scl=Siemens TIA、l5x=Rockwell Studio 5000、gxworks=Mitsubishi GX Works3(標籤表+ST)、sysmac=Omron Sysmac Studio(變數表+ST);匯出後請在目標 IDE 編譯確認。
 
 自訂 `FUNCTION` / `FUNCTION_BLOCK`(M33,範例 `examples/userpou_export.st`):PLCopen XML 每個 POU 輸出一個 `<pou>`(`function` 帶 `returnType`、`functionBlock`、`program`,通過 TC6 XSD);Siemens SCL 輸出 `FUNCTION "F" : T`(FC)/`FUNCTION_BLOCK`/`ORGANIZATION_BLOCK`,函式呼叫自動改為 `"F"(x := a, …)` 具名引數,FC 區域變數改 `VAR_TEMP` 並在本體開頭補初值。Rockwell L5X(M35,範例 `examples/aoi_l5x.st`):每個 `FUNCTION_BLOCK` 轉成 `<AddOnInstructionDefinition>`(VAR_INPUT/OUTPUT → Input/Output 參數、VAR_IN_OUT → 必要 InOut 參數、其餘 → LocalTags),呼叫 `inst(a := x, q => y);` 自動改寫為 `inst.a := x; FB(inst, <InOut…>); y := inst.q;`;L5X 仍不支援 `FUNCTION`(Logix 無運算式內可呼叫的使用者函式),GX Works3、Sysmac 尚未支援,匯出卡片會說明原因。
+
+點位表 → 各廠牌標籤表(M38):`python -m plc_st tags points.csv --format tia|logix|gxworks|sysmac|codesys [-o 檔案]`,Web UI「需求輸入」卡片的「匯出標籤表」下拉選單亦可下載。
+- `tia`:TIA Portal PLC 變數表 `.xlsx`(PLC tags → Import),`PLC Tags` + `User Constants` 工作表;沒有位址的點位自動配置(IN→%I、OUT→%Q、其餘→%M,RETAIN 先配置從 MB0 起),FB/陣列/LREAL 等非基本型別略過並提醒改放 DB
+- `logix`:Studio 5000 標籤 CSV(`TAG` 列、RADIX/Constant 屬性、陣列改 0 起算、TON→TIMER、WORD→INT 等替代);標籤 CSV 不含初值,需要初值請用 L5X
+- `gxworks` / `sysmac`:GX Works3 全域標籤 / Sysmac 全域變數(Tab 分隔可貼上);IEC 位址寫入註解,裝置/I/O Map 需人工指定
+- `codesys`:CODESYS / TwinCAT GVL(`VAR_GLOBAL` / `CONSTANT` / `RETAIN`,保留 `AT` 位址)
+- 每個格式都會回傳提醒清單(CLI 印在 stderr、UI 列在按鈕下方);位址照原樣輸出,不依廠牌換算 word 編號。細節 `docs/test_report_M38.md`
 
 陣列參數與整體賦值(M36,範例 `examples/array_inout.st`):`VAR_IN_OUT` / `VAR_INPUT` 可宣告為陣列並傳入整個陣列變數(元素型別與每維長度須相同,下界可不同;VAR_IN_OUT 呼叫後寫回),`b := a;` 可整體複製同形狀陣列;L5X 匯出自動改寫為 `COP(a[0], b[0], n);`。靜態檢查也會指出整數初值超出型別範圍(例 `SINT := 300`)。
 PLCopen 可加 `--validate` 以官方 TC6 v2.01 XSD(`plc_st/schemas/`)驗證結構,失敗時 exit 1(需 `pip install lxml`)。

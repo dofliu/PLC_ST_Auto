@@ -1,6 +1,6 @@
 """python -m plc_st serve [--port 8765]:stdlib http.server Web UI + JSON API(僅綁 127.0.0.1)。
 
-POST /api/{check,run,test,export,export/status,tags,tags/preview,generate,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
+POST /api/{check,run,test,export,export/status,tags,tags/export,tags/preview,generate,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
 handle() 與 HTTP 分離,方便單元測試。"""
 import base64
 import json
@@ -255,6 +255,16 @@ def handle(method, path, payload, state):
             return 200, {"formats": export_status(_need(payload, "code"))}
         if path == "/api/tags":
             return 200, {"code": tags_to_var_blocks(_need(payload, "csv"))}
+        if path == "/api/tags/export":
+            import base64
+            from .tagexport import export_tags
+            data, ext, warn = export_tags(_need(payload, "csv"), payload.get("format", "codesys"))
+            out = {"ext": ext, "warnings": warn, "size": len(data)}
+            if isinstance(data, bytes):
+                out["b64"] = base64.b64encode(data).decode("ascii")
+            else:
+                out["text"] = data
+            return 200, out
         if path == "/api/tags/preview":
             return 200, preview_tags(payload.get("csv") or "")
         if path == "/api/generate":
