@@ -247,6 +247,8 @@ table.scn tr.rrow td{border-top:0}table.scn tr.main.pass td,table.scn tr.main.fa
 .xcard .acts button{margin:4px 0 0;padding:4px 10px}
 pre.exppv{max-height:30vh}
 /* ===== UI5 點位表預覽 / 產生時間軸 / 修正輪差異 ===== */
+.tagexp{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center;margin-top:var(--sp-2)}.tagexp select{flex:1;min-width:0;width:auto}
+.tagwarn{margin:var(--sp-1) 0 0;padding-left:1.2em;font-size:var(--fs-sm);max-height:18vh;overflow:auto}.tagwarn li{color:var(--wn)}#tagexpst{font-size:var(--fs-sm);margin-top:var(--sp-1)}#tagexpst.ok{color:var(--ok)}#tagexpst.wa{color:var(--wn)}#tagexpst.er{color:var(--er)}
 .tagsum{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:var(--sp-2)}
 .tagsum .badge.in{color:var(--info);background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 40%,transparent)}
 table.scn.tagpv{table-layout:auto}
@@ -376,6 +378,12 @@ END_PROGRAM</textarea></div></div>
   <label for="tags">點位表 CSV(可貼上或上傳,可選)</label><textarea id="tags" style="min-height:70px" placeholder="name,type,direction,init,comment,address(address 選用,例 %IX0.0;direction 可用 IN/OUT/INOUT/VAR/CONST/RETAIN)"></textarea>
   <input type="file" id="tagsfile" accept=".csv,.txt" aria-label="上傳點位表">
   <button class="s" onclick="tagsToVar()"><svg class="ico"><use href="#i-table"/></svg>點位表 → VAR 宣告</button>
+  <div class="tagexp"><label for="tagfmt" class="inline">匯出標籤表</label><select id="tagfmt" aria-label="標籤表格式">
+   <option value="tia">Siemens TIA Portal(PLC 變數 .xlsx)</option><option value="logix">Rockwell Studio 5000(標籤 .CSV)</option>
+   <option value="gxworks">Mitsubishi GX Works3(全域標籤)</option><option value="sysmac">Omron Sysmac Studio(全域變數)</option>
+   <option value="codesys">CODESYS / TwinCAT(GVL)</option></select>
+   <button class="s" id="tagexpbtn" onclick="tagExport()"><svg class="ico"><use href="#i-table"/></svg>下載</button></div>
+  <div id="tagexpout" aria-live="polite"></div>
   <div id="tagpv" aria-live="polite"></div>
  </div>
  <div class="card"><h2><svg class="ico"><use href="#i-gen"/></svg>LLM 產生</h2>
@@ -600,6 +608,11 @@ ed.ta.addEventListener('keydown',e=>{const ta=ed.ta,mod=e.ctrlKey||e.metaKey;
   prev=v.slice(a,ta.selectionStart).trim().toUpperCase(),more=/^(IF|ELSIF|ELSE|CASE|FOR|WHILE|REPEAT|VAR\w*|STRUCT|TYPE|PROGRAM|FUNCTION\w*)\b/.test(prev)||/\b(THEN|DO|OF|ELSE)$/.test(prev);
   if(ind||more){e.preventDefault();edEdit('\n'+ind+(more&&!/^END_/.test(prev)?'    ':''),ta.selectionStart,ta.selectionEnd)}}});
 function drawerInfo(l){const ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;const d=$('drawerinfo');d.textContent=l.length?`${ne} 錯誤 · ${nw} 警告`:'';d.className=ne?'er':'wn'}
+async function tagExport(){const done=busy();const f=$('tagfmt').value;try{const j=await api('/api/tags/export',{csv:$('tags').value,format:f});
+ const body=j.b64?Uint8Array.from(atob(j.b64),c=>c.charCodeAt(0)):j.text;
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([body],{type:j.b64?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/plain'}));a.download='tags_'+f+'.'+j.ext;a.click();
+ $('tagexpout').innerHTML=`<div class="iss ${j.warnings.length?'wa':'ok'}" id="tagexpst">已匯出 ${esc(a.download)}(${j.size} 位元組)${j.warnings.length?','+j.warnings.length+' 項提醒':''}</div>`+(j.warnings.length?`<ul class="tagwarn">${j.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:'');
+ toast('已匯出 '+a.download,'ok')}catch(e){$('tagexpout').innerHTML=`<div class="iss er" id="tagexpst">${esc(e.message)}</div>`;toast('匯出失敗:'+e.message,'er')}finally{done()}}
 async function tagsToVar(){const done=busy();try{const j=await api('/api/tags',{csv:$('tags').value});$('code').value=j.code;toast('已由點位表產生 VAR 宣告','ok')}catch(e){show('chkout',esc(e.message),'er');toast(e.message,'er')}finally{done()}}
 // silent=true:編輯時自動檢查,只更新行標記/狀態列/問題清單,不開抽屜也不跳 toast
 async function chk(silent){clearTimeout(ed.timer);const seq=++ed.seq,done=silent===true?()=>{}:busy();try{const code=$('code').value,l=(await api('/api/check',{code,profile:$('profile').value})).issues,ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;

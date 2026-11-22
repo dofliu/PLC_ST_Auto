@@ -38,3 +38,4 @@
 - M35 ✅ 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(參數/區域標籤/巢狀 AOI、IEC 呼叫改寫為 Logix AOI 呼叫)
 - M36 ✅ 整個陣列傳入 VAR_IN_OUT / VAR_INPUT、陣列整體賦值(L5X 轉 COP)、初值超出型別範圍的靜態檢查
 - M37 ✅ 虛擬 PLC 直接位址共用記憶體(重疊位址同步、依廠牌位元組順序)、部分重疊才警告、UI ⇄ 標記
+- M38 ✅ 點位表 → 各廠牌標籤表(TIA PLC 變數 xlsx、Studio 5000 標籤 CSV、GX Works3 全域標籤、Sysmac 全域變數、CODESYS GVL)、TIA 自動配置位址

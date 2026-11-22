@@ -101,8 +101,10 @@ def main(argv=None):
     c = sub.add_parser("check", help="靜態檢查 ST(未宣告變數、型別、輸入被寫入、廠牌型別限制)")
     c.add_argument("file")
     c.add_argument("--profile", default="iec")
-    t = sub.add_parser("tags", help="CSV 點位表 → VAR 宣告")
+    t = sub.add_parser("tags", help="CSV 點位表 → VAR 宣告,或以 --format 匯出各廠牌標籤表")
     t.add_argument("file")
+    t.add_argument("--format", help="tia(xlsx)|logix(CSV)|gxworks|sysmac|codesys(GVL);省略則輸出 VAR 宣告")
+    t.add_argument("-o", "--output", help="輸出檔(tia 必填,因為是 xlsx 二進位)")
     g = sub.add_parser("generate", help="呼叫 LLM 產生 ST,並以靜態檢查驗證(輸出到 stdout 或 -o)")
     g.add_argument("requirement", help="需求文字,或 @檔案 讀取")
     g.add_argument("--provider", default="ollama", help="gemini|openai|claude|ollama|mock(離線示範)")
@@ -235,8 +237,23 @@ def main(argv=None):
             return 0 if all(x["status"] == "PASS" for r in results for x in r["runs"]) else 1
         if a.cmd == "run":
             return run(a)
-        with open(a.file, encoding="utf-8") as f:
-            sys.stdout.write(tags_to_var_blocks(f.read()))
+        with open(a.file, encoding="utf-8-sig") as f:
+            text = f.read()
+        if a.format:
+            from .tagexport import export_tags
+            data, ext, warn = export_tags(text, a.format)
+            for w in warn:
+                print(f"warning: {w}", file=sys.stderr)
+            if isinstance(data, bytes) and not a.output:
+                raise STError(f"--format {a.format} 產生二進位 .{ext},請用 -o 指定輸出檔")
+            if a.output:
+                with open(a.output, "wb") as f:
+                    f.write(data if isinstance(data, bytes) else data.encode("utf-8"))
+                print(f"wrote {a.output} ({len(data)} bytes, {len(warn)} warnings)", file=sys.stderr)
+            else:
+                sys.stdout.write(data)
+            return 0
+        sys.stdout.write(tags_to_var_blocks(text))
         return 0
     except (STError, ValueError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
