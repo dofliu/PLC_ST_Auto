@@ -60,7 +60,7 @@ fs.mkdirSync(S, { recursive: true });
   await m.waitForSelector('#tagexpst');
   const ov = await m.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   ok('M38-09 手機寬度無水平捲動', ov <= 0, 'overflow=' + ov);
-  await m.locator('.tagexp').scrollIntoViewIfNeeded();
+  await m.locator('.tagexp').first().scrollIntoViewIfNeeded();
   await shot('04_mobile_tag_export.png', m);
   ok('M38-10 全程無 JS 錯誤', errs.length === 0, errs.join(' | '));
   for (const f of fs.readdirSync(S)) if (f.startsWith('_')) fs.unlinkSync(S + f);

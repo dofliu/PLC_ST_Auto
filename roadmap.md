@@ -39,3 +39,4 @@
 - M36 ✅ 整個陣列傳入 VAR_IN_OUT / VAR_INPUT、陣列整體賦值(L5X 轉 COP)、初值超出型別範圍的靜態檢查
 - M37 ✅ 虛擬 PLC 直接位址共用記憶體(重疊位址同步、依廠牌位元組順序)、部分重疊才警告、UI ⇄ 標記
 - M38 ✅ 點位表 → 各廠牌標籤表(TIA PLC 變數 xlsx、Studio 5000 標籤 CSV、GX Works3 全域標籤、Sysmac 全域變數、CODESYS GVL)、TIA 自動配置位址
+- M39 ✅ 點位表匯出依廠牌換算位址(IEC word 編號 ⇄ S7 位元組)、TIA 自動配置避讓修正、Studio 5000 ALIAS(本機 I/O 槽號)

@@ -8,8 +8,12 @@
 - sysmac  Omron Sysmac Studio 全域變數表(Tab 分隔,可貼入 Global Variables)
 - codesys CODESYS / TwinCAT GVL(VAR_GLOBAL / CONSTANT / RETAIN,保留 AT 位址)
 
-位址照點位表原樣輸出(TIA 僅把 %IX0.0 寫成 %I0.0),不依廠牌換算 word 編號;
-自動配置的位址使用該廠牌的定址(TIA 依位元組)。
+M39:位址依廠牌換算。點位表位址的定址方式由 addressing 指定(與虛擬 PLC 的 profile 一致):
+- "iec"(預設,IEC / CODESYS):%QW2 = 第 2 個 word = 位元組 4..5;%QD1 = 位元組 4..7
+- "s7"(Siemens):%QW2 = 位元組 2..3
+TIA 一律輸出位元組定址(iec 的 %QW2 → %QW4),CODESYS GVL 一律輸出 word 編號(s7 的 %QW4 → %QW2,
+未對齊者無法換算,保留原樣並提醒)。位元位址 %IX1.3 兩者相同。
+Studio 5000 可選 logix_slots(例 {"I": 1, "Q": 2}):BOOL 位元位址改為 ALIAS 列 Local:<槽>:I.Data.<位元>。
 """
 import io
 import re
@@ -24,6 +28,57 @@ from .tags import preview_tags
 _ARR = re.compile(r"^ARRAY\s*\[\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\]\s*OF\s+(\w+)$", re.I)
 _BYTES = {"BOOL": 0, "SINT": 1, "USINT": 1, "BYTE": 1, "CHAR": 1, "INT": 2, "UINT": 2, "WORD": 2,
           "DINT": 4, "UDINT": 4, "DWORD": 4, "REAL": 4, "TIME": 4, "LINT": 8, "ULINT": 8, "LWORD": 8, "LREAL": 8}
+
+
+ADDRESSING = ("iec", "s7")
+
+
+def _byte_range(a, addressing):
+    """parse_addr 結果 → (起始位元組, 位元組數)。"""
+    if a["size"] == "X":
+        return a["index"], 1
+    n = a["bits"] // 8
+    return (a["index"] * n if addressing == "iec" else a["index"]), n
+
+
+def convert_addr(addr, src, dst):
+    """把位址從 src 定址換成 dst 定址("iec" | "s7");無法表示(未對齊)回傳 None。
+    輸出格式:iec → %QW2 / %IX0.3;s7 → %QW4 / %I0.3(TIA 寫法)。"""
+    for x in (src, dst):
+        if x not in ADDRESSING:
+            raise STError(f"unknown addressing {x!r}; available: {', '.join(ADDRESSING)}")
+    a = parse_addr(addr)
+    if a is None:
+        raise STError(f"bad address {addr!r}")
+    area = a["area"]
+    if a["size"] == "X":
+        bit = a["bit"] or 0
+        return f"%{area}X{a['index']}.{bit}" if dst == "iec" else f"%{area}{a['index']}.{bit}"
+    start, n = _byte_range(a, src)
+    if dst == "s7":
+        return f"%{area}{a['size']}{start}"
+    if start % n:
+        return None
+    return f"%{area}{a['size']}{start // n}"
+
+
+def parse_slots(spec):
+    """'I=1,Q=2' 或 dict → {"I": 1, "Q": 2};空值回傳 {}。"""
+    if not spec:
+        return {}
+    items = spec.items() if isinstance(spec, dict) else (x.split("=", 1) for x in str(spec).split(",") if x.strip())
+    out = {}
+    for k, v in items:
+        k = str(k).strip().upper()
+        if k not in ("I", "Q"):
+            raise STError(f"logix slot area must be I or Q, got {k!r}")
+        try:
+            out[k] = int(str(v).strip())
+        except ValueError:
+            raise STError(f"logix slot for {k} must be an integer, got {v!r}")
+        if out[k] < 0:
+            raise STError(f"logix slot for {k} must be >= 0")
+    return out
 
 
 def tag_rows(csv_text):
@@ -60,18 +115,18 @@ def _tia_addr(a):
 class _Alloc:
     """TIA 位元組定址的自動配置:先標記已用位址,再為每區找下一個空位(word 以上偶數對齊)。"""
 
-    def __init__(self, rows):
+    def __init__(self, addrs):
+        """addrs:已用位址(位元組定址,TIA 寫法)。"""
         self.used = {"I": set(), "Q": set(), "M": set()}
         self.bits = {"I": set(), "Q": set(), "M": set()}
-        for r in rows:
-            if r["address"]:
-                a = parse_addr(r["address"])
-                if a["size"] == "X":
-                    self.bits[a["area"]].add((a["index"], a["bit"] or 0))
-                    self.used[a["area"]].add(("bit", a["index"]))
-                else:
-                    for b in range(a["index"], a["index"] + a["bits"] // 8):
-                        self.used[a["area"]].add(b)
+        for addr in addrs:
+            a = parse_addr(addr)
+            if a["size"] == "X":
+                self.bits[a["area"]].add((a["index"], a["bit"] or 0))
+                self.used[a["area"]].add(("bit", a["index"]))
+            else:
+                for b in range(a["index"], a["index"] + a["bits"] // 8):
+                    self.used[a["area"]].add(b)
 
     def _free(self, area, b):
         return b not in self.used[area] and ("bit", b) not in self.used[area]
@@ -147,10 +202,11 @@ def _xlsx(sheets):
     return buf.getvalue()
 
 
-def tia_rows(rows, table="Default tag table"):
+def tia_rows(rows, table="Default tag table", addressing="iec"):
     """回傳 (PLC Tags 列, User Constants 列, 警告)。"""
     warn, tags, consts = [], [], []
-    alloc, auto = _Alloc(rows), {}
+    s7 = {r["name"]: convert_addr(r["address"], addressing, "s7") for r in rows if r["address"]}
+    alloc, auto = _Alloc(s7.values()), {}
     # 斷電保持的 %M 先配置(TIA 的 Retain 範圍從 MB0 起連續),其餘依序
     for r in sorted(rows, key=lambda r: r["direction"] != "RETAIN"):
         t = r["type"]
@@ -167,7 +223,10 @@ def tia_rows(rows, table="Default tag table"):
         if t not in _TIA_TYPE:
             warn.append(f"{n}: 型別 {t} 不能放在 PLC 變數表(只接受基本型別),請改放全域 DB,已略過")
             continue
-        addr = r["address"]
+        addr = s7.get(n)
+        if addr and parse_addr(addr)["size"] != "X" and addr != _tia_addr(r["address"]):
+            warn.append(f"{n}: {r['address']} 依 IEC 定址(依型別大小編號)為位元組 {parse_addr(addr)['index']} 起,"
+                        f"TIA 依位元組定址 → {addr}")
         if not addr:
             if n not in auto:
                 warn.append(f"{n}: {t} 需 8 位元組,不自動配置 64 位元位址,請改放全域 DB 或在點位表指定位址,已略過")
@@ -182,8 +241,8 @@ def tia_rows(rows, table="Default tag table"):
     return tags, consts, warn
 
 
-def to_tia(csv_text):
-    tags, consts, warn = tia_rows(tag_rows(csv_text))
+def to_tia(csv_text, addressing="iec", **_):
+    tags, consts, warn = tia_rows(tag_rows(csv_text), addressing=addressing)
     head = ["Name", "Path", "Data Type", "Logical Address", "Comment", "Hmi Visible", "Hmi Accessible",
             "Hmi Writeable", "Typeobject ID", "Version ID"]
     sheets = [("PLC Tags", [head] + tags)]
@@ -204,8 +263,32 @@ def _csvq(s):
     return '"' + str(s).replace('"', '""') + '"'
 
 
-def to_logix(csv_text):
+def _logix_alias(r, addressing, slots, warn):
+    """BOOL 位元位址且該區有槽號 → 'Local:槽:I.Data.位元';否則 None(並視情況提醒)。"""
+    a = parse_addr(r["address"])
+    n = r["name"]
+    if a["area"] == "M":
+        warn.append(f"{n}: Logix 沒有 %M 記憶區,{r['address']} 只寫入說明,已建為一般標籤")
+        return None
+    if a["area"] not in slots:
+        return None
+    if r["type"] != "BOOL" or a["size"] != "X":
+        warn.append(f"{n}: 只為 BOOL 位元位址建立 Alias,{r['address']}({r['type']})請手動指定類比通道(例 Local:3:I.Ch0Data)")
+        return None
+    if r["direction"] == "CONST":
+        warn.append(f"{n}: 常數不能是 Alias,已建為一般標籤")
+        return None
+    start, _ = _byte_range(a, addressing)
+    bit = start * 8 + (a["bit"] or 0)
+    if bit > 31:
+        warn.append(f"{n}: {r['address']} 換算為第 {bit} 點,超過單一模組 Data(DINT,0..31),請改用其他槽號後手動建立 Alias")
+        return None
+    return f"Local:{slots[a['area']]}:{a['area'] if a['area'] == 'I' else 'O'}.Data.{bit}"
+
+
+def to_logix(csv_text, addressing="iec", logix_slots=None, **_):
     warn, o = [], []
+    slots = parse_slots(logix_slots)
     for r in tag_rows(csv_text):
         n, t = r["name"], r["type"]
         a = _arr(t)
@@ -228,6 +311,14 @@ def to_logix(csv_text):
                 warn.append(f"{n}: Logix 陣列從 0 起算,ARRAY[{lo}..{hi}] 改為 [{hi - lo + 1}],程式索引需減 {lo}")
             dt = f"{dt}[{hi - lo + 1}]"
         desc = r["comment"]
+        alias = _logix_alias(r, addressing, slots, warn) if r["address"] else None
+        if alias:
+            desc = (desc + " " if desc else "") + f"[IEC {r['address']}]"
+            if r["init"]:
+                warn.append(f"{n}: Alias 標籤沒有初值,初值 {r['init']} 未匯出")
+            o.append(",".join(["ALIAS", "", n, _csvq(desc), _csvq(""), _csvq(alias),
+                               _csvq("(RADIX := Decimal, ExternalAccess := Read/Write)")]))
+            continue
         if r["address"]:
             desc = (desc + " " if desc else "") + f"[IEC {r['address']}: alias to module I/O]"
         if r["init"]:
@@ -246,7 +337,7 @@ def to_logix(csv_text):
 
 
 # ---------------------------------------------------------------- Mitsubishi GX Works3
-def to_gxworks_labels(csv_text):
+def to_gxworks_labels(csv_text, **_):
     from .export import _MELSEC_TYPE
     warn = []
     o = ["Label Name\tData Type\tClass\tAssign (Device/Label)\tInitial Value\tConstant\tComment"]
@@ -277,7 +368,7 @@ def to_gxworks_labels(csv_text):
 
 
 # ---------------------------------------------------------------- Omron Sysmac Studio
-def to_sysmac_vars(csv_text):
+def to_sysmac_vars(csv_text, **_):
     warn = []
     o = ["Name\tData Type\tInitial Value\tAT\tRetain\tConstant\tNetwork Publish\tComment"]
     for r in tag_rows(csv_text):
@@ -292,8 +383,20 @@ def to_sysmac_vars(csv_text):
 
 
 # ---------------------------------------------------------------- CODESYS / TwinCAT GVL
-def to_gvl(csv_text):
+def to_gvl(csv_text, addressing="iec", **_):
     rows = tag_rows(csv_text)
+    warn = []
+    addr = {}
+    for r in rows:
+        if not r["address"]:
+            continue
+        a = convert_addr(r["address"], addressing, "iec")
+        if a is None:
+            warn.append(f"{r['name']}: {r['address']} 起始位元組不是型別大小的倍數,無法換成 CODESYS word 編號,保留原樣請確認")
+            a = r["address"]
+        elif parse_addr(a)["size"] != "X" and a != r["address"].upper():
+            warn.append(f"{r['name']}: S7 位元組位址 {r['address']} → CODESYS {a}(依型別大小編號)")
+        addr[r["name"]] = a
     o = ["(* GVL generated by PLC_ST_Auto from tag table *)"]
     for title, sel in (("VAR_GLOBAL", lambda r: r["direction"] not in ("CONST", "RETAIN")),
                        ("VAR_GLOBAL CONSTANT", lambda r: r["direction"] == "CONST"),
@@ -303,13 +406,13 @@ def to_gvl(csv_text):
             continue
         o.append(title)
         for r in part:
-            line = f"\t{r['name']}{' AT ' + r['address'] if r['address'] else ''} : {r['type']}"
+            line = f"\t{r['name']}{' AT ' + addr[r['name']] if r['address'] else ''} : {r['type']}"
             line += (f" := {r['init']}" if r["init"] else "") + ";"
             if r["comment"]:
                 line += f" // {r['comment']}"
             o.append(line)
         o.append("END_VAR")
-    warn = [f"{r['name']}: direction INOUT 在 GVL 中視為一般全域變數" for r in rows if r["direction"] == "INOUT"]
+    warn += [f"{r['name']}: direction INOUT 在 GVL 中視為一般全域變數" for r in rows if r["direction"] == "INOUT"]
     return "\n".join(o) + "\n", warn
 
 
@@ -322,10 +425,12 @@ TAG_FORMATS = {
 }
 
 
-def export_tags(csv_text, fmt):
-    """回傳 (內容 str|bytes, 副檔名, 警告清單)。"""
+def export_tags(csv_text, fmt, addressing="iec", logix_slots=None):
+    """回傳 (內容 str|bytes, 副檔名, 警告清單)。addressing:點位表位址的定址("iec" | "s7")。"""
     if fmt not in TAG_FORMATS:
         raise STError(f"unknown tag format {fmt!r}; available: {', '.join(TAG_FORMATS)}")
+    if addressing not in ADDRESSING:
+        raise STError(f"unknown addressing {addressing!r}; available: {', '.join(ADDRESSING)}")
     ext, _, fn = TAG_FORMATS[fmt]
-    data, warn = fn(csv_text)
+    data, warn = fn(csv_text, addressing=addressing, logix_slots=logix_slots)
     return data, ext, warn

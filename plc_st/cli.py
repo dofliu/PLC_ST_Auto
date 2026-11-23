@@ -105,6 +105,9 @@ def main(argv=None):
     t.add_argument("file")
     t.add_argument("--format", help="tia(xlsx)|logix(CSV)|gxworks|sysmac|codesys(GVL);省略則輸出 VAR 宣告")
     t.add_argument("-o", "--output", help="輸出檔(tia 必填,因為是 xlsx 二進位)")
+    t.add_argument("--addressing", default="iec", choices=["iec", "s7"],
+                   help="點位表位址的定址:iec(預設,%%QW2=第 2 個 word)| s7(%%QW2=位元組 2);匯出時換成目標廠牌定址")
+    t.add_argument("--logix-slots", help="logix:為 BOOL 位元位址建立 ALIAS,例 I=1,Q=2 → Local:1:I.Data.n")
     g = sub.add_parser("generate", help="呼叫 LLM 產生 ST,並以靜態檢查驗證(輸出到 stdout 或 -o)")
     g.add_argument("requirement", help="需求文字,或 @檔案 讀取")
     g.add_argument("--provider", default="ollama", help="gemini|openai|claude|ollama|mock(離線示範)")
@@ -241,7 +244,7 @@ def main(argv=None):
             text = f.read()
         if a.format:
             from .tagexport import export_tags
-            data, ext, warn = export_tags(text, a.format)
+            data, ext, warn = export_tags(text, a.format, a.addressing, a.logix_slots)
             for w in warn:
                 print(f"warning: {w}", file=sys.stderr)
             if isinstance(data, bytes) and not a.output:

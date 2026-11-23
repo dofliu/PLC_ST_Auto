@@ -63,7 +63,7 @@ class TiaTest(unittest.TestCase):
         rows = {r[0]: r for r in self.sh["PLC Tags"][1:]}
         self.assertEqual(rows["start"][2:4], ["Bool", "%I0.0"])
         self.assertEqual(rows["motor"][3], "%Q0.0")
-        self.assertEqual(rows["speed"][2:4], ["Int", "%QW2"])
+        self.assertEqual(rows["speed"][2:4], ["Int", "%QW4"])  # M39:IEC 第 2 個 word = 位元組 4
         self.assertEqual(rows["stop"][3], "%I0.1")  # 自動配置:同位元組下一個位元
         self.assertEqual(rows["stop"][4], "停止, 常閉")
 

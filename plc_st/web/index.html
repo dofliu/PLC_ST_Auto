@@ -247,6 +247,7 @@ table.scn tr.rrow td{border-top:0}table.scn tr.main.pass td,table.scn tr.main.fa
 .xcard .acts button{margin:4px 0 0;padding:4px 10px}
 pre.exppv{max-height:30vh}
 /* ===== UI5 點位表預覽 / 產生時間軸 / 修正輪差異 ===== */
+#tagslotsw:not([hidden]){display:flex;align-items:center;gap:var(--sp-2)}
 .tagexp{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center;margin-top:var(--sp-2)}.tagexp select{flex:1;min-width:0;width:auto}
 .tagwarn{margin:var(--sp-1) 0 0;padding-left:1.2em;font-size:var(--fs-sm);max-height:18vh;overflow:auto}.tagwarn li{color:var(--wn)}#tagexpst{font-size:var(--fs-sm);margin-top:var(--sp-1)}#tagexpst.ok{color:var(--ok)}#tagexpst.wa{color:var(--wn)}#tagexpst.er{color:var(--er)}
 .tagsum{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:var(--sp-2)}
@@ -383,6 +384,9 @@ END_PROGRAM</textarea></div></div>
    <option value="gxworks">Mitsubishi GX Works3(全域標籤)</option><option value="sysmac">Omron Sysmac Studio(全域變數)</option>
    <option value="codesys">CODESYS / TwinCAT(GVL)</option></select>
    <button class="s" id="tagexpbtn" onclick="tagExport()"><svg class="ico"><use href="#i-table"/></svg>下載</button></div>
+  <div class="tagexp"><label for="tagaddr" class="inline">位址定址</label><select id="tagaddr" aria-label="點位表位址定址" title="點位表裡的 %QW2 指什麼;匯出時換成目標廠牌的定址">
+   <option value="auto">依廠牌 Profile</option><option value="iec">IEC / CODESYS(%QW2 = 第 2 個 word)</option><option value="s7">Siemens S7(%QW2 = 位元組 2)</option></select>
+   <span id="tagslotsw" hidden><label for="tagslots" class="inline">Alias 槽號</label><input id="tagslots" placeholder="I=1,Q=2" aria-label="Logix Alias 模組槽號" style="width:7em"></span></div>
   <div id="tagexpout" aria-live="polite"></div>
   <div id="tagpv" aria-live="polite"></div>
  </div>
@@ -500,7 +504,7 @@ function mview(v){document.body.classList.toggle('mv-code',v=='code');document.q
  else{const cur=document.querySelector('.tab.on');if(cur)document.querySelectorAll('#nav button:not(.mcode)').forEach(b=>{const on='tab_'+b.dataset.t==cur.id;b.classList.toggle('on',on);b.setAttribute('aria-current',on?'page':'false')})}}
 matchMedia('(max-width:820px)').addEventListener('change',e=>{if(!e.matches)mview('tab')});
 // ---- UI7:設定記憶(localStorage,前綴 plcst.;API Key 永不儲存) ----
-const MEM_IDS=['prov','model','base','rounds','userag','usescn','embsel','scan','cycles','keepcode'],MEM_NEVER=['key','embkey'];
+const MEM_IDS=['prov','model','base','rounds','userag','usescn','embsel','scan','cycles','keepcode','tagfmt','tagaddr','tagslots'],MEM_NEVER=['key','embkey'];
 const mem={get(k,d){try{const v=localStorage.getItem('plcst.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('plcst.'+k,JSON.stringify(v))}catch(e){}}};
 function memSave(){const o={};for(const id of MEM_IDS){const e=$(id);if(e)o[id]=e.type=='checkbox'?e.checked:e.value}o.profile=$('profile').value||mem.get('settings',{}).profile;mem.set('settings',o)}
 function memLoad(){const o=mem.get('settings',{});for(const id of MEM_IDS){const e=$(id);if(!e||!(id in o)||MEM_NEVER.includes(id))continue;
@@ -549,6 +553,7 @@ function fileTo(id,target){$(id).onchange=async e=>{const f=e.target.files[0];if
 fileTo('reqfile','req');fileTo('tagsfile','tags');fileTo('codefile','code');
 api('/api/profiles').then(ps=>{$('profile').innerHTML=ps.map(p=>`<option value="${p.name}" title="${esc(p.note)}">${p.name}</option>`).join('');const pf=mem.get('settings',{}).profile;if(pf&&ps.some(p=>p.name==pf))$('profile').value=pf;liveCheck()});
 $('profile').addEventListener('change',liveCheck);
+$('tagfmt').addEventListener('change',tagFmtUI);tagFmtUI();
 const issuesHtml=l=>l.length?l.map(i=>{const c=i.severity=='error'?'er':'wn';
  return i.line?`<button type="button" class="iss ${c}" data-line="${i.line}" title="跳到第 ${i.line} 行">${i.severity} <b>line ${i.line}</b>: ${esc(i.msg)}</button>`
   :`<div class="iss ${c}">${i.severity}: ${esc(i.msg)}</div>`}).join(''):'<span class="ok">✔ 無問題</span>';
@@ -608,7 +613,9 @@ ed.ta.addEventListener('keydown',e=>{const ta=ed.ta,mod=e.ctrlKey||e.metaKey;
   prev=v.slice(a,ta.selectionStart).trim().toUpperCase(),more=/^(IF|ELSIF|ELSE|CASE|FOR|WHILE|REPEAT|VAR\w*|STRUCT|TYPE|PROGRAM|FUNCTION\w*)\b/.test(prev)||/\b(THEN|DO|OF|ELSE)$/.test(prev);
   if(ind||more){e.preventDefault();edEdit('\n'+ind+(more&&!/^END_/.test(prev)?'    ':''),ta.selectionStart,ta.selectionEnd)}}});
 function drawerInfo(l){const ne=l.filter(i=>i.severity=='error').length,nw=l.length-ne;const d=$('drawerinfo');d.textContent=l.length?`${ne} 錯誤 · ${nw} 警告`:'';d.className=ne?'er':'wn'}
-async function tagExport(){const done=busy();const f=$('tagfmt').value;try{const j=await api('/api/tags/export',{csv:$('tags').value,format:f});
+function tagAddressing(){const v=$('tagaddr').value;return v=='auto'?(/siemens/i.test($('profile').value)?'s7':'iec'):v}
+function tagFmtUI(){$('tagslotsw').hidden=$('tagfmt').value!='logix'}
+async function tagExport(){const done=busy();const f=$('tagfmt').value;try{const j=await api('/api/tags/export',{csv:$('tags').value,format:f,addressing:tagAddressing(),logix_slots:f=='logix'?$('tagslots').value:''});
  const body=j.b64?Uint8Array.from(atob(j.b64),c=>c.charCodeAt(0)):j.text;
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([body],{type:j.b64?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/plain'}));a.download='tags_'+f+'.'+j.ext;a.click();
  $('tagexpout').innerHTML=`<div class="iss ${j.warnings.length?'wa':'ok'}" id="tagexpst">已匯出 ${esc(a.download)}(${j.size} 位元組)${j.warnings.length?','+j.warnings.length+' 項提醒':''}</div>`+(j.warnings.length?`<ul class="tagwarn">${j.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:'');
@@ -879,7 +886,7 @@ async function expPreview(f){try{const j=await api('/api/export',{code:$('code')
 setTheme(document.documentElement.dataset.theme||'auto');
 edRender();edCaret();
 // ---- UI7:還原記憶(設定、分欄、程式碼草稿、最後頁籤) ----
-memLoad();llmPill();setSplit(mem.get('split',50),false);
+memLoad();tagFmtUI();llmPill();setSplit(mem.get('split',50),false);
 {const c=mem.get('code',null);if($('keepcode').checked&&typeof c=='string'&&c.trim())$('code').value=c}
 {let mt;['input','codeset'].forEach(t=>ed.ta.addEventListener(t,()=>{clearTimeout(mt);mt=setTimeout(memCode,400)}))}
 {const t=mem.get('tab',null);if(['gen','sim','test','exp','rag','set'].includes(t))tab(t);else mview('tab')}

@@ -6,8 +6,13 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M38、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M39、UI1–UI7 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M39 ✅ 點位表匯出依廠牌換算位址 + Studio 5000 ALIAS(`docs/test_report_M39.md`)
+- [x] `convert_addr` iec⇄s7、`addressing` 選項(CLI/API/UI,UI 依 profile 自動)
+- [x] TIA 輸出位元組定址並以換算後位元組自動配置(修正 M38 自動配置與 IEC word 位址重疊);GVL 輸出 word 編號
+- [x] Studio 5000 `--logix-slots I=1,Q=2` → ALIAS `Local:槽:I.Data.n`;單元 16 項、UI 14 項、截圖 `docs/screenshots/m39/`
+- [ ] **待實機**:Studio 5000 匯入 ALIAS 列、TIA 匯入換算後位址
 ## M38 ✅ 點位表 → 各廠牌標籤表匯出(`docs/test_report_M38.md`)
 - [x] `plc_st/tagexport.py`:TIA xlsx(stdlib zip,PLC Tags + User Constants)、Studio 5000 標籤 CSV、GX Works3 全域標籤、Sysmac 全域變數、CODESYS GVL
 - [x] TIA 自動配置位址(位元組定址、word 偶數對齊、RETAIN 先配置、避開已用位址);各格式型別替代與提醒清單
@@ -174,6 +179,7 @@
 - [ ] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、GVL 匯出)
 - [x] 虛擬 PLC 模擬位址共用記憶體(%MW0 與 %MX0.0 重疊時同步)(M37)
 - [x] 點位表匯出為各廠牌可匯入格式(M38)
-- [ ] 點位表匯出時依廠牌換算 IEC 位址 word 編號(IEC %QW2 = 位元組 4 → TIA %QW4)並可選 Logix Alias 列
+- [x] 點位表匯出時依廠牌換算 IEC 位址 word 編號並可選 Logix Alias 列(M39)
+- [ ] GX Works3 點位表 IEC 位元位址 → X/Y 裝置(依機種選 8/16 進位)
 - [ ] ARRAY OF STRUCT 整體傳遞/賦值、`ARRAY[*]` 可變長度 VAR_IN_OUT
 - [ ] FB VAR_OUTPUT 陣列整體讀出 `x := fb.arr`
