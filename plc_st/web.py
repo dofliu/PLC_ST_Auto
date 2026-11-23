@@ -258,7 +258,8 @@ def handle(method, path, payload, state):
         if path == "/api/tags/export":
             import base64
             from .tagexport import export_tags
-            data, ext, warn = export_tags(_need(payload, "csv"), payload.get("format", "codesys"))
+            data, ext, warn = export_tags(_need(payload, "csv"), payload.get("format", "codesys"),
+                                         payload.get("addressing") or "iec", payload.get("logix_slots"))
             out = {"ext": ext, "warnings": warn, "size": len(data)}
             if isinstance(data, bytes):
                 out["b64"] = base64.b64encode(data).decode("ascii")

@@ -117,7 +117,7 @@ E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node test
 - `logix`:Studio 5000 標籤 CSV(`TAG` 列、RADIX/Constant 屬性、陣列改 0 起算、TON→TIMER、WORD→INT 等替代);標籤 CSV 不含初值,需要初值請用 L5X
 - `gxworks` / `sysmac`:GX Works3 全域標籤 / Sysmac 全域變數(Tab 分隔可貼上);IEC 位址寫入註解,裝置/I/O Map 需人工指定
 - `codesys`:CODESYS / TwinCAT GVL(`VAR_GLOBAL` / `CONSTANT` / `RETAIN`,保留 `AT` 位址)
-- 每個格式都會回傳提醒清單(CLI 印在 stderr、UI 列在按鈕下方);位址照原樣輸出,不依廠牌換算 word 編號。細節 `docs/test_report_M38.md`
+- 每個格式都會回傳提醒清單(CLI 印在 stderr、UI 列在按鈕下方);位址依廠牌換算(M39):`--addressing iec|s7` 指定點位表的定址(預設 iec,`%QW2` = 第 2 個 word),TIA 輸出位元組定址(→ `%QW4`)、CODESYS GVL 輸出 word 編號;Studio 5000 可加 `--logix-slots I=1,Q=2` 把 BOOL 位元位址建成 ALIAS `Local:1:I.Data.n`。UI 的「位址定址」預設依廠牌 Profile。細節 `docs/test_report_M38.md`、`docs/test_report_M39.md`
 
 陣列參數與整體賦值(M36,範例 `examples/array_inout.st`):`VAR_IN_OUT` / `VAR_INPUT` 可宣告為陣列並傳入整個陣列變數(元素型別與每維長度須相同,下界可不同;VAR_IN_OUT 呼叫後寫回),`b := a;` 可整體複製同形狀陣列;L5X 匯出自動改寫為 `COP(a[0], b[0], n);`。靜態檢查也會指出整數初值超出型別範圍(例 `SINT := 300`)。
 PLCopen 可加 `--validate` 以官方 TC6 v2.01 XSD(`plc_st/schemas/`)驗證結構,失敗時 exit 1(需 `pip install lxml`)。
