@@ -83,6 +83,10 @@ python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-
 | ![桌機](docs/screenshots/ui7/desktop_1920.png) | ![手機](docs/screenshots/ui7/mobile_390_jump.png) |
 
 版面(UI7):整頁不捲動;程式碼欄與頁籤欄中間的分欄把手可拖曳(或聚焦後用 ←/→、Shift 加大步距、Home/End,雙擊或 Enter 還原 50%)。
+
+雙頁籤(UI8,視窗寬度 ≥1600px):按頂列「雙頁籤」後右側同時顯示兩個頁籤(例:左欄模擬看波形、右欄測試跑情境)。右欄用上方下拉選單、`Shift`+點頁籤或 `Alt+Shift+1~6` 指定,可「對調」;設定會記住,視窗變窄時自動回到單頁籤。
+
+![雙頁籤:模擬 + 情境測試](docs/screenshots/ui8/01_dual_sim_test.png)
 寬度 ≤820px(手機/平板直向)改為底部導覽列,「程式碼」鍵與各頁籤一次顯示一個;點問題清單會自動切到編輯器並定位。
 介面會記住 provider/model/base URL、修正輪數、廠牌 profile、模擬參數、最後頁籤、分欄寬度與程式碼草稿(瀏覽器 localStorage,前綴 `plcst.`);**API Key 一律不儲存**。設定頁可關閉「記住程式碼草稿」或「清除記憶」。
 無障礙:第一個 Tab 為「跳到程式碼編輯器」、問題抽屜可用鍵盤開關、所有互動元素有可讀名稱(E2E 稽核)。

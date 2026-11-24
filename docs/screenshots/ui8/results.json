@@ -1,0 +1,112 @@
+[
+ {
+  "name": "U8-01 ≥1600px 顯示雙頁籤按鈕,預設關閉",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-02 開啟後左欄=模擬、右欄=測試(預設)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-03 兩欄並排(右欄在左欄右側、寬度相近)",
+  "pass": true,
+  "detail": "725+586 | 1322+586"
+ },
+ {
+  "name": "U8-04 雙頁籤時程式碼欄預設 34%",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-05 右欄頁籤在導覽列以虛線標示",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-06 情境變數晶片於右欄顯示時已更新",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-07 模擬波形與情境結果同時可見",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-08 右欄改為匯出:匯出卡片自動檢查",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-09 Shift+點頁籤 指定右欄",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-10 Alt+Shift+3 指定右欄=測試",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-11 Alt+3 切到右欄頁籤時不會重複顯示(左欄保持模擬)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-12 對調:左欄=測試、右欄=模擬",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-13 點右欄頁籤:左欄不變(保持測試)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-14 左欄切到文件,右欄仍為模擬",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-15 右欄選成與左欄相同 → 自動對調",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-16 重新整理後保留雙頁籤/左欄/右欄",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-17 localStorage 記錄 dual/tab2",
+  "pass": true,
+  "detail": "true,\"rag\","
+ },
+ {
+  "name": "U8-18 縮到 1440px:隱藏按鈕、單頁籤、分欄回到 50%",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-19 放大回 1920px:恢復雙頁籤",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-20 雙頁籤無整頁捲動",
+  "pass": true,
+  "detail": "0,0"
+ },
+ {
+  "name": "U8-21 ✕ 關閉雙頁籤",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "U8-22 無 JavaScript 錯誤",
+  "pass": true,
+  "detail": ""
+ }
+]
