@@ -276,6 +276,8 @@ ol.tl li{position:relative;padding:0 0 var(--sp-2) 26px}
 ol.tl li::before{content:"";position:absolute;left:8px;top:16px;bottom:0;width:2px;background:var(--bd-strong)}
 ol.tl li.last::before{display:none}
 ol.tl .dot{position:absolute;left:2px;top:5px;width:14px;height:14px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 2px currentColor;background:currentColor}
+ol.tl li.pend{color:var(--ac)}ol.tl li.pend .dot{background:transparent;border:2px solid currentColor;border-right-color:transparent;box-shadow:none;animation:spin .8s linear infinite}
+ol.tl li.pend .tlbody{border-style:dashed}
 ol.tl li.ok{color:var(--ok)}ol.tl li.er{color:var(--er)}ol.tl li.wn{color:var(--wn)}
 ol.tl .tlbody{color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-md);padding:4px var(--sp-2);background:var(--surface-2)}
 ol.tl li.sel .tlbody{box-shadow:0 0 0 2px var(--ac)}
@@ -410,7 +412,7 @@ END_PROGRAM</textarea></div></div>
  <div class="card"><h2><svg class="ico"><use href="#i-gen"/></svg>LLM 產生</h2>
   <label class="chk"><input type="checkbox" id="userag"> 使用 RAG 文件檢索</label>
   <label class="chk" title="靜態檢查通過後,再用「測試」頁的情境在虛擬 PLC 執行,不符時回饋 LLM 修正"><input type="checkbox" id="usescn" checked> 以「測試」頁情境驗證並修正</label>
-  <button onclick="gen()"><svg class="ico"><use href="#i-gen"/></svg>產生 ST</button><span id="genst" class="inline"></span>
+  <button id="genbtn" onclick="gen()"><svg class="ico"><use href="#i-gen"/></svg>產生 ST</button><button type="button" id="genstop" class="ghost" onclick="genStop()" hidden title="停止產生(已完成的輪次保留在時間軸)">■ 停止</button><span id="genst" class="inline" aria-live="polite"></span>
   <pre id="genout" hidden></pre>
  </div>
  <div class="card"><h2><svg class="ico"><use href="#i-flow"/></svg>產生流程<span class="hint" style="font-weight:400">初稿 → 檢查 → 修正,每輪可比較差異或套用</span></h2>
@@ -664,10 +666,32 @@ async function chk(silent){clearTimeout(ed.timer);const seq=++ed.seq,done=silent
  pill('st_chk',`${ne?'✘':'✔'} 檢查 ${ne} 錯 / ${nw} 警告`,ne?'er':nw?'wn':'ok');if(silent!==true)toast(ne?`檢查發現 ${ne} 個錯誤`:nw?`檢查通過,${nw} 個警告`:'檢查通過,無問題',ne?'er':nw?'wn':'ok')}
  catch(e){if(silent===true)return;show('chkout',esc(e.message),'er');pill('st_chk','✘ 檢查失敗','er');toast(e.message,'er')}finally{done()}}
 function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('code').value]));a.download='program.st';a.click()}
-async function gen(){const done=busy();$('genst').textContent=' 產生中…';$('genst').className='inline';try{
- const j=await api('/api/generate',{requirement:$('req').value,tags_csv:$('tags').value,provider:$('prov').value,model:$('model').value,api_key:$('key').value,base_url:$('base').value,profile:$('profile').value,max_rounds:+$('rounds').value,use_rag:$('userag').checked,scenario:$('usescn').checked?$('scn').value:''});
- $('code').value=j.code;renderTL(j);$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues));drawerInfo(j.issues);setMarks(j.issues);toast('ST 程式碼已產生','ok')}
- catch(e){$('genst').textContent='';show('genout',esc(e.message),'er');toast('產生失敗:'+e.message,'er',5000)}finally{done()}}
+// M40:串流產生 —— /api/generate/stream 回傳 NDJSON,每一輪完成即更新時間軸與編輯器;可中途停止
+let genCtl=null;
+function genBody(){return{requirement:$('req').value,tags_csv:$('tags').value,provider:$('prov').value,model:$('model').value,api_key:$('key').value,base_url:$('base').value,profile:$('profile').value,max_rounds:+$('rounds').value,use_rag:$('userag').checked,scenario:$('usescn').checked?$('scn').value:''}}
+function genLive(info,tl,pend){const k=tl.length;renderTL({...info,timeline:tl},pend?(k?`第 ${k} 輪修正中…`:'初稿產生中…'):'');
+ $('genst').textContent=pend?` ${k?`第 ${k} 輪修正中`:'初稿產生中'}…(已完成 ${k} 輪)`:'';pill('st_llm',pend?`⟳ LLM 產生中 ${k}/${(info.max_rounds??0)+1}`:'LLM:'+$('prov').value+($('model').value?'·'+$('model').value:''),pend?'wn':'');
+ const li=$('gentl').querySelector('li.pend')||$('gentl').querySelector('li:last-child');if(li&&li.scrollIntoView)li.scrollIntoView({block:'nearest'})}  // 進行中列保持在畫面內
+function genFinish(j){$('code').value=j.code;renderTL(j);$('genst').textContent=` 完成(修正 ${j.rounds} 輪,RAG 片段 ${j.rag_passages})`;show('genout',issuesHtml(j.issues));show('chkout',issuesHtml(j.issues));drawerInfo(j.issues);setMarks(j.issues);toast('ST 程式碼已產生','ok')}
+async function genStream(body,sig,info,tl){const r=await fetch('/api/generate/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:sig});
+ if(r.status==404||!r.body)return null;  // 舊伺服器:改用一次性 API
+ if(!r.ok){let m=r.status;try{m=(await r.json()).error||m}catch(e){}throw new Error(m)}
+ const rd=r.body.getReader(),dec=new TextDecoder();let buf='',fin=null;
+ for(;;){const{value,done}=await rd.read();if(value)buf+=dec.decode(value,{stream:true});if(done)buf+=dec.decode();
+  let i;while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!line)continue;const ev=JSON.parse(line);
+   if(ev.type=='start'){Object.assign(info,ev);genLive(info,tl,true)}
+   else if(ev.type=='round'){tl.push(ev);$('code').value=ev.code;setMarks(ev.issues);drawerInfo(ev.issues);{const h=$('chkout').hidden;show('chkout',issuesHtml(ev.issues));$('chkout').hidden=h}genLive(info,tl,ev.more)}
+   else if(ev.type=='done'){ev.timeline=tl;fin=ev}
+   else if(ev.type=='error')throw new Error(ev.error)}
+  if(done)break}
+ if(!fin)throw new Error('串流中斷(伺服器未回傳結果)');return fin}
+async function gen(){if(genCtl)return;const done=busy();genCtl=new AbortController();$('genstop').hidden=false;$('genst').className='inline';$('genst').textContent=' 產生中…';
+ const info={provider:$('prov').value,model:$('model').value,max_rounds:+$('rounds').value},tl=[];genLive(info,tl,true);$('genout').hidden=true;
+ try{const body=genBody();let j=await genStream(body,genCtl.signal,info,tl);if(!j)j=await api('/api/generate',body);genFinish(j)}
+ catch(e){if(e.name=='AbortError'){renderTL({...info,timeline:tl,stopped:true});$('genst').textContent=` 已停止(保留 ${tl.length} 輪,${tl.length?'編輯器為最後一輪程式碼':'未產生程式碼'})`;toast('已停止產生','wn')}
+  else{if(tl.length)renderTL({...info,timeline:tl});$('genst').textContent='';show('genout',esc(e.message),'er');toast('產生失敗:'+e.message,'er',5000)}}
+ finally{genCtl=null;$('genstop').hidden=true;llmPill();done()}}
+function genStop(){if(genCtl)genCtl.abort()}
 async function ragAdd(){const fs=[...$('ragfile').files];if(!fs.length){$('ragst').textContent=' 請先選檔案';toast('請先選擇要加入的文件','wn');return}
  const done=busy();try{let last;for(const f of fs){const b=await toB64(f);last=await api('/api/rag/add',{name:f.name,base64:b,embedder:$('embsel').value,embed_api_key:$('embkey').value})}
  $('ragst').textContent=` 索引共 ${last.total} 個片段`;toast(`已加入 ${fs.length} 份文件`,'ok')}catch(e){$('ragst').textContent=' '+e.message;toast(e.message,'er')}finally{done()}}
@@ -690,13 +714,14 @@ function renderTagPv(j){const cnt={};j.rows.forEach(r=>{if(!r.error)cnt[tagRole(
  $('tagpv').innerHTML=`<div class="tagsum"><b style="font-size:var(--fs-sm)">點位預覽</b>${sum}</div>`+(rows?`<div class="scnwrap" style="max-height:26vh"><table class="scn tagpv"><thead><tr><th>行</th><th>名稱</th><th>型別</th><th>方向</th><th>位址</th><th>初值</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table></div>`:'')}
 $('tags').addEventListener('input',()=>{clearTimeout(tagT);tagT=setTimeout(tagPreview,250)});
 let genTL=[];
-function renderTL(j){genTL=j.timeline||[];const n=genTL.length,tot=genTL.reduce((a,t)=>a+t.ms,0),last=genTL[n-1];
- if(!n){$('gentl').innerHTML='';$('gendiff').hidden=true;return}
- const fin=last.errors?`<span class="badge no">✘ ${n-1} 輪修正後仍有 ${last.errors} 個錯誤</span>`:`<span class="badge ok">✔ ${n>1?`經 ${n-1} 輪修正後通過`:'初稿即通過'}</span>`;
+function renderTL(j,pend){genTL=j.timeline||[];const n=genTL.length,tot=genTL.reduce((a,t)=>a+t.ms,0),last=genTL[n-1];
+ const pli=pend?`<li class="pend last" aria-busy="true"><span class="dot"></span><div class="tlbody"><div class="tlrow"><b>${esc(pend)}</b><span class="hint">等待 LLM 回應</span></div></div></li>`:'';
+ if(!n&&!pend){$('gentl').innerHTML='';$('gendiff').hidden=true;return}
+ const fin=pend?`<span class="badge wn">⟳ 進行中</span>`:j.stopped?`<span class="badge wn">■ 已停止</span>`:!n?'':last.errors?`<span class="badge no">✘ ${n-1} 輪修正後仍有 ${last.errors} 個錯誤</span>`:`<span class="badge ok">✔ ${n>1?`經 ${n-1} 輪修正後通過`:'初稿即通過'}</span>`;
  $('gentl').innerHTML=`<div class="tlhead"><span class="badge">${esc(j.provider||'')}${j.model?' · '+esc(j.model):''}</span><span>${n} 輪 · 共 ${tot} ms</span>${fin}</div><ol class="tl">`+genTL.map((t,k)=>{
   const st=t.errors?'er':t.warnings?'wn':'ok',errs=t.issues.filter(i=>i.severity=='error'),more=errs.length>3?`<div class="tlmsg">…另 ${errs.length-3} 個</div>`:'';
-  return `<li class="${st}${k==n-1?' last':''}" data-k="${k}"><span class="dot"></span><div class="tlbody"><div class="tlrow"><b>${t.round?'第 '+t.round+' 輪修正':'初稿'}</b><span class="badge ${t.errors?'no':t.warnings?'wn':'ok'}">${t.errors?'✘ '+t.errors+' 錯':'✔ 通過'}${t.warnings?' · '+t.warnings+' 警告':''}</span><span class="hint">${t.ms} ms · ${t.code.split('\n').filter(Boolean).length} 行</span><span class="tlact">${k?`<button type="button" class="ghost" onclick="tlDiff(${k})" title="與上一輪比較">差異</button>`:''}<button type="button" class="ghost" onclick="tlApply(${k})" title="把這一輪的程式碼放進編輯器">套用</button></span></div>`
-   +errs.slice(0,3).map(i=>`<div class="tlmsg">${i.line?'line '+i.line+': ':''}${esc(i.msg)}</div>`).join('')+more+'</div></li>'}).join('')+'</ol>';
+  return `<li class="${st}${k==n-1&&!pend?' last':''}" data-k="${k}"><span class="dot"></span><div class="tlbody"><div class="tlrow"><b>${t.round?'第 '+t.round+' 輪修正':'初稿'}</b><span class="badge ${t.errors?'no':t.warnings?'wn':'ok'}">${t.errors?'✘ '+t.errors+' 錯':'✔ 通過'}${t.warnings?' · '+t.warnings+' 警告':''}</span><span class="hint">${t.ms} ms · ${t.code.split('\n').filter(Boolean).length} 行</span><span class="tlact">${k?`<button type="button" class="ghost" onclick="tlDiff(${k})" title="與上一輪比較">差異</button>`:''}<button type="button" class="ghost" onclick="tlApply(${k})" title="把這一輪的程式碼放進編輯器">套用</button></span></div>`
+   +errs.slice(0,3).map(i=>`<div class="tlmsg">${i.line?'line '+i.line+': ':''}${esc(i.msg)}</div>`).join('')+more+'</div></li>'}).join('')+pli+'</ol>';
  if(n>1)tlDiff(n-1);else $('gendiff').hidden=true}
 function lineDiff(a,b){const A=a.replace(/\n$/,'').split('\n'),B=b.replace(/\n$/,'').split('\n'),n=A.length,m=B.length;
  if(n*m>4e6)return[...A.map((s,i)=>['-',s,i+1,0]),...B.map((s,j)=>['+',s,0,j+1])];

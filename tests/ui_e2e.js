@@ -427,7 +427,7 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   ok('69c 勾選時情境錯誤(未知變數 t.Q)顯示在每一輪', (await pg.innerText('#gentl')).includes('scenario could not run'));
   await pg.uncheck('#usescn');
   await T('set'); await pg.fill('#rounds', '0'); await T('gen'); await pg.click('text=產生 ST');
-  await pg.waitForFunction("document.querySelectorAll('#gentl li').length===1");
+  await pg.waitForFunction("document.querySelectorAll('#gentl li[data-k]').length===1 && !document.querySelector('#gentl li.pend')");  // M40:串流進行中列不算輪次
   ok('70 修正輪數 0:只有初稿、標示未通過、不顯示差異', (await pg.innerText('#gentl')).includes('仍有 1 個錯誤') && await pg.isHidden('#gendiff'));
   await pg.check('#usescn'); await T('set'); await pg.fill('#rounds', '3'); await pg.selectOption('#prov', 'ollama'); await T('gen');
   const ns5 = await pg.evaluate('document.documentElement.scrollHeight <= window.innerHeight');
