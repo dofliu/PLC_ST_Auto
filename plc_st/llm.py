@@ -121,6 +121,9 @@ class Mock(Provider):
         return out or None
 
     def complete(self, system, user):
+        if self.model.endswith("-slow"):  # 例:model=demo-slow,每次呼叫延遲 0.8 秒,用來示範串流時間軸
+            import time
+            time.sleep(0.8)
         repair = "Your previous answer:" in user
         decls = self._decls(user.split("\n\nYour previous answer:")[0]) or self.DEFAULT_DECL
         bins = [n for s, n, t in decls if s == "VAR_INPUT" and t == "BOOL"]

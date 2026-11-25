@@ -1,0 +1,97 @@
+[
+ {
+  "name": "M40-01 停止按鈕預設隱藏",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-02 送出後立即顯示「初稿產生中」進行中列",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-03 狀態列 LLM 顯示產生中",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-04 初稿完成即顯示(✘ 1 錯),下一列為「第 1 輪修正中」",
+  "pass": true,
+  "detail": "mock · demo-slow 1 輪 · 共 801 ms ⟳ 進行中 初稿 ✘ 1 錯 801 ms · 15 行 套用 line 14: undeclared variable alarm_lamp 第 1 輪修正中… 等待 LLM 回應"
+ },
+ {
+  "name": "M40-05 編輯器已放入初稿程式碼(尚未結束)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-06 進度文字顯示已完成輪數",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-07 完成後 2 輪、無進行中列、標示經 1 輪修正後通過",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-08 完成後停止鈕隱藏、產生鈕恢復、編輯器為修正版",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-09 差異面板自動顯示最後一輪",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-10 狀態列 LLM 恢復為 provider·model",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-11 停止後保留已完成的初稿、標示已停止、無進行中列",
+  "pass": true,
+  "detail": "mock · demo-slow 1 輪 · 共 801 ms ■ 已停止 初稿 ✘ 1 錯 801 ms · 15 行 套用 line 14: undeclared variable alarm_lamp"
+ },
+ {
+  "name": "M40-12b 停止後問題抽屜顯示最後一輪的錯誤",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-12c 時間軸最後一列在可視範圍內",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-12 停止後按鈕狀態恢復",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-13 停止後未被後到的事件覆蓋",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-14 LLM 連線錯誤以錯誤訊息顯示",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-15 串流端點不存在時改用一次性 API,結果相同",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-16 手機寬度串流中無水平捲動、停止鈕可見",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "M40-17 無 JS 錯誤",
+  "pass": true,
+  "detail": ""
+ }
+]

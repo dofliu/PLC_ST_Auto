@@ -43,6 +43,7 @@ python -m plc_st generate "馬達啟停,停止優先" --provider claude --tags e
 ```
 產生後自動執行 `check`;LLM 輸出仍須經虛擬 PLC 與廠牌官方工具驗證。
 沒有金鑰時可用 `--provider mock`(離線示範,初稿故意留一個錯誤,展示自動修正流程)。Web UI 產生頁會顯示每一輪的檢查結果、耗時與修正差異,點位表貼上後即時預覽(UI5)。
+產生採串流(M40,`POST /api/generate/stream` 回傳 NDJSON):每一輪完成就更新時間軸與編輯器,進行中的輪次顯示「修正中」,可按「停止」中斷(保留已完成的輪次,伺服器不再呼叫 LLM)。示範慢速回應可用 `mock` + model `demo-slow`。
 
 ## RAG (M6)
 ```

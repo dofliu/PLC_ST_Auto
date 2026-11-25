@@ -6,8 +6,12 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M39、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M40、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M40 ✅ 產生流程串流顯示(`docs/test_report_M40.md`)
+- [x] `POST /api/generate/stream`(NDJSON:start / round / done / error),每輪完成即送出;用戶端斷線即停止呼叫 LLM
+- [x] UI:進行中列(初稿產生中 / 第 n 輪修正中)、即時更新編輯器/錯誤標記/問題抽屜、「停止」按鈕、狀態列進度、舊伺服器自動退回 `/api/generate`
+- [x] mock `demo-slow` 慢速模式;單元 10 項(`tests/test_m40.py`,含真實 HTTP 逐行到達)、E2E 19 項(`tests/ui_m40.js`)、截圖 `docs/screenshots/m40/`
 ## UI8 ✅ 寬螢幕(≥1600px)雙頁籤(`docs/test_report_UI8.md`)
 - [x] 頂列「雙頁籤」按鈕、右欄選單/對調/關閉、導覽列虛線標示右欄、Shift+點 / Alt+Shift+1~6 指定右欄
 - [x] 內部切頁不會換掉已在右欄的頁籤;右欄匯出/測試自動初始化;雙頁籤分欄另存(預設 34%);<1600px 自動退回
@@ -170,7 +174,7 @@
 - [x] UI7 響應式(手機底部導覽)、可拖曳分欄、設定記憶、無障礙、README 截圖
 ## 下一步候選(≤2h)
 - [x] 寬螢幕(≥1600px)右側同時顯示兩個頁籤(例:模擬+測試)(UI8)
-- [ ] 產生流程串流顯示(每輪完成即更新時間軸)
+- [x] 產生流程串流顯示(每輪完成即更新時間軸)(M40)
 - [x] 匯出時展開 VAR CONSTANT 陣列邊界(M34)
 - [ ] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位
 - [ ] GX Works3 / Sysmac STRUCT 匯出
@@ -187,3 +191,4 @@
 - [ ] GX Works3 點位表 IEC 位元位址 → X/Y 裝置(依機種選 8/16 進位)
 - [ ] ARRAY OF STRUCT 整體傳遞/賦值、`ARRAY[*]` 可變長度 VAR_IN_OUT
 - [ ] FB VAR_OUTPUT 陣列整體讀出 `x := fb.arr`
+- [ ] LLM 回應 token 級串流(各 provider 的 stream API,邊產生邊顯示程式碼)

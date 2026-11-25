@@ -41,3 +41,4 @@
 - M38 ✅ 點位表 → 各廠牌標籤表(TIA PLC 變數 xlsx、Studio 5000 標籤 CSV、GX Works3 全域標籤、Sysmac 全域變數、CODESYS GVL)、TIA 自動配置位址
 - M39 ✅ 點位表匯出依廠牌換算位址(IEC word 編號 ⇄ S7 位元組)、TIA 自動配置避讓修正、Studio 5000 ALIAS(本機 I/O 槽號)
 - UI8 ✅ 寬螢幕(≥1600px)雙頁籤:右側同時顯示兩個頁籤(例:模擬 + 測試),右欄指定/對調/記憶
+- M40 ✅ 產生流程串流顯示(NDJSON 逐輪事件、進行中列、可停止、舊 API 後援)

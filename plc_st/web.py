@@ -1,6 +1,6 @@
 """python -m plc_st serve [--port 8765]:stdlib http.server Web UI + JSON API(僅綁 127.0.0.1)。
 
-POST /api/{check,run,test,export,export/status,tags,tags/export,tags/preview,generate,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
+POST /api/{check,run,test,export,export/status,tags,tags/export,tags/preview,generate,generate/stream,rag/add,rag/search,rag/clear,sim/start,sim/step,sim/stop};GET /api/profiles、/。
 handle() 與 HTTP 分離,方便單元測試。"""
 import base64
 import json
@@ -122,26 +122,62 @@ def _run(p):
     return {"columns": ["cycle", "time_ms"] + cols, "rows": rows, "meta": _meta(plc, cols)}
 
 
-def _generate(p, state):
+class Cancelled(Exception):
+    """串流用戶端已斷線(按下停止或關閉頁面):中止後續修正輪。"""
+
+
+def _generate(p, state, emit=None):
+    """emit(event_dict) 若提供,於開始、每一輪完成時即送出事件(供 /api/generate/stream 串流)。"""
     req = _need(p, "requirement")
     tags = tags_to_var_blocks(p["tags_csv"]) if p.get("tags_csv", "").strip() else ""
     kw = {k: p[k] for k in ("model", "api_key", "base_url") if p.get(k)}
     prov = get_provider(p.get("provider", "ollama"), **kw)
     ctx = state.store.context(req, int(p.get("top_k", 4))) if p.get("use_rag") and state.store.docs else None
     scenario = p.get("scenario") or None
+    max_rounds = int(p.get("max_rounds", 3))
     timeline, t0 = [], [time.monotonic()]
+    if emit:
+        emit({"type": "start", "provider": prov.name, "model": prov.model, "max_rounds": max_rounds,
+              "rag_passages": len(ctx or [])})
 
     def on_round(n, code, issues):  # 每輪(含初稿)的程式碼、問題與耗時,供 UI 時間軸/差異比較
         now = time.monotonic()
         ne = sum(i.severity == "error" for i in issues)
-        timeline.append({"round": n, "code": code, "issues": _issues(issues), "errors": ne,
-                         "warnings": len(issues) - ne, "ms": round((now - t0[0]) * 1000)})
-        t0[0] = now
+        item = {"round": n, "code": code, "issues": _issues(issues), "errors": ne,
+                "warnings": len(issues) - ne, "ms": round((now - t0[0]) * 1000)}
+        timeline.append(item)
+        if emit:
+            # 還有錯誤且尚未用完修正輪數 → 下一輪即將呼叫 LLM,UI 顯示「修正中」
+            emit({"type": "round", **item, "more": bool(ne) and n < max_rounds})
+        t0[0] = time.monotonic()
 
     code, issues, rounds = generate_checked(prov, req, tags, p.get("profile", "iec"), ctx,
-                                            int(p.get("max_rounds", 3)), scenario, on_round)
+                                            max_rounds, scenario, on_round)
     return {"code": code, "issues": _issues(issues), "rounds": rounds, "rag_passages": len(ctx or []),
             "timeline": timeline, "provider": prov.name, "model": prov.model}
+
+
+def generate_stream(payload, state, write):
+    """串流產生:每個事件以一行 JSON(NDJSON)交給 write(bytes)。
+    write 丟出 OSError(用戶端斷線)時中止,不再呼叫 LLM。錯誤以 {"type":"error"} 事件回報。"""
+    def emit(ev):
+        try:
+            write((json.dumps(ev, ensure_ascii=False) + "\n").encode("utf-8"))
+        except OSError as e:
+            raise Cancelled(str(e))
+    try:
+        out = _generate(payload, state, emit)
+        out["timeline"] = [{k: v for k, v in t.items() if k != "code"} for t in out["timeline"]]  # 程式碼已在 round 事件送過
+        emit({"type": "done", **out})
+    except Cancelled:
+        return False
+    except Exception as e:  # 與 handle() 相同的錯誤分類
+        status = 400 if isinstance(e, (STError, ValueError, KeyError, TypeError, OSError)) else 502
+        try:
+            emit({"type": "error", "status": status, "error": f"{type(e).__name__}: {e}"})
+        except Cancelled:
+            return False
+    return True
 
 
 def _rag_add(p, state):
@@ -298,6 +334,21 @@ def make_server(host="127.0.0.1", port=8765):
             self.end_headers()
             self.wfile.write(body)
 
+        def _stream(self, payload):
+            # NDJSON 串流:不設 Content-Length,每個事件寫完即 flush,結束時關閉連線
+            self.close_connection = True
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self.send_header("Connection", "close")
+            self.end_headers()
+
+            def write(b):
+                self.wfile.write(b)
+                self.wfile.flush()
+            generate_stream(payload, state, write)
+
         def do_GET(self):
             if self.path in ("/", "/index.html"):
                 with open(INDEX_HTML, "rb") as f:
@@ -315,6 +366,8 @@ def make_server(host="127.0.0.1", port=8765):
                     raise ValueError
             except ValueError:
                 return self._send(400, {"error": "body must be a JSON object"})
+            if self.path == "/api/generate/stream":
+                return self._stream(payload)
             self._send(*handle("POST", self.path, payload, state))
 
         def log_message(self, *a):
