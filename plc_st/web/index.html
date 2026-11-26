@@ -178,6 +178,7 @@ nav button.on2{color:var(--ac);border-color:var(--ac);border-style:dashed}
 .iog .list{max-height:168px;overflow:auto}
 .ior{display:flex;align-items:center;gap:var(--sp-2);min-height:26px;font-size:var(--fs-sm)}
 .ior .nm{flex:1;min-width:6ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-code)}
+.ior .nm.mid{display:flex;text-overflow:clip}.ior .nm.mid .h{overflow:hidden;text-overflow:ellipsis;min-width:1ch}.ior .nm.mid .t{flex:none}
 .ior .ty{font-size:var(--fs-xs);color:var(--fg-muted)}
 .ior .ad{font:600 var(--fs-xs) var(--font-code);padding:0 5px;border-radius:4px;border:1px solid var(--bd);color:var(--fg-muted);white-space:nowrap}
 .pwr{display:block;font-size:var(--fs-xs);color:var(--wn);white-space:nowrap}
@@ -749,13 +750,18 @@ function simMode(m,txt){sim.mode=m;const b=$('simmode');b.className='badge '+({r
  $('sim_run').disabled=m=='run';$('sim_pause').disabled=m!='run';$('sim_step').disabled=m=='run'}
 function fmtV(v,t){if(typeof v=='boolean')return v?'TRUE':'FALSE';if(typeof v=='number'){if(t=='TIME')return v+'ms';
  return Number.isInteger(v)?String(v):String(+v.toFixed(4))}if(typeof v=='string')return "'"+v+"'";return String(v)}
+// 長名稱(例 slots[2].setp[3])只縮名稱部分,外層索引 [2] 與最後的 .setp[3] 永遠可見,避免不同元素看起來一樣
+function nmHtml(name){const i=name.lastIndexOf('.'),b=name.indexOf('[');if(name.length<=14||i<1)return `<span class="nm">${esc(name)}</span>`;
+ const e=b>0&&b<i?name.indexOf(']',b):-1,seg=(c,t)=>t?`<span class="${c}">${esc(t)}</span>`:'';
+ return e>0&&e<i?`<span class="nm mid">${seg('h',name.slice(0,b))}${seg('t',name.slice(b,e+1))}${seg('h',name.slice(e+1,i))}${seg('t',name.slice(i))}</span>`
+  :`<span class="nm mid">${seg('h',name.slice(0,i))}${seg('t',name.slice(i))}</span>`}
 function ioBuild(meta,live){const g={input:[],output:[],local:[]};meta.forEach((m,k)=>{(g[m.section=='output'?'output':m.section=='input'||m.section=='inout'?'input':'local']).push([m,k])});
  const row=([m,k],kind)=>{const n=esc(m.name),isB=m.type=='BOOL';let ctl;
   if(kind=='input')ctl=isB?`<button type="button" class="sw" role="switch" aria-checked="false" aria-label="${n}" data-k="${k}" ${live?'':'disabled'}></button>`
    :`<input data-k="${k}" aria-label="${n}" ${m.type=='STRING'?'':'type="number" step="any"'} ${live?'':'disabled'}>`;
   else if(kind=='output'&&isB)ctl=`<span class="lamp" data-k="${k}" role="img" aria-label="${n}"></span>`;
   else ctl=`<span class="val" data-k="${k}"></span>`;
-  return `<div class="ior" title="${n} : ${esc(m.type)}"><span class="nm">${n}</span>${m.addr?`<span class="ad" title="直接位址">${esc(m.addr)}</span>`:''}${m.shared&&m.shared.length?`<span class="ad sh" title="與 ${esc(m.shared.join(', '))} 共用記憶體(位址重疊):寫入任一個,其他立即同步" aria-label="共用記憶體:${esc(m.shared.join(', '))}">⇄</span>`:''}${m.const?'<span class="ad q" title="VAR CONSTANT:不可寫入">CONST</span>':''}${m.retain?'<span class="ad q" title="VAR RETAIN:斷電重啟後保留">RETAIN</span>':''}<span class="ty">${esc(m.type)}</span>${ctl}</div>`};
+  return `<div class="ior" title="${n} : ${esc(m.type)}">${nmHtml(m.name)}${m.addr?`<span class="ad" title="直接位址">${esc(m.addr)}</span>`:''}${m.shared&&m.shared.length?`<span class="ad sh" title="與 ${esc(m.shared.join(', '))} 共用記憶體(位址重疊):寫入任一個,其他立即同步" aria-label="共用記憶體:${esc(m.shared.join(', '))}">⇄</span>`:''}${m.const?'<span class="ad q" title="VAR CONSTANT:不可寫入">CONST</span>':''}${m.retain?'<span class="ad q" title="VAR RETAIN:斷電重啟後保留">RETAIN</span>':''}<span class="ty">${esc(m.type)}</span>${ctl}</div>`};
  const grp=(kind,title,ico)=>g[kind].length?`<div class="iog" data-g="${kind}"><h3><svg class="ico"><use href="#${ico}"/></svg>${title}<span class="n">${g[kind].length}</span></h3><div class="list">${g[kind].map(x=>row(x,kind)).join('')}</div></div>`:'';
  $('io').innerHTML=grp('input','輸入','i-play')+grp('output','輸出','i-check')+grp('local','內部變數','i-cpu')||'<div class="empty" style="grid-column:1/-1">程式沒有可顯示的變數</div>';
  $('io').querySelectorAll('.sw').forEach(b=>b.onclick=()=>{const k=+b.dataset.k,v=b.getAttribute('aria-checked')!='true';sim.pend[meta[k].name]=v;b.setAttribute('aria-checked',v);b.classList.add('pend');if(sim.mode=='stop')simStep()});
