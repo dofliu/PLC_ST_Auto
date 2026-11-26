@@ -496,12 +496,14 @@ class VirtualPLC:
             dims.append((lo, hi))
             size *= hi - lo + 1
         before = set(self.vars)
-        if self._has_array_field(d["type"]):
-            raise STError(f"{d['name']}: ARRAY OF STRUCT whose STRUCT has ARRAY fields is not supported")
         self._flatten(d["name"], d["type"], None, d["section"])
         for k in set(self.vars) - before:
-            self.vars[k] = [self.vars[k]] * size
-            self.arrays[k] = dims
+            if k in self.arrays:  # 陣列欄位:外層維度在前(列優先),每個元素佔一段連續區塊
+                self.vars[k] = list(self.vars[k]) * size
+                self.arrays[k] = dims + self.arrays[k]
+            else:
+                self.vars[k] = [self.vars[k]] * size
+                self.arrays[k] = dims
         self.sarr[d["name"].lower()] = dims
         items = d["init"][1] if d["init"] else []
         if d["init"] and d["init"][0] != "arrinit":
@@ -514,16 +516,14 @@ class VirtualPLC:
                 raise STError(f"{d['name']}: element initialiser must be a STRUCT value like (a := 1)")
             self._flatten(tmp, d["type"], it, d["section"])
             for k in [k for k in self.vars if k.startswith(tmp + ".")]:
-                self.vars[d["name"].lower() + k[len(tmp):]][pos] = self.vars.pop(k)
-                for tbl in (self.section, self.types, self.disp):
+                dst = d["name"].lower() + k[len(tmp):]
+                v = self.vars.pop(k)
+                if isinstance(v, list):
+                    self.vars[dst][pos * len(v):(pos + 1) * len(v)] = v
+                else:
+                    self.vars[dst][pos] = v
+                for tbl in (self.section, self.types, self.disp, self.arrays):
                     tbl.pop(k, None)
-
-    def _has_array_field(self, tname, stack=()):
-        if tname.lower() in stack:
-            return False
-        return any(f.get("array") or (f["type"].lower() in self.structs and
-                   self._has_array_field(f["type"], stack + (tname.lower(),)))
-                   for f in self.structs[tname.lower()]["fields"])
 
     def _sa_resolve(self, e):
         """a[i].f / a[i].m.f on an ARRAY OF STRUCT -> (array key, [indexes]) or None."""
@@ -543,6 +543,32 @@ class VirtualPLC:
         if key not in self.arrays:
             raise STError(f"unknown member {key}")
         return key, idx[::-1]
+
+    def _sa_scalar(self, r):
+        key, idx = r
+        if len(self.arrays[key]) > len(idx):
+            raise STError(f"array {key.split('.', 1)[1]} used without index")
+
+    def _sa_outer(self, key):
+        """外層(ARRAY OF STRUCT)維度數;key 不屬於 ARRAY OF STRUCT 時為 0。"""
+        dims = self.sarr.get(key.split(".", 1)[0])
+        return len(dims) if dims is not None and "." in key else 0
+
+    def _sa_slot(self, key, idx):
+        """ARRAY OF STRUCT 欄位 key 在元素 idx 的位置:純量欄位 -> int;陣列欄位 -> slice(整段)。"""
+        dims = self.arrays[key]
+        no = self._sa_outer(key)
+        if no and len(idx) == no and len(dims) > no:
+            inner = 1
+            for lo, hi in dims[no:]:
+                inner *= hi - lo + 1
+            flat = 0
+            for (lo, hi), ix in zip(dims[:no], idx):
+                if not lo <= ix <= hi:
+                    raise STError(f"array index {ix} out of range [{lo}..{hi}] for {key.split('.')[0]}")
+                flat = flat * (hi - lo + 1) + (ix - lo)
+            return slice(flat * inner, (flat + 1) * inner)
+        return self._elem(key, idx)
 
     def _path(self, e):
         """var/member chain -> lowercase dotted name (None if not a plain chain)."""
@@ -651,36 +677,61 @@ class VirtualPLC:
             return None
         return p if p in self.arrays else None  # ARRAY OF STRUCT (sarr) is not a plain array
 
+    def _arr_ref(self, e):
+        """整個陣列參照 -> (key, 形狀, slice|None):`a`、`s.f`,或 ARRAY OF STRUCT 元素的陣列欄位 `a[i].f`。"""
+        k = self._whole_array(e)
+        if k is not None:
+            return k, self._shape(self.arrays[k]), None
+        if e[0] == "member":
+            try:
+                r = self._sa_resolve(e)
+            except STError:  # 例如 a[i].sub(巢狀 STRUCT,不是陣列欄位)
+                return None
+            if r and len(self.arrays[r[0]]) > len(r[1]):
+                return r[0], self._shape(self.arrays[r[0]][len(r[1]):]), self._sa_slot(*r)
+        return None
+
+    def _arr_get(self, ref):
+        k, _, sl = ref
+        return self.vars[k] if sl is None else self.vars[k][sl]
+
+    def _arr_set(self, ref, vals):
+        k, _, sl = ref
+        vals = [self.wrap(self.types[k], v) for v in vals]
+        if sl is None:
+            self.vars[k] = vals
+        else:
+            self.vars[k][sl] = vals
+
     @staticmethod
     def _shape(dims):
         return [hi - lo + 1 for lo, hi in dims]
 
     def _copy_array_in(self, sc, key, e, owner):
         """copy-in of a whole-array argument into array parameter `key` of scope `sc`."""
-        src = self._whole_array(e)
-        if src is None:
+        ref = self._arr_ref(e)
+        if ref is None:
             raise STError(f"parameter {key} of {owner} is an ARRAY; pass a whole array variable "
                           "(ARRAY OF STRUCT arguments are not supported yet)")
-        if self._shape(self.arrays[src]) != self._shape(sc["arrays"][key]):
-            raise STError(f"array {self.disp.get(src, src)} {self._shape(self.arrays[src])} does not match "
+        if ref[1] != self._shape(sc["arrays"][key]):
+            raise STError(f"array {self.disp.get(ref[0], ref[0])} {ref[1]} does not match "
                           f"parameter {key} of {owner} {self._shape(sc['arrays'][key])}")
         t = sc["types"][key]
-        sc["vars"][key] = [self.wrap(t, v) for v in self.vars[src]]
+        sc["vars"][key] = [self.wrap(t, v) for v in self._arr_get(ref)]
 
     def _array_copy(self, target, src):
         """whole-array assignment `a := b` (same shape); True if handled."""
-        tk = self._whole_array(target)
-        if tk is None:
+        tr = self._arr_ref(target)
+        if tr is None:
             return False
+        tk = tr[0]
         self._const_guard(target)
-        sk = self._whole_array(src)
-        if sk is None:
+        sr = self._arr_ref(src)
+        if sr is None:
             raise STError(f"cannot assign a scalar to whole array {self.disp.get(tk, tk)}; use {self.disp.get(tk, tk)}[i]")
-        if self._shape(self.arrays[tk]) != self._shape(self.arrays[sk]):
-            raise STError(f"array assignment needs the same shape: {self._shape(self.arrays[tk])} vs "
-                          f"{self._shape(self.arrays[sk])}")
-        t = self.types[tk]
-        self.vars[tk] = [self.wrap(t, v) for v in self.vars[sk]]
+        if tr[1] != sr[1]:
+            raise STError(f"array assignment needs the same shape: {tr[1]} vs {sr[1]}")
+        self._arr_set(tr, list(self._arr_get(sr)))
         return True
 
     def _write_back(self, decls, args, getter, ins, owner):
@@ -701,16 +752,18 @@ class VirtualPLC:
                     raise STError(f"VAR_IN_OUT {key} of {owner} needs a variable argument")
                 v = getter(key)
                 if isinstance(v, list):
-                    dst = self._whole_array(e)
+                    dst = self._arr_ref(e)
                     self._const_guard(e)
-                    t = self.types[dst]
-                    self.vars[dst] = [self.wrap(t, x) for x in v]
+                    self._arr_set(dst, v)
                 else:
                     self.assign(e, v)
 
     # -- external interface
     def _split_index(self, name):
-        """'arr[3]' -> ('arr', 3); plain names -> (name, None)."""
+        """'arr[3]' -> ('arr', 3); 'a[1].f[2]' -> ('a.f', [1, 2]); plain names -> (name, None)."""
+        m = re.match(r"^(\w+)\[([^\]]*)\]\.([\w.]+)\[([^\]]*)\]$", name.lower().replace(" ", ""))
+        if m:
+            return f"{m[1]}.{m[3]}", [int(x) for x in (m[2] + "," + m[4]).split(",")]
         n = re.sub(r"^(\w+)\[([^\]]*)\]\.(.+)$", r"\1.\3[\2]", name.lower())
         if n.endswith("]") and "[" in n:
             base, _, idx = n[:-1].partition("[")
@@ -739,6 +792,10 @@ class VirtualPLC:
             idx.append(self.eval(e[2]))
             e = e[1]
         name = self._path(e)
+        if name is None and e[0] == "member":
+            r = self._sa_resolve(e)  # a[i].f[j]:ARRAY OF STRUCT 的陣列欄位
+            if r and len(self.arrays[r[0]]) > len(r[1]):
+                return r[0], r[1] + idx[::-1]
         if name is None or name not in self.arrays:
             raise STError("indexing a non-array expression")
         return name, idx[::-1]
@@ -759,7 +816,7 @@ class VirtualPLC:
     def get(self, name):
         n = re.sub(r"^(\w+)\[([^\]]*)\]\.(.+)$", r"\1.\3[\2]", name.lower())
         if n.endswith("]"):
-            base, idx = self._split_index(n)
+            base, idx = self._split_index(name)
             if base not in self.vars:
                 raise STError(f"unknown variable {name}")
             return self.vars[base][self._elem(base, idx)]
@@ -781,10 +838,16 @@ class VirtualPLC:
                         w = hi - lo + 1
                         sub.append(lo + r % w)
                         r //= w
-                    ix = ",".join(map(str, sub[::-1]))
+                    sub = sub[::-1]
+                    ix = ",".join(map(str, sub))
                     base, dot, rest = n.partition(".")
                     if dot and base in self.sarr:
-                        out[f"{self.names.get(base, base)}[{ix}].{self.disp.get(n, n).partition('.')[2]}"] = x
+                        no = len(self.sarr[base])
+                        fld = self.disp.get(n, n).partition('.')[2]
+                        if len(sub) > no:
+                            fld += "[" + ",".join(map(str, sub[no:])) + "]"
+                        ox = ",".join(map(str, sub[:no]))
+                        out[f"{self.names.get(base, base)}[{ox}].{fld}"] = x
                     else:
                         out[f"{self.names.get(n) or self.disp.get(n, n)}[{ix}]"] = x
             else:
@@ -909,7 +972,7 @@ class VirtualPLC:
             b = b[1]
         name, idx = b[1].lower(), idx[::-1]
         pre = ".".join([name] + fields) + "."
-        f = {k[len(pre):]: (k, self._elem(k, idx)) for k in self.arrays if k.startswith(pre)}
+        f = {k[len(pre):]: (k, self._sa_slot(k, idx)) for k in self.arrays if k.startswith(pre)}
         return f or None
 
     def _struct_copy(self, target, src):
@@ -925,6 +988,10 @@ class VirtualPLC:
 
         vals = {k: (list(v) if isinstance(v, list) else v) for k, v in ((k, get(sf[k])) for k in tf)}
         for k, (key, pos) in tf.items():
+            old = self.vars[key] if pos is None else self.vars[key][pos]
+            if isinstance(old, list) != isinstance(vals[k], list) or (
+                    isinstance(old, list) and len(old) != len(vals[k])):
+                raise STError("STRUCT assignment needs a STRUCT of the same type")
             if pos is None:
                 self.vars[key] = vals[k]
             else:
@@ -948,6 +1015,7 @@ class VirtualPLC:
         else:
             r = self._sa_resolve(target)
             if r:
+                self._sa_scalar(r)
                 self.vars[r[0]][self._elem(*r)] = self.wrap(self.types[r[0]], value)
                 return
             p = self._path(target)
@@ -1002,6 +1070,7 @@ class VirtualPLC:
         if k == "member":
             r = self._sa_resolve(e)
             if r:
+                self._sa_scalar(r)
                 return self.vars[r[0]][self._elem(*r)]
             p = self._path(e)
             if p in self.arrays:

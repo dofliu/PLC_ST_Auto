@@ -404,7 +404,8 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   await T('set'); await pg.selectOption('#prov', 'mock'); await pg.fill('#key', ''); await T('gen');
   ok('63 狀態列顯示 LLM:mock', (await pg.innerText('#st_llm')).includes('mock'));
   await pg.click('text=產生 ST');
-  await pg.waitForSelector('#gentl ol.tl li.last');
+  // M40 起改為串流:等整個流程完成(沒有進行中列)再讀時間軸
+  await pg.waitForFunction("document.getElementById('genst').textContent.includes('完成(') && !document.querySelector('#gentl li.pend')", null, { timeout: 15000 });
   const tl = await pg.innerText('#gentl');
   ok('64 時間軸:初稿 ✘ 1 錯 → 第 1 輪修正 ✔ 通過', (await pg.locator('#gentl li').count()) === 2 && tl.includes('初稿') && tl.includes('✘ 1 錯') && tl.includes('第 1 輪修正') && tl.includes('經 1 輪修正後通過'), tl.replace(/\n/g, ' ').slice(0, 120));
   ok('65 時間軸列出初稿錯誤訊息與行號', tl.includes('undeclared variable alarm_lamp') && /line \d+/.test(tl));

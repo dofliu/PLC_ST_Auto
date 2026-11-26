@@ -6,8 +6,14 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M40、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M41、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M41 ✅ ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位(`docs/test_report_M41.md`)
+- [x] 虛擬 PLC:陣列欄位以「外層維度 + 欄位維度」列優先儲存;`a[i].f[j]`、多維外層、巢狀 STRUCT、元素初值、RETAIN 暖重啟、FB 內與 VAR_TEMP
+- [x] 元素 ⇄ STRUCT 整體複製(深拷貝)、元素陣列欄位整體讀寫/傳入 VAR_IN_OUT 寫回;外部名稱 `a[i].f[j]`(強制、讀值、快照、情境)
+- [x] I/O 面板長名稱只縮名稱部分,外層 `[i]` 與 `.f[j]` 永遠可見;修正 `ui_e2e.js` 64/65(M40 串流後需等流程完成)
+- [x] 單元 16 項(`tests/test_m41.py`)、E2E 8 項(`tests/ui_m41.js`)、截圖 `docs/screenshots/m41/`
+- [ ] 待後續:STRUCT 欄位為 `ARRAY OF STRUCT`、ARRAY OF STRUCT 整體傳遞/賦值
 ## M40 ✅ 產生流程串流顯示(`docs/test_report_M40.md`)
 - [x] `POST /api/generate/stream`(NDJSON:start / round / done / error),每輪完成即送出;用戶端斷線即停止呼叫 LLM
 - [x] UI:進行中列(初稿產生中 / 第 n 輪修正中)、即時更新編輯器/錯誤標記/問題抽屜、「停止」按鈕、狀態列進度、舊伺服器自動退回 `/api/generate`
@@ -176,7 +182,7 @@
 - [x] 寬螢幕(≥1600px)右側同時顯示兩個頁籤(例:模擬+測試)(UI8)
 - [x] 產生流程串流顯示(每輪完成即更新時間軸)(M40)
 - [x] 匯出時展開 VAR CONSTANT 陣列邊界(M34)
-- [ ] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位
+- [x] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位(M41)
 - [ ] GX Works3 / Sysmac STRUCT 匯出
 - [x] 自訂 POU 的 PLCopen/SCL 匯出(M33)
 - [x] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(M35)
@@ -189,6 +195,7 @@
 - [x] 點位表匯出為各廠牌可匯入格式(M38)
 - [x] 點位表匯出時依廠牌換算 IEC 位址 word 編號並可選 Logix Alias 列(M39)
 - [ ] GX Works3 點位表 IEC 位元位址 → X/Y 裝置(依機種選 8/16 進位)
+- [ ] STRUCT 欄位為 ARRAY OF STRUCT
 - [ ] ARRAY OF STRUCT 整體傳遞/賦值、`ARRAY[*]` 可變長度 VAR_IN_OUT
 - [ ] FB VAR_OUTPUT 陣列整體讀出 `x := fb.arr`
 - [ ] LLM 回應 token 級串流(各 provider 的 stream API,邊產生邊顯示程式碼)

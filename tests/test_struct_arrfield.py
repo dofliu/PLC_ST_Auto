@@ -50,9 +50,10 @@ class ArrField(unittest.TestCase):
     def test_snapshot_names(self):
         self.assertIn("a.buf[2]", run("").snapshot())
 
-    def test_array_of_struct_with_array_field_rejected(self):
-        with self.assertRaises(STError):
-            VirtualPLC(HEAD + "PROGRAM P VAR x : ARRAY[0..1] OF R; END_VAR END_PROGRAM")
+    def test_array_of_struct_with_array_field_supported(self):
+        # M41 起支援(原本明確拒絕);詳細測試見 tests/test_m41.py
+        p = VirtualPLC(HEAD + "PROGRAM P VAR x : ARRAY[0..1] OF R; END_VAR END_PROGRAM")
+        self.assertIn("x[1].buf[1]", "\n".join(p.snapshot()))
 
     def test_too_many_inits(self):
         with self.assertRaises(STError):
