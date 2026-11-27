@@ -117,6 +117,8 @@ E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node test
 
 自訂 `FUNCTION` / `FUNCTION_BLOCK`(M33,範例 `examples/userpou_export.st`):PLCopen XML 每個 POU 輸出一個 `<pou>`(`function` 帶 `returnType`、`functionBlock`、`program`,通過 TC6 XSD);Siemens SCL 輸出 `FUNCTION "F" : T`(FC)/`FUNCTION_BLOCK`/`ORGANIZATION_BLOCK`,函式呼叫自動改為 `"F"(x := a, …)` 具名引數,FC 區域變數改 `VAR_TEMP` 並在本體開頭補初值。Rockwell L5X(M35,範例 `examples/aoi_l5x.st`):每個 `FUNCTION_BLOCK` 轉成 `<AddOnInstructionDefinition>`(VAR_INPUT/OUTPUT → Input/Output 參數、VAR_IN_OUT → 必要 InOut 參數、其餘 → LocalTags),呼叫 `inst(a := x, q => y);` 自動改寫為 `inst.a := x; FB(inst, <InOut…>); y := inst.q;`;L5X 仍不支援 `FUNCTION`(Logix 無運算式內可呼叫的使用者函式),GX Works3、Sysmac 尚未支援,匯出卡片會說明原因。
 
+`TYPE ... STRUCT` → GX Works3 / Sysmac(M42,範例 `examples/struct_gx_sysmac.st`):匯出檔開頭多一段結構體定義表(GX:Structure / Label Name / Data Type / Initial Value,成員型別換成 MELSEC 型別;Sysmac:Structure / Member / Base Type / Initial Value)。GX Works3 結構體標籤的初值無法寫在單一欄位,改列在「Structured Label Initial Values」逐一成員(`ax.home.x 5`、`marks[3].y 20`);Sysmac 保留 IEC 初值寫法 `(home := (x := 5), …)`。欄位順序與初值寫法尚待實機確認,見 `docs/test_report_M42.md`。
+
 點位表 → 各廠牌標籤表(M38):`python -m plc_st tags points.csv --format tia|logix|gxworks|sysmac|codesys [-o 檔案]`,Web UI「需求輸入」卡片的「匯出標籤表」下拉選單亦可下載。
 - `tia`:TIA Portal PLC 變數表 `.xlsx`(PLC tags → Import),`PLC Tags` + `User Constants` 工作表;沒有位址的點位自動配置(IN→%I、OUT→%Q、其餘→%M,RETAIN 先配置從 MB0 起),FB/陣列/LREAL 等非基本型別略過並提醒改放 DB
 - `logix`:Studio 5000 標籤 CSV(`TAG` 列、RADIX/Constant 屬性、陣列改 0 起算、TON→TIMER、WORD→INT 等替代);標籤 CSV 不含初值,需要初值請用 L5X

@@ -43,3 +43,4 @@
 - UI8 ✅ 寬螢幕(≥1600px)雙頁籤:右側同時顯示兩個頁籤(例:模擬 + 測試),右欄指定/對調/記憶
 - M40 ✅ 產生流程串流顯示(NDJSON 逐輪事件、進行中列、可停止、舊 API 後援)
 - M41 ✅ ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位(`a[i].f[j]`、元素初值/整體複製、陣列欄位整體讀寫與 VAR_IN_OUT 寫回)
+- M42 ✅ TYPE STRUCT 匯出 GX Works3 / Sysmac Studio(結構體定義表、GX 結構體標籤初值逐一成員展開)

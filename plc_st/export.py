@@ -920,15 +920,82 @@ _MELSEC_TYPE = {"BOOL": "Bit", "SINT": "Word [Signed]", "INT": "Word [Signed]", 
 _MELSEC_CLASS = {"VAR_INPUT": "VAR_GLOBAL", "VAR_OUTPUT": "VAR_GLOBAL", "VAR_IN_OUT": "VAR_GLOBAL", "VAR": "VAR"}
 
 
+def _struct_defs(src):
+    """TYPE ... STRUCT → [(型別名稱, [(欄位名稱, 型別, 初值|None)])](依原始順序)。
+    非 STRUCT 的 TYPE(列舉、別名…)GX Works3 / Sysmac 匯出尚未支援,直接報錯。"""
+    nocom, masked = _views(src)
+    defs = list(_TYPEDEF.finditer(masked))
+    if len(re.findall(r"(?im)^\s*TYPE\s+\w+\s*:", masked)) != len(defs):
+        raise STError("export: 僅支援 TYPE ... STRUCT 型別定義(列舉/別名型別尚未支援)")
+    out = []
+    for m in defs:
+        fields = []
+        for names, typ, init in _decls(nocom, masked, *m.span(2), what=" STRUCT 欄位"):
+            fields += [(n, typ, init) for n in names]
+        out.append((m.group(1), fields))
+    return out
+
+
+def _flat_init(prefix, init, typ, types, consts):
+    """STRUCT / ARRAY OF STRUCT 的初值文字展開為 [(成員路徑, 值)](例 `m.speed`、`ms[1].run`、`r.steps[0]`)。
+    陣列依列優先配置元素(與虛擬 PLC 相同),`n(v)` 重複初值展開;未列出的元素/成員沿用型別預設值。"""
+    init = init.strip()
+    arr = _array_type(typ, prefix, consts)
+    if arr:
+        dims, elem = arr
+        items = _array_items(init)
+        size = 1
+        for lo, hi in dims:
+            size *= hi - lo + 1
+        if len(items) > size:
+            raise STError(f"export: {prefix} 初始值 {len(items)} 個,超過陣列大小 {size}")
+        out = []
+        for k, item in enumerate(items):
+            idx, r = [], k
+            for lo, hi in reversed(dims):
+                idx.append(lo + r % (hi - lo + 1))
+                r //= hi - lo + 1
+            out += _flat_init(f"{prefix}[{', '.join(map(str, reversed(idx)))}]", item, elem, types, consts)
+        return out
+    fields = types.get(typ.strip().lower())
+    if fields is None:
+        return [(prefix, init)]
+    if not (init.startswith("(") and init.endswith(")")):
+        raise STError(f"export: {prefix} 的 STRUCT 初始值 {init!r} 須為 (成員 := 值, ...) 形式")
+    ftype = {n.lower(): t for n, t, _ in fields}
+    out = []
+    for item in _split_top(init[1:-1]):
+        k, sep, val = item.partition(":=")
+        k = k.strip()
+        if not sep or k.lower() not in ftype:
+            raise STError(f"export: 無法解析 {prefix} 的 STRUCT 初始值 {item!r}")
+        out += _flat_init(f"{prefix}.{k}", val, ftype[k.lower()], types, consts)
+    return out
+
+
+def _is_struct(t, types, where, consts):
+    arr = _array_type(t, where, consts)
+    return (arr[1] if arr else t).strip().lower() in types
+
+
 def to_gxworks(src, project="PLC_ST_Auto"):
     """Mitsubishi GX Works3:標籤表(Tab 分隔,可貼入 Label Setting)+ ST 本體(貼入 ST 程式編輯器)。
     型別對映:INT→Word [Signed]、DINT→Double Word [Signed]、REAL→FLOAT (Single Precision) 等;
     FB(TON/CTU…)在 GX Works3 為 Timer/Counter 函式塊,需於標籤表手動確認實例型別。"""
     name, blocks, _, body = split_program(src)
-    o = [f"(* GX Works3 export: {project} / {name} *)",
-         "(* === Label Setting(Tab 分隔:Class / Label Name / Data Type / Initial Value)=== *)",
-         "Class\tLabel Name\tData Type\tInitial Value"]
     consts = _consts(blocks, name)
+    defs = _struct_defs(src)
+    types = {n.lower(): f for n, f in defs}
+    o = [f"(* GX Works3 export: {project} / {name} *)"]
+    if defs:  # 結構體定義:於「資料型別 → 結構體」新增後,將欄位列貼入成員表(尚未以實機確認欄位順序)
+        o += ["(* === Structured Data Types(Tab 分隔:Structure / Label Name / Data Type / Initial Value)=== *)",
+              "Structure\tLabel Name\tData Type\tInitial Value"]
+        for sn, fields in defs:
+            for fn, ft, fi in fields:
+                o.append(f"{sn}\t{fn}\t{_MELSEC_TYPE.get(ft.upper(), _expand(ft, f'{sn}.{fn}', consts))}\t{fi or ''}")
+    o += ["(* === Label Setting(Tab 分隔:Class / Label Name / Data Type / Initial Value)=== *)",
+          "Class\tLabel Name\tData Type\tInitial Value"]
+    struct_init = []
     located = any(kind.addrs for kind, _ in blocks)
     if located:  # MELSEC 裝置編號(X/Y 為 16 或 8 進位)無法由 IEC 位址可靠換算,列出原位址由使用者指定裝置
         o[-1] += "\tIEC Address (assign a device: X / Y / M / D)"
@@ -940,8 +1007,16 @@ def to_gxworks(src, project="PLC_ST_Auto"):
             cls += "_RETAIN"
         for n, t, init in decls:
             dt = _MELSEC_TYPE.get(t.upper(), _expand(t, n, consts))
-            o.append(f"{cls}\t{n}\t{dt}\t{'' if kind == 'VAR_TEMP' else init or ''}"
+            if kind == "VAR_TEMP":
+                init = None
+            elif init and _is_struct(t, types, n, consts):  # 結構體標籤的初始值需逐一成員設定
+                struct_init += _flat_init(n, init, t, types, consts)
+                init = None
+            o.append(f"{cls}\t{n}\t{dt}\t{init or ''}"
                      + (f"\t{kind.addrs.get(n, '')}" if located else ""))
+    if struct_init:
+        o += ["(* === Structured Label Initial Values(於標籤的初始值設定逐一成員指定:Label / Initial Value)=== *)",
+              *(f"{k}\t{v}" for k, v in struct_init)]
     o += ["(* === ST Program Body === *)", *_temp_init(blocks, name, "GX Works3 的 VAR 會保留上一次掃描的值", consts), body, ""]
     return "\n".join(o)
 
@@ -955,10 +1030,18 @@ def to_sysmac(src, project="PLC_ST_Auto"):
     """Omron Sysmac Studio:變數表(Tab 分隔,可貼入 Global/Local Variables)+ ST 本體。
     Sysmac 為 IEC 61131-3 型別;TON/TOF/CTU 等 FB 於變數表型別保持原名,需確認實例。"""
     name, blocks, _, body = split_program(src)
-    o = [f"(* Sysmac Studio export: {project} / {name} *)",
-         "(* === Variable Table(Tab 分隔:Name / Data Type / Initial Value / Class)=== *)",
-         "Name\tData Type\tInitial Value\tClass"]
     consts = _consts(blocks, name)
+    defs = _struct_defs(src)
+    o = [f"(* Sysmac Studio export: {project} / {name} *)"]
+    if defs:  # Data Types → Structures:新增結構體後貼入成員(尚未以實機確認欄位順序)
+        o += ["(* === Data Types / Structures(Tab 分隔:Structure / Member / Base Type / Initial Value)=== *)",
+              "Structure\tMember\tBase Type\tInitial Value"]
+        for sn, fields in defs:
+            for fn, ft, fi in fields:
+                ft = _expand(ft, f"{sn}.{fn}", consts)
+                o.append(f"{sn}\t{fn}\t{_OMRON_TYPE.get(ft.upper(), ft.upper() if ft.upper() in _BASE else ft)}\t{fi or ''}")
+    o += ["(* === Variable Table(Tab 分隔:Name / Data Type / Initial Value / Class)=== *)",
+          "Name\tData Type\tInitial Value\tClass"]
     extra = any(kind.addrs or kind.mods for kind, _ in blocks)
     if extra:  # Sysmac 的 I/O 由 I/O Map 指定,IEC 位址僅供對照
         o[-1] += "\tRetain\tConstant\tIEC Address (assign in I/O Map)"
@@ -978,16 +1061,15 @@ FORMATS = {"plcopen": ("xml", to_plcopen), "scl": ("scl", to_scl), "l5x": ("L5X"
            "sysmac": ("txt", to_sysmac), "st": ("st", lambda s: s)}
 
 
-_USERPOU = re.compile(r"^\s*(?:FUNCTION(?:_BLOCK)?\s+\w+|TYPE\s+\w+\s*:)", re.M | re.I)
-
 _FUNCPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
 _FUNCONLY = re.compile(r"^\s*FUNCTION\s+\w+", re.M | re.I)
 
 
 def export(src, fmt):
     masked = _views(src)[1]
-    if fmt in ("gxworks", "sysmac") and _USERPOU.search(masked):
-        raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK/TYPE(STRUCT),此格式尚未支援(僅 st 格式可完整匯出)")
+    if fmt in ("gxworks", "sysmac") and _FUNCPOU.search(masked):
+        raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK,此格式尚未支援"
+                      "(TYPE STRUCT 已支援;FUNCTION/FUNCTION_BLOCK 請改用 plcopen / scl / st)")
     if fmt == "l5x" and _FUNCONLY.search(masked):
         raise STError("export l5x: 含自訂 FUNCTION;Logix 無可在運算式中呼叫的使用者函式,尚未支援"
                       "(可改寫為 FUNCTION_BLOCK 以 Add-On Instruction 匯出,或改用 plcopen / scl / st)")

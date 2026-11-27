@@ -79,8 +79,11 @@ class WebTests(unittest.TestCase):
         src = open("examples/struct_l5x.st", encoding="utf-8").read()
         f = {x["format"]: x for x in self.post("/api/export/status", code=src)[1]["formats"]}
         self.assertTrue(f["l5x"]["ok"])
+        self.assertTrue(f["gxworks"]["ok"])  # M42:TYPE STRUCT 已支援
+        src = open("examples/userpou_export.st", encoding="utf-8").read()
+        f = {x["format"]: x for x in self.post("/api/export/status", code=src)[1]["formats"]}
         self.assertFalse(f["gxworks"]["ok"])
-        self.assertIn("STRUCT", f["gxworks"]["error"])
+        self.assertIn("FUNCTION", f["gxworks"]["error"])
 
     def test_export_status_syntax_error(self):
         f = self.post("/api/export/status", code="PROGRAM X\nIF THEN\nEND_PROGRAM")[1]["formats"]

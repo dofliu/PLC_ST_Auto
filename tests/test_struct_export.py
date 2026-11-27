@@ -39,10 +39,9 @@ class StructExport(unittest.TestCase):
         ps = [v for v in self.root.findall(".//p:pou//p:variable", NS) if v.get("name") == "ps"][0]
         self.assertEqual(len(ps.findall("p:initialValue/p:arrayValue/p:value/p:structValue", NS)), 2)
 
-    def test_other_formats_still_reject(self):
+    def test_gxworks_sysmac_struct_supported(self):  # M42
         for fmt in ("gxworks", "sysmac"):
-            with self.assertRaises(STError):
-                export(SRC, fmt)
+            self.assertIn("Structure\t", export(SRC, fmt))
 
     def test_user_function_exported_for_plcopen(self):  # M33
         out = export("FUNCTION F : INT END_FUNCTION\nPROGRAM P\nEND_PROGRAM", "plcopen")

@@ -341,9 +341,9 @@ const wv_x = (bx, idx, n) => 132 + (idx + 0.5) * (bx.width - 142) / n;
   await pg.click('.xcard[data-fmt=scl] button:has-text("預覽")');
   await pg.waitForFunction("document.getElementById('exppv').textContent.includes('ORGANIZATION_BLOCK')", null, { timeout: 4000 }).catch(() => {});
   ok('50 預覽 SCL 內容', (await pg.innerText('#exppv')).includes('ORGANIZATION_BLOCK'), (await pg.innerText('#exppvt')));
-  await pg.fill('#code', fs.readFileSync(R + 'examples/struct_l5x.st', 'utf8'));
+  await pg.fill('#code', fs.readFileSync(R + 'examples/aoi_l5x.st', 'utf8'));  // M42:STRUCT 已可匯出 GX,改用 FUNCTION_BLOCK 範例
   await pg.waitForFunction("document.querySelector('.xcard[data-fmt=gxworks]') && document.querySelector('.xcard[data-fmt=gxworks]').classList.contains('no')", null, { timeout: 4000 });
-  ok('51 程式改變後卡片自動更新:GX Works3 不支援 STRUCT 並說明原因、下載停用', (await pg.innerText('.xcard[data-fmt=gxworks] .why')).includes('STRUCT') && await pg.isDisabled('.xcard[data-fmt=gxworks] .xdl') && await pg.evaluate(() => document.querySelector('.xcard[data-fmt=l5x]').classList.contains('ok')));
+  ok('51 程式改變後卡片自動更新:GX Works3 不支援 FUNCTION_BLOCK 並說明原因、下載停用', (await pg.innerText('.xcard[data-fmt=gxworks] .why')).includes('FUNCTION_BLOCK') && await pg.isDisabled('.xcard[data-fmt=gxworks] .xdl') && await pg.evaluate(() => document.querySelector('.xcard[data-fmt=l5x]').classList.contains('ok')));
   await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'export_unsupported.png' });
   await pg.evaluate(() => setTheme('dark')); await pg.waitForTimeout(150); await pg.evaluate(() => { document.getElementById('toasts').innerHTML = ''; }); await pg.screenshot({ path: SS6 + 'dark_export.png' });
   // ===== M33 自訂 FUNCTION / FUNCTION_BLOCK 匯出 =====
