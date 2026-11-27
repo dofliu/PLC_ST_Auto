@@ -58,9 +58,8 @@ class StructTests(unittest.TestCase):
         self.assertEqual(errs(src), [])
         self.assertTrue(any("LINT" in e for e in errs(src, "mitsubishi")))
 
-    def test_non_st_export_rejected(self):
-        with self.assertRaises(STError):
-            export(SRC, "gxworks")
+    def test_struct_exports(self):
+        self.assertIn("Structure\tLabel Name", export(SRC, "gxworks"))  # M42
         self.assertIn("TYPE", export(SRC, "scl"))
         self.assertIn("<struct>", export(SRC, "plcopen"))
         self.assertIn("STRUCT", export(SRC, "st"))

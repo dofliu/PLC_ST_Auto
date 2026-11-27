@@ -6,8 +6,13 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M41、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M42、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M42 ✅ TYPE STRUCT 匯出 GX Works3 / Sysmac Studio(`docs/test_report_M42.md`)
+- [x] GX Works3:結構體定義表(MELSEC 型別)、結構體/ARRAY OF STRUCT 標籤初值展開為逐一成員(巢狀、多維、`n(v)` 重複)
+- [x] Sysmac:Data Types / Structures 表、IEC 初值原樣保留;非 STRUCT 的 TYPE 與 FUNCTION/FUNCTION_BLOCK 仍拒絕並說明原因
+- [x] 單元 16 項(`tests/test_m42.py`)、E2E 9 項(`tests/ui_m42.js`)、截圖 `docs/screenshots/m42/`;`ui_e2e.js` 51 改用 FB 範例
+- [ ] **待實機**:GX Works3 結構體成員表貼上欄位順序、標籤陣列型別寫法(`Word [Signed](0..9)`?);Sysmac 結構體成員初值、STRUCT 整體賦值
 ## M41 ✅ ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位(`docs/test_report_M41.md`)
 - [x] 虛擬 PLC:陣列欄位以「外層維度 + 欄位維度」列優先儲存;`a[i].f[j]`、多維外層、巢狀 STRUCT、元素初值、RETAIN 暖重啟、FB 內與 VAR_TEMP
 - [x] 元素 ⇄ STRUCT 整體複製(深拷貝)、元素陣列欄位整體讀寫/傳入 VAR_IN_OUT 寫回;外部名稱 `a[i].f[j]`(強制、讀值、快照、情境)
@@ -183,7 +188,9 @@
 - [x] 產生流程串流顯示(每輪完成即更新時間軸)(M40)
 - [x] 匯出時展開 VAR CONSTANT 陣列邊界(M34)
 - [x] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位(M41)
-- [ ] GX Works3 / Sysmac STRUCT 匯出
+- [x] GX Works3 / Sysmac STRUCT 匯出(M42)
+- [ ] GX Works3 標籤陣列型別改為 MELSEC 寫法 `Word [Signed](0..9)`(待實機確認後)
+- [ ] GX Works3 / Sysmac 自訂 FUNCTION / FUNCTION_BLOCK 匯出
 - [x] 自訂 POU 的 PLCopen/SCL 匯出(M33)
 - [x] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(M35)
 - [x] VAR_IN_OUT / VAR_INPUT 傳入整個陣列、陣列整體賦值、L5X COP 改寫(M36)
