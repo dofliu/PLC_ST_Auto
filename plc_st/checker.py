@@ -20,7 +20,7 @@ def _addr_issues(decls, prof, in_pou=None):
     byte_addr = prof.name.split("-")[0] == "siemens"  # S7:%IW1 = byte 1..2;IEC/CODESYS:%IW1 = word 1
     for d in decls:
         ln = d.get("line", 0)
-        if d.get("const") and d.get("init") is None:
+        if d.get("const") and d.get("init") is None and d["section"] != "external":
             out.append(Issue("warning", ln, f"CONSTANT {d['name']} has no initial value"))
         if d.get("const") and d.get("addr"):
             out.append(Issue("error", ln, f"CONSTANT {d['name']} cannot have a direct address"))
@@ -127,14 +127,47 @@ def check(src, profile="iec"):
             return _UFB(ufb[t.lower()])
         return None
 
-    def load_scope(decls):
+    gmap = {d["name"].lower(): d for d in prog["decls"] if d.get("glob")}
+
+    def _shape_of(d):
+        return [(_lit(a), _lit(b)) for a, b in (d.get("dims") or ([d["array"]] if d.get("array") else []))]
+
+    def load_scope(decls, owner=None):
+        """owner=None:PROGRAM(VAR_GLOBAL 已併在 decls 內);否則 FUNCTION/FB 名稱,先放入全域變數
+        (VAR_EXTERNAL 或 CODESYS 式直接存取皆可),本地宣告同名時遮蔽全域並警告。"""
         env.clear()
+        if owner is not None:
+            env.update(gmap)
+        seen = set()
         for d in decls:
-            if d["name"].lower() in env:
-                issues.append(Issue("error", 0, f"duplicate declaration {d['name']}"))
-            env[d["name"].lower()] = d
+            n = d["name"].lower()
+            ln = d.get("line", 0)
+            if d["section"] == "external":
+                g = gmap.get(n)
+                if g is None:
+                    issues.append(Issue("error", ln, f"VAR_EXTERNAL {d['name']} has no matching VAR_GLOBAL"))
+                    continue
+                if g["type"] != d["type"] or _shape_of(g) != _shape_of(d):
+                    issues.append(Issue("error", ln, f"VAR_EXTERNAL {d['name']} type does not match VAR_GLOBAL "
+                                                     f"({'ARRAY OF ' if g.get('array') else ''}{g['type']})"))
+                if g.get("const") and not d.get("const"):
+                    issues.append(Issue("warning", ln, f"VAR_GLOBAL {g['name']} is CONSTANT; "
+                                                       "declare it in VAR_EXTERNAL CONSTANT"))
+                if n in seen:
+                    issues.append(Issue("error", ln, f"duplicate declaration {d['name']}"))
+                seen.add(n)
+                env[n] = g
+                continue
+            if n in seen and owner is None and n in gmap and not d.get("glob"):
+                issues.append(Issue("error", ln, f"{d['name']} conflicts with VAR_GLOBAL {gmap[n]['name']}"))
+            elif n in seen:
+                issues.append(Issue("error", ln, f"duplicate declaration {d['name']}"))
+            elif owner is not None and n in gmap and n != owner.lower():
+                issues.append(Issue("warning", ln, f"{d['name']} in {owner} hides VAR_GLOBAL {gmap[n]['name']}"))
+            seen.add(n)
+            env[n] = d
             t = d["type"]
-            issues.extend(_init_range_issues(d["name"], t, d.get("init"), d.get("line", 0)))
+            issues.extend(_init_range_issues(d["name"], t, d.get("init"), ln))
             if t.lower() in structs:
                 struct_types(t, d["name"], ())
             elif fb_of(t) is None and t not in prof.types:
@@ -538,7 +571,7 @@ def check(src, profile="iec"):
             if fn["type"] not in prof.types:
                 err(0, f"return type {fn['type']} of {fn['name']} not supported by profile {prof.name}")
             decls.append({"name": fn["name"], "type": fn["type"], "section": "local", "init": None, "array": None})
-        load_scope(decls)
+        load_scope(decls, fn["name"])
         issues += _addr_issues(fn["decls"], prof, f"{'FUNCTION' if fn['kind'] == 'function' else 'FUNCTION_BLOCK'} {fn['name']}")
         stmts(fn["body"])
     issues += [Issue("warning", ln, f"dialect: {m}") for ln, m in dialect_issues(src, prof.name)]

@@ -44,3 +44,4 @@
 - M40 ✅ 產生流程串流顯示(NDJSON 逐輪事件、進行中列、可停止、舊 API 後援)
 - M41 ✅ ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位(`a[i].f[j]`、元素初值/整體複製、陣列欄位整體讀寫與 VAR_IN_OUT 寫回)
 - M42 ✅ TYPE STRUCT 匯出 GX Works3 / Sysmac Studio(結構體定義表、GX 結構體標籤初值逐一成員展開)
+- M43 ✅ `VAR_GLOBAL` / `VAR_EXTERNAL`(頂層 GVL / PROGRAM 內全域、FB/函式共用、檢查器與方言提示、PLCopen globalVars / externalVars 匯出)
