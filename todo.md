@@ -6,8 +6,14 @@
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M42、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:(M31–M43、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M43 ✅ VAR_GLOBAL / VAR_EXTERNAL(`docs/test_report_M43.md`)
+- [x] 語法:頂層 / PROGRAM 內 `VAR_GLOBAL [CONSTANT|RETAIN]`、POU 內 `VAR_EXTERNAL [CONSTANT]`;FB 內 VAR_GLOBAL、EXTERNAL 初值/AT 位址明確報錯
+- [x] 虛擬 PLC:FB/函式變數表連到全域 scope(VAR_EXTERNAL 與直接存取),本地同名遮蔽;RETAIN 暖重啟、AT 共用記憶體、常數保護皆適用
+- [x] 檢查器 + 方言(Siemens/Rockwell/Mitsubishi/Omron 提示);PLCopen `<resource><globalVars>` / `<externalVars>`(TC6 XSD 通過);SCL/L5X/GX/Sysmac 拒絕並說明原因
+- [x] UI I/O 面板 `GLOBAL` 標記;單元 22 項(`tests/test_m43.py`)、E2E 11 項(`tests/ui_m43.js`)、截圖 `docs/screenshots/m43/`
+- [ ] 待後續:VAR_GLOBAL 匯出至 SCL(全域 DB)、L5X(controller 標籤)、GX Works3 / Sysmac 全域表;從 PROGRAM 外讀取 `fb.arr[i]`(既有限制:indexing a non-array expression)
 ## M42 ✅ TYPE STRUCT 匯出 GX Works3 / Sysmac Studio(`docs/test_report_M42.md`)
 - [x] GX Works3:結構體定義表(MELSEC 型別)、結構體/ARRAY OF STRUCT 標籤初值展開為逐一成員(巢狀、多維、`n(v)` 重複)
 - [x] Sysmac:Data Types / Structures 表、IEC 初值原樣保留;非 STRUCT 的 TYPE 與 FUNCTION/FUNCTION_BLOCK 仍拒絕並說明原因
@@ -197,7 +203,9 @@
 - [ ] 自訂 FUNCTION → L5X(提升為 AOI 並把運算式內呼叫拆成暫存實例)
 - [x] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(M34)
 - [x] 靜態檢查:初值超出宣告型別範圍(M36)
-- [ ] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、GVL 匯出)
+- [x] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、PLCopen 匯出)(M43)
+- [ ] VAR_GLOBAL → SCL 全域 DB / L5X controller 標籤 / GX・Sysmac 全域表
+- [ ] 從外部讀取 FB 陣列成員元素 `fb.arr[i]`(與 `x := fb.arr` 一起做)
 - [x] 虛擬 PLC 模擬位址共用記憶體(%MW0 與 %MX0.0 重疊時同步)(M37)
 - [x] 點位表匯出為各廠牌可匯入格式(M38)
 - [x] 點位表匯出時依廠牌換算 IEC 位址 word 編號並可選 Logix Alias 列(M39)

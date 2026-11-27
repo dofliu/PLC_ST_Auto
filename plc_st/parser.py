@@ -2,7 +2,8 @@
 import re
 from .lexer import tokenize, STError
 
-SECTIONS = {"VAR": "local", "VAR_INPUT": "input", "VAR_OUTPUT": "output", "VAR_IN_OUT": "inout", "VAR_TEMP": "temp"}
+SECTIONS = {"VAR": "local", "VAR_INPUT": "input", "VAR_OUTPUT": "output", "VAR_IN_OUT": "inout", "VAR_TEMP": "temp",
+            "VAR_GLOBAL": "global", "VAR_EXTERNAL": "external"}
 _QUALS = ("RETAIN", "CONSTANT", "NON_RETAIN", "PERSISTENT")
 _ADDR = re.compile(r"%([IQM])([XBWDL]?)(\d+)(?:\.(\d+))?$")
 _ADDR_BITS = {"X": 1, "B": 8, "W": 16, "D": 32, "L": 64}
@@ -61,6 +62,10 @@ class Parser:
             rtype = self.expect("id")[1].upper()
         decls = []
         while self.peek()[0] == "kw" and self.peek()[1] in SECTIONS:
+            ln = self.peek()[2]
+            if self.peek()[1] == "VAR_GLOBAL":
+                raise STError(f"line {ln}: VAR_GLOBAL is not allowed inside {name}; "
+                              "declare it at top level (or in the PROGRAM) and use VAR_EXTERNAL here")
             decls += self.var_block()
         end = "END_FUNCTION" if kind == "function" else "END_FUNCTION_BLOCK"
         body = self.statements({end})
@@ -133,18 +138,24 @@ class Parser:
         return self.expr()
 
     def parse(self):
-        functions, fbdefs, types = {}, {}, {}
-        while self.is_("kw", "TYPE"):
-            td = self.type_def()
-            if td["name"].lower() in types:
-                raise STError(f"duplicate definition of {td['name']}")
-            types[td["name"].lower()] = td
-        while self.peek()[0] == "kw" and self.peek()[1] in ("FUNCTION", "FUNCTION_BLOCK"):
-            d = self.pou_def()
-            tbl = functions if d["kind"] == "function" else fbdefs
-            if d["name"].lower() in functions or d["name"].lower() in fbdefs:
-                raise STError(f"duplicate definition of {d['name']}")
-            tbl[d["name"].lower()] = d
+        """[TYPE | FUNCTION | FUNCTION_BLOCK | VAR_GLOBAL]* PROGRAM ... END_PROGRAM
+        頂層 VAR_GLOBAL(CODESYS GVL 寫法)與 PROGRAM 內的 VAR_GLOBAL 都併入程式宣告(section=global,放最前面)。"""
+        functions, fbdefs, types, gdecls = {}, {}, {}, []
+        while self.peek()[0] == "kw" and self.peek()[1] in ("TYPE", "FUNCTION", "FUNCTION_BLOCK", "VAR_GLOBAL"):
+            k = self.peek()[1]
+            if k == "TYPE":
+                td = self.type_def()
+                if td["name"].lower() in types:
+                    raise STError(f"duplicate definition of {td['name']}")
+                types[td["name"].lower()] = td
+            elif k == "VAR_GLOBAL":
+                gdecls += self.var_block()
+            else:
+                d = self.pou_def()
+                tbl = functions if d["kind"] == "function" else fbdefs
+                if d["name"].lower() in functions or d["name"].lower() in fbdefs:
+                    raise STError(f"duplicate definition of {d['name']}")
+                tbl[d["name"].lower()] = d
         name = "Main"
         if self.accept("kw", "PROGRAM"):
             name = self.expect("id")[1]
@@ -154,6 +165,8 @@ class Parser:
         body = self.statements({"END_PROGRAM"})
         self.accept("kw", "END_PROGRAM")
         self.expect("eof")
+        gdecls += [d for d in decls if d["section"] == "global"]
+        decls = gdecls + [d for d in decls if d["section"] != "global"]
         return {"name": name, "decls": decls, "body": body, "functions": functions, "fbs": fbdefs, "types": types}
 
     def var_block(self):
@@ -196,13 +209,17 @@ class Parser:
             init = self.init_value() if self.accept("op", ":=") else None
             self.expect("op", ";")
             # 直接位址決定模擬時的 I/O 角色:%I 視為輸入、%Q 視為輸出(%M 維持原區段)
+            if section == "external" and addr:
+                raise STError(f"line {ln}: AT address is not allowed in VAR_EXTERNAL (give it in VAR_GLOBAL)")
+            if section == "external" and init is not None:
+                raise STError(f"line {ln}: VAR_EXTERNAL {names[0]} cannot have an initial value (set it in VAR_GLOBAL)")
             eff = section
-            if addr and section == "local":
+            if addr and section in ("local", "global"):
                 eff = {"I": "input", "Q": "output"}.get(addr[1], section)
             for n in names:
                 out.append({"name": n, "type": tname, "section": eff, "init": init, "array": arr,
                             "dims": dims if arr else None, "const": const, "retain": retain,
-                            "addr": addr, "line": ln})
+                            "addr": addr, "line": ln, "glob": section == "global"})
         return out
 
     def statements(self, stops):

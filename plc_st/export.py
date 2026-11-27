@@ -10,7 +10,7 @@ from .lexer import STError, parse_time
 from .parser import Parser
 
 _PROG = re.compile(r"PROGRAM\s+(\w+)(.*?)END_PROGRAM", re.S | re.I)
-_BLOCK = re.compile(r"\b(VAR(?:_INPUT|_OUTPUT|_IN_OUT|_TEMP)?)\b((?:\s+(?:CONSTANT|RETAIN|NON_RETAIN|PERSISTENT)\b)*)(.*?)\bEND_VAR\b",
+_BLOCK = re.compile(r"\b(VAR(?:_INPUT|_OUTPUT|_IN_OUT|_TEMP|_GLOBAL|_EXTERNAL)?)\b((?:\s+(?:CONSTANT|RETAIN|NON_RETAIN|PERSISTENT)\b)*)(.*?)\bEND_VAR\b",
                     re.S | re.I)
 _AT = re.compile(r"(\w+)\s+AT\s+(%[\w.]+)$", re.I)
 
@@ -42,7 +42,7 @@ def _blocks(nocom, masked, i0, i1):
 _BASE = {"BOOL", "SINT", "INT", "DINT", "LINT", "USINT", "UINT", "UDINT", "ULINT",
          "BYTE", "WORD", "DWORD", "REAL", "LREAL", "TIME", "STRING"}
 _SECTION = {"VAR": "localVars", "VAR_INPUT": "inputVars", "VAR_OUTPUT": "outputVars", "VAR_IN_OUT": "inOutVars",
-            "VAR_TEMP": "tempVars"}
+            "VAR_TEMP": "tempVars", "VAR_EXTERNAL": "externalVars", "VAR_GLOBAL": "globalVars"}
 
 
 # 字串需認得 IEC 跳脫($' 是字串內的單引號),否則遮罩會提早結束,字串後半被當成程式碼改寫
@@ -132,6 +132,18 @@ def split_pous(src):
     if sum(p["kind"] == "program" for p in out) != 1:
         raise STError("export: 找不到 PROGRAM ... END_PROGRAM" if not any(p["kind"] == "program" for p in out)
                       else "export: 僅支援單一 PROGRAM")
+    return out
+
+
+def global_blocks(src):
+    """POU 之外(頂層,CODESYS GVL 寫法)的 VAR_GLOBAL 區段:[(_Kind, [(name, type, init)])]。"""
+    nocom, masked = _views(src)
+    spans = [m.span() for m in _POU.finditer(masked)]
+    out = []
+    for b in _BLOCK.finditer(masked):
+        if b.group(1).upper() != "VAR_GLOBAL" or any(a <= b.start() < e for a, e in spans):
+            continue
+        out += _blocks(nocom, masked, b.start(), b.end())[0]
     return out
 
 
@@ -357,32 +369,39 @@ def to_plcopen(src, project="PLC_ST_Auto"):
          '<fbd><scaling x="1" y="1"/></fbd><ld><scaling x="1" y="1"/></ld><sfc><scaling x="1" y="1"/></sfc>'
          '</coordinateInfo></contentHeader>',
          '  <types><dataTypes>' + "".join(_datatypes(src)) + '</dataTypes><pous>']
+    gblocks = global_blocks(src)
+    gconsts = _consts(gblocks, "VAR_GLOBAL")
+
+    def varlist(kind, decls, consts, tag, indent="      "):
+        attrs = "".join(f' {a}="true"' for a, k in (("constant", "CONSTANT"), ("retain", "RETAIN"),
+                                                     ("nonretain", "NON_RETAIN"), ("persistent", "PERSISTENT"))
+                        if k in kind.mods)
+        o.append(f"{indent}<{tag}{attrs}>")
+        for n, t, init in decls:
+            typ = _tc6_vartype(t, n, consts)
+            iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init else ""
+            at = f" address={quoteattr(kind.addrs[n])}" if n in kind.addrs else ""
+            o.append(f"{indent}  <variable name={quoteattr(n)}{at}><type>{typ}</type>{iv}</variable>")
+        o.append(f"{indent}</{tag}>")
+
     for p in pous:
         o.append(f'    <pou name={quoteattr(p["name"])} pouType="{_POUTYPE[p["kind"]]}"><interface>')
         if p["rtype"]:
             o.append(f'      <returnType>{_tc6_type(p["rtype"])}</returnType>')
-        consts = _consts(p["blocks"], p["name"])
+        consts = {**gconsts, **_consts(p["blocks"], p["name"])}
         for kind, decls in p["blocks"]:
-            if not decls:
-                continue
-            attrs = "".join(f' {a}="true"' for a, k in (("constant", "CONSTANT"), ("retain", "RETAIN"),
-                                                         ("nonretain", "NON_RETAIN"), ("persistent", "PERSISTENT"))
-                            if k in kind.mods)
-            o.append(f"      <{_SECTION[kind]}{attrs}>")
-            for n, t, init in decls:
-                typ = _tc6_vartype(t, n, consts)
-                iv = f"<initialValue>{_tc6_value(init)}</initialValue>" if init else ""
-                at = f" address={quoteattr(kind.addrs[n])}" if n in kind.addrs else ""
-                o.append(f"        <variable name={quoteattr(n)}{at}><type>{typ}</type>{iv}</variable>")
-            o.append(f"      </{_SECTION[kind]}>")
+            if decls:
+                varlist(kind, decls, consts, _SECTION[kind])
         o += ["    </interface><body><ST>",
               f'      <xhtml xmlns="http://www.w3.org/1999/xhtml">{escape(p["body"])}</xhtml>',
               "    </ST></body></pou>"]
     o += ["  </pous></types>",
           '  <instances><configurations><configuration name="Config"><resource name="Res">'
-          f'<task name="MainTask" interval="T#10ms" priority="1"><pouInstance name="{name}_inst" typeName={quoteattr(name)}/></task>'
-          "</resource></configuration></configurations></instances>",
-          "</project>", ""]
+          f'<task name="MainTask" interval="T#10ms" priority="1"><pouInstance name="{name}_inst" typeName={quoteattr(name)}/></task>']
+    for kind, decls in gblocks:  # 頂層 VAR_GLOBAL → resource 的 globalVars(CODESYS 匯入為 GVL)
+        if decls:
+            varlist(kind, decls, gconsts, "globalVars", "    ")
+    o += ["</resource></configuration></configurations></instances>", "</project>", ""]
     return "\n".join(o)
 
 
@@ -1065,8 +1084,20 @@ _FUNCPOU = re.compile(r"^\s*FUNCTION(?:_BLOCK)?\s+\w+", re.M | re.I)
 _FUNCONLY = re.compile(r"^\s*FUNCTION\s+\w+", re.M | re.I)
 
 
+_GLOBALS = re.compile(r"\bVAR_(?:GLOBAL|EXTERNAL)\b", re.I)
+_GLOBAL_REASON = {
+    "scl": "TIA Portal 以全域 DB / PLC 變數表共用資料",
+    "l5x": "Logix 以 controller-scope 標籤共用資料",
+    "gxworks": "GX Works3 以全域標籤表共用資料",
+    "sysmac": "Sysmac Studio 以全域變數表共用資料",
+}
+
+
 def export(src, fmt):
     masked = _views(src)[1]
+    if fmt in _GLOBAL_REASON and _GLOBALS.search(masked):
+        raise STError(f"export {fmt}: 含 VAR_GLOBAL / VAR_EXTERNAL,此格式尚未支援({_GLOBAL_REASON[fmt]};"
+                      "請改用 plcopen(CODESYS / TwinCAT 匯入為 GVL)或 st)")
     if fmt in ("gxworks", "sysmac") and _FUNCPOU.search(masked):
         raise STError(f"export {fmt}: 含自訂 FUNCTION/FUNCTION_BLOCK,此格式尚未支援"
                       "(TYPE STRUCT 已支援;FUNCTION/FUNCTION_BLOCK 請改用 plcopen / scl / st)")

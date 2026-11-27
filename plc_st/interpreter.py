@@ -64,6 +64,56 @@ def default(tname):
     return {"BOOL": False, "REAL": 0.0, "LREAL": 0.0, "STRING": ""}.get(tname, 0)
 
 
+_BASE_RE = re.compile(r"[.\[]")
+_TABLES = ("vars", "types", "section", "fbs", "arrays", "sarr", "meta")
+
+
+class _Linked(dict):
+    """FUNCTION / FUNCTION_BLOCK 的變數表:本地沒有宣告、但屬於 VAR_GLOBAL 的名稱(含 VAR_EXTERNAL
+    與 CODESYS 式直接存取)讀寫都轉到程式的全域 scope(以 plc.gscope 動態查,斷電重啟後仍指向新 scope)。"""
+
+    def __init__(self, plc, tbl, local):
+        super().__init__()
+        self.plc, self.tbl, self.local = plc, tbl, local
+
+    def _g(self, k):
+        if dict.__contains__(self, k) or not isinstance(k, str):
+            return None
+        b = _BASE_RE.split(k, 1)[0]
+        if b in self.local or b not in self.plc.gnames:
+            return None
+        return self.plc.gscope[self.tbl]
+
+    def __getitem__(self, k):
+        g = self._g(k)
+        return g[k] if g is not None else dict.__getitem__(self, k)
+
+    def __setitem__(self, k, v):
+        g = self._g(k)
+        if g is not None:
+            g[k] = v
+        else:
+            dict.__setitem__(self, k, v)
+
+    def __contains__(self, k):
+        g = self._g(k)
+        return k in g if g is not None else dict.__contains__(self, k)
+
+    def get(self, k, default=None):
+        return self[k] if k in self else default
+
+    def pop(self, k, *default):
+        g = self._g(k)
+        return g.pop(k, *default) if g is not None else dict.pop(self, k, *default)
+
+    def __delitem__(self, k):
+        g = self._g(k)
+        if g is not None:
+            del g[k]
+        else:
+            dict.__delitem__(self, k)
+
+
 class _View:
     """Case-insensitive dict-like view over a user FB instance's variables."""
 
@@ -344,7 +394,9 @@ class VirtualPLC:
         self.depth = 0
         self.cycles = 0
         self.time_ms = 0
-        self._set_scope(self._image(self._build(self.ast["decls"])))
+        self.gnames = {d["name"].lower() for d in self.ast["decls"] if d.get("glob")}
+        self.gscope = None
+        self._set_scope(self._image(self._build(self.ast["decls"], top=True)))
         self.names = {d["name"].lower(): d["name"] for d in self.ast["decls"]}
 
     def wrap(self, t, v):
@@ -360,15 +412,28 @@ class VirtualPLC:
         self.fbs, self.arrays, self.sarr = sc["fbs"], sc["arrays"], sc["sarr"]
         self.meta = sc["meta"]
 
-    def _build(self, decls, into=None):
+    def _build(self, decls, into=None, top=False):
         """Create the variables of `decls`. With `into`, (re)create them inside that existing scope
-        (used to re-initialise VAR_TEMP each scan/call and for warm restarts)."""
-        sc = into or {"vars": {}, "types": {}, "section": {}, "fbs": {}, "arrays": {}, "sarr": {}, "meta": {}}
+        (used to re-initialise VAR_TEMP each scan/call and for warm restarts).
+        top=True:程式 scope(也是 VAR_GLOBAL 所在的全域 scope);否則建立連到全域的 _Linked 變數表。"""
+        if into is not None:
+            sc = into
+        elif top or not self.gnames:
+            sc = {t: {} for t in _TABLES}
+        else:
+            local = {d["name"].lower() for d in decls if d["section"] != "external"}
+            sc = {t: _Linked(self, t, local) for t in _TABLES}
+        if top:
+            self.gscope = sc
         saved = self._get_scope() if hasattr(self, "vars") else None
         self._set_scope(sc)
         try:
             for d in decls:
                 n = d["name"].lower()
+                if d["section"] == "external":  # 參照全域變數,不另外配置
+                    if n not in self.gnames:
+                        raise STError(f"VAR_EXTERNAL {d['name']} has no matching VAR_GLOBAL")
+                    continue
                 self.section[n] = d["section"]
                 self.meta[n] = d
                 t = d["type"]
@@ -593,7 +658,7 @@ class VirtualPLC:
     def restart(self, warm=True):
         """模擬斷電再上電。warm:RETAIN / PERSISTENT 變數保留,其餘回到初始值;cold:全部回到初始值。"""
         old = self._get_scope()
-        sc = self._image(self._build(self.ast["decls"]))
+        sc = self._image(self._build(self.ast["decls"], top=True))
         if warm:
             self._carry_retain(old, sc, self.ast["decls"])
         self._set_scope(sc)

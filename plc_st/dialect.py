@@ -40,6 +40,13 @@ _NO_TEMP = {
     "mitsubishi": "GX Works3 has no VAR_TEMP label class; use VAR and initialise it every scan",
     "omron": "Sysmac Studio has no VAR_TEMP; use an internal variable and initialise it every scan",
 }
+_GLOBAL_HINT = {
+    "siemens": "TIA Portal has no VAR_GLOBAL in SCL source; put shared data in a global DB (or the PLC tag table) "
+               "and access it as \"DB\".member",
+    "rockwell": "Logix has no VAR_GLOBAL; create controller-scoped tags (programs see them without VAR_EXTERNAL)",
+    "mitsubishi": "GX Works3 declares shared data as global labels in the Global Label table, not in ST source",
+    "omron": "Sysmac Studio declares shared data in the Global Variable table; POUs reference it as External variables",
+}
 _DEVICE = re.compile(r"^[XYMDLFVBSTCRZW][0-9A-F]+$", re.I)  # MELSEC device labels like X0, D100
 
 
@@ -81,6 +88,8 @@ def dialect_issues(src, profile):
             warn(ln, "PERSISTENT is a CODESYS extension; use RETAIN or the platform's retentive setting")
         elif k == "kw" and v == "VAR_TEMP" and fam in _NO_TEMP:
             warn(ln, _NO_TEMP[fam])
+        elif k == "kw" and v == "VAR_GLOBAL" and fam in _GLOBAL_HINT and not any("VAR_GLOBAL" in m for _, m in out):
+            warn(ln, f"VAR_GLOBAL: {_GLOBAL_HINT[fam]}")
         if k == "kw" and v.startswith("VAR"):
             in_var, names, after_colon = True, [], False
         elif k == "kw" and v == "END_VAR":

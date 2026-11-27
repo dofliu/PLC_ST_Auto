@@ -119,6 +119,8 @@ E2E:`python -m plc_st serve --port 8765` 後 `NODE_PATH=$(npm root -g) node test
 
 `TYPE ... STRUCT` → GX Works3 / Sysmac(M42,範例 `examples/struct_gx_sysmac.st`):匯出檔開頭多一段結構體定義表(GX:Structure / Label Name / Data Type / Initial Value,成員型別換成 MELSEC 型別;Sysmac:Structure / Member / Base Type / Initial Value)。GX Works3 結構體標籤的初值無法寫在單一欄位,改列在「Structured Label Initial Values」逐一成員(`ax.home.x 5`、`marks[3].y 20`);Sysmac 保留 IEC 初值寫法 `(home := (x := 5), …)`。欄位順序與初值寫法尚待實機確認,見 `docs/test_report_M42.md`。
 
+`VAR_GLOBAL` / `VAR_EXTERNAL`(M43,範例 `examples/global_vars.st`):`VAR_GLOBAL [CONSTANT|RETAIN]` 可寫在頂層(CODESYS GVL 寫法,TYPE / FUNCTION / FUNCTION_BLOCK 之間皆可)或 PROGRAM 內;FUNCTION / FUNCTION_BLOCK 以 `VAR_EXTERNAL [CONSTANT]` 參照(也接受 CODESYS 式直接存取)。虛擬 PLC 所有實例共用同一份全域值(含 RETAIN 斷電重啟、AT 位址共用記憶體),I/O 面板標示 `GLOBAL`;檢查器回報找不到 VAR_GLOBAL、型別/陣列範圍不符、常數未宣告 CONSTANT、寫入常數、與 PROGRAM 變數衝突、FB 區域變數遮蔽全域;Siemens / Rockwell / Mitsubishi / Omron 方言會提示各平台的全域資料寫法。匯出:PLCopen XML 頂層全域 → `<resource><globalVars>`、`VAR_EXTERNAL` → `<externalVars>`(通過 TC6 XSD);SCL / L5X / GX Works3 / Sysmac 暫不支援並在匯出卡片說明原因。
+
 點位表 → 各廠牌標籤表(M38):`python -m plc_st tags points.csv --format tia|logix|gxworks|sysmac|codesys [-o 檔案]`,Web UI「需求輸入」卡片的「匯出標籤表」下拉選單亦可下載。
 - `tia`:TIA Portal PLC 變數表 `.xlsx`(PLC tags → Import),`PLC Tags` + `User Constants` 工作表;沒有位址的點位自動配置(IN→%I、OUT→%Q、其餘→%M,RETAIN 先配置從 MB0 起),FB/陣列/LREAL 等非基本型別略過並提醒改放 DB
 - `logix`:Studio 5000 標籤 CSV(`TAG` 列、RADIX/Constant 屬性、陣列改 0 起算、TON→TIMER、WORD→INT 等替代);標籤 CSV 不含初值,需要初值請用 L5X
