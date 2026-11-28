@@ -114,6 +114,16 @@ class _Linked(dict):
             dict.__delitem__(self, k)
 
 
+def _prefixed(m, pre):
+    """`m` 中以 pre 開頭的鍵;_Linked 變數表的全域名稱(例:FB 內整份複製全域 STRUCT)也列出全域 scope 的鍵。"""
+    keys = [k for k in m if k.startswith(pre)]
+    if isinstance(m, _Linked):
+        g = m._g(pre)
+        if g is not None:
+            keys += [k for k in g if k.startswith(pre)]
+    return keys
+
+
 class _View:
     """Case-insensitive dict-like view over a user FB instance's variables."""
 
@@ -394,7 +404,8 @@ class VirtualPLC:
         self.depth = 0
         self.cycles = 0
         self.time_ms = 0
-        self.gnames = {d["name"].lower() for d in self.ast["decls"] if d.get("glob")}
+        self.gdecls = {d["name"].lower(): d for d in self.ast["decls"] if d.get("glob")}
+        self.gnames = set(self.gdecls)
         self.gscope = None
         self._set_scope(self._image(self._build(self.ast["decls"], top=True)))
         self.names = {d["name"].lower(): d["name"] for d in self.ast["decls"]}
@@ -433,6 +444,8 @@ class VirtualPLC:
                 if d["section"] == "external":  # 參照全域變數,不另外配置
                     if n not in self.gnames:
                         raise STError(f"VAR_EXTERNAL {d['name']} has no matching VAR_GLOBAL")
+                    if d.get("const") and not self.gdecls[n].get("const"):
+                        raise STError(f"VAR_EXTERNAL CONSTANT {d['name']} refers to a writable VAR_GLOBAL")
                     continue
                 self.section[n] = d["section"]
                 self.meta[n] = d
@@ -1020,7 +1033,7 @@ class VirtualPLC:
             if p in self.vars:
                 return None
             pre = p + "."
-            f = {k[len(pre):]: (k, None) for k in self.vars if k.startswith(pre)}
+            f = {k[len(pre):]: (k, None) for k in _prefixed(self.vars, pre)}
             return f or None
         fields, b = [], e
         while b[0] == "member":
@@ -1037,7 +1050,7 @@ class VirtualPLC:
             b = b[1]
         name, idx = b[1].lower(), idx[::-1]
         pre = ".".join([name] + fields) + "."
-        f = {k[len(pre):]: (k, self._sa_slot(k, idx)) for k in self.arrays if k.startswith(pre)}
+        f = {k[len(pre):]: (k, self._sa_slot(k, idx)) for k in _prefixed(self.arrays, pre)}
         return f or None
 
     def _struct_copy(self, target, src):
@@ -1126,7 +1139,7 @@ class VirtualPLC:
                 raise STError(f"array {e[1]} used without index")
             if n in self.vars:
                 return self.vars[n]
-            if any(k.startswith(n + ".") for k in self.vars):
+            if _prefixed(self.vars, n + "."):
                 raise STError(f"STRUCT {e[1]} used without member")
             raise STError(f"unknown variable {e[1]}")
         if k == "index":
