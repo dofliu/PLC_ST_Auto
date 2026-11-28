@@ -114,5 +114,8 @@ class LocatedVars(dict):
         dict.__setitem__(self, key, value)
         if key in self.image.loc:
             self.image.store(key, value)
+            # 寫入者自己也從共用記憶體讀回:REAL 依 32 位元精度捨入、整數依位元寬截斷,
+            # 與同位址的其他變數讀到完全相同的值(M37 審查:同位址 REAL 不可出現兩種精度)
+            dict.__setitem__(self, key, self.image.load(key))
             for k in self.image.peers[key]:
                 dict.__setitem__(self, k, self.image.load(k))

@@ -18,6 +18,26 @@ def _addr_issues(decls, prof, in_pou=None):
     """直接位址(AT %I/%Q/%M)檢查:大小與型別相符、位址重疊;CONSTANT 需有初值。"""
     out, used = [], []
     byte_addr = prof.name.split("-")[0] == "siemens"  # S7:%IW1 = byte 1..2;IEC/CODESYS:%IW1 = word 1
+    consts = {d["name"].lower(): d for d in decls if d.get("const") and d.get("init") is not None and not d.get("array")}
+
+    def cval(x):
+        if x[0] == "var" and x[1].lower() in consts:
+            return cval(consts[x[1].lower()]["init"])
+        if x[0] == "neg":
+            v = cval(x[1])
+            return None if v is None else -v
+        return _lit(x)
+
+    def count(d):
+        """陣列元素總數(邊界無法靜態求值時回傳 None)。"""
+        n = 1
+        for lo, hi in d.get("dims") or [d["array"]]:
+            a, b = cval(lo), cval(hi)
+            if a is None or b is None:
+                return None
+            n *= max(b - a + 1, 0)
+        return n
+
     for d in decls:
         ln = d.get("line", 0)
         if d.get("const") and d.get("init") is None and d["section"] != "external":
@@ -42,15 +62,25 @@ def _addr_issues(decls, prof, in_pou=None):
             start = a["index"] * 8 + (a["bit"] or 0)
         else:
             start = a["index"] * (8 if byte_addr else a["bits"])
-        for area, s0, s1, other, oaddr in used:
-            if area == a["area"] and start < s1 and s0 < start + a["bits"]:
+        is_arr = bool(d.get("array"))
+        # 陣列從起始位址連續佔用「元素數 × 元素位元」;邊界無法求值時至少算一個元素
+        width = a["bits"] * ((count(d) or 1) if is_arr else 1)
+        for area, s0, s1, other, oaddr, oarr in used:
+            if area == a["area"] and start < s1 and s0 < start + width:
+                if is_arr or oarr:
+                    # 虛擬 PLC 只同步純量的重疊位址,陣列元素不會同步:模擬結果與實機可能不同,一律警告
+                    arr = d["name"] if is_arr else other
+                    out.append(Issue("warning", ln, f"{d['name']} at {d['addr']} overlaps {other} at {oaddr}; "
+                                                    f"array {arr} is NOT kept in sync by the virtual PLC, "
+                                                    "simulation results may differ from the real PLC"))
+                    continue
                 # 一個完全包含另一個(位元在位元組/字內、REAL 與 DWORD 同位址)是常見的刻意別名,虛擬 PLC 會同步模擬;
                 # 只有部分重疊(例:S7 的 %MW0 與 %MW1 共用 byte 1)才多半是定址錯誤
-                inside = (s0 <= start and start + a["bits"] <= s1) or (start <= s0 and s1 <= start + a["bits"])
+                inside = (s0 <= start and start + width <= s1) or (start <= s0 and s1 <= start + width)
                 if not inside:
                     out.append(Issue("warning", ln, f"{d['name']} at {d['addr']} partially overlaps {other} at {oaddr}; "
                                                     "they share bytes (the virtual PLC keeps them in sync)"))
-        used.append((a["area"], start, start + a["bits"], d["name"], d["addr"]))
+        used.append((a["area"], start, start + width, d["name"], d["addr"], is_arr))
     return out
 
 
