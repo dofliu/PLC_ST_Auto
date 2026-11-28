@@ -165,8 +165,9 @@ class Parser:
         body = self.statements({"END_PROGRAM"})
         self.accept("kw", "END_PROGRAM")
         self.expect("eof")
-        gdecls += [d for d in decls if d["section"] == "global"]
-        decls = gdecls + [d for d in decls if d["section"] != "global"]
+        # 依 glob 旗標(而非 section)提前:帶 %I/%Q 位址的全域變數 section 已改成 input/output
+        gdecls += [d for d in decls if d.get("glob")]
+        decls = gdecls + [d for d in decls if not d.get("glob")]
         return {"name": name, "decls": decls, "body": body, "functions": functions, "fbs": fbdefs, "types": types}
 
     def var_block(self):

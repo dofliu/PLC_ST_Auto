@@ -75,6 +75,30 @@ def _lit(x):
     return None
 
 
+_CINT_OPS = {"+": lambda a, b: a + b, "-": lambda a, b: a - b, "*": lambda a, b: a * b,
+             "/": lambda a, b: int(a / b) if b else None, "MOD": lambda a, b: a % b if b else None}
+
+
+def _cint(x, lookup, stack=()):
+    """編譯期整數值:字面值、負號、+ - * / MOD,以及 lookup(名稱) 回傳的 CONSTANT 宣告;算不出來回傳 None。"""
+    if x is None:
+        return None
+    if x[0] == "num" and isinstance(x[1], int) and not isinstance(x[1], bool):
+        return x[1]
+    if x[0] == "neg":
+        v = _cint(x[1], lookup, stack)
+        return None if v is None else -v
+    if x[0] == "bin" and x[1] in _CINT_OPS:
+        a, b = _cint(x[2], lookup, stack), _cint(x[3], lookup, stack)
+        return None if a is None or b is None else _CINT_OPS[x[1]](a, b)
+    if x[0] == "var":
+        n = x[1].lower()
+        d = lookup(n)
+        if d and d.get("const") and d.get("init") is not None and not d.get("array") and n not in stack:
+            return _cint(d["init"], lookup, stack + (n,))
+    return None
+
+
 def _init_range_issues(name, tname, init, ln):
     """初值超出宣告型別範圍(例:SINT := 300、USINT := -1),含陣列初值每個元素。"""
     if tname not in INT_RANGES or init is None:
@@ -129,8 +153,34 @@ def check(src, profile="iec"):
 
     gmap = {d["name"].lower(): d for d in prog["decls"] if d.get("glob")}
 
-    def _shape_of(d):
-        return [(_lit(a), _lit(b)) for a, b in (d.get("dims") or ([d["array"]] if d.get("array") else []))]
+    def _bounds(d, lookup):
+        """陣列各維 (下界, 上界) 的整數值(常數先求值);純量回傳 [];有任何一維算不出來回傳 None。"""
+        out = []
+        for a, b in d.get("dims") or ([d["array"]] if d.get("array") else []):
+            lo, hi = _cint(a, lookup), _cint(b, lookup)
+            if lo is None or hi is None:
+                return None
+            out.append((lo, hi))
+        return out
+
+    def check_external(d, g, ln):
+        """VAR_EXTERNAL 與 VAR_GLOBAL 比對:型別、陣列界限(各自在宣告處求常數值)、CONSTANT 修飾詞。"""
+        gb = _bounds(g, gmap.get)
+        eb = _bounds(d, env.get)
+        if g["type"] != d["type"] or bool(g.get("array")) != bool(d.get("array")) or (
+                gb is not None and eb is not None and gb != eb):
+            rng = "".join(f"[{a}..{b}]" for a, b in gb or [])
+            issues.append(Issue("error", ln, f"VAR_EXTERNAL {d['name']} type does not match VAR_GLOBAL "
+                                             f"({'ARRAY' + rng + ' OF ' if g.get('array') else ''}{g['type']})"))
+        elif gb is None or eb is None:
+            issues.append(Issue("warning", ln, f"VAR_EXTERNAL {d['name']}: array bounds cannot be evaluated at "
+                                               "compile time; cannot verify they match VAR_GLOBAL"))
+        if g.get("const") and not d.get("const"):
+            issues.append(Issue("warning", ln, f"VAR_GLOBAL {g['name']} is CONSTANT; "
+                                               "declare it in VAR_EXTERNAL CONSTANT"))
+        if d.get("const") and not g.get("const"):
+            issues.append(Issue("error", ln, f"VAR_EXTERNAL CONSTANT {d['name']} refers to a writable VAR_GLOBAL; "
+                                             "declare the global CONSTANT or drop CONSTANT here"))
 
     def load_scope(decls, owner=None):
         """owner=None:PROGRAM(VAR_GLOBAL 已併在 decls 內);否則 FUNCTION/FB 名稱,先放入全域變數
@@ -138,7 +188,7 @@ def check(src, profile="iec"):
         env.clear()
         if owner is not None:
             env.update(gmap)
-        seen = set()
+        seen, externals = set(), []
         for d in decls:
             n = d["name"].lower()
             ln = d.get("line", 0)
@@ -147,16 +197,12 @@ def check(src, profile="iec"):
                 if g is None:
                     issues.append(Issue("error", ln, f"VAR_EXTERNAL {d['name']} has no matching VAR_GLOBAL"))
                     continue
-                if g["type"] != d["type"] or _shape_of(g) != _shape_of(d):
-                    issues.append(Issue("error", ln, f"VAR_EXTERNAL {d['name']} type does not match VAR_GLOBAL "
-                                                     f"({'ARRAY OF ' if g.get('array') else ''}{g['type']})"))
-                if g.get("const") and not d.get("const"):
-                    issues.append(Issue("warning", ln, f"VAR_GLOBAL {g['name']} is CONSTANT; "
-                                                       "declare it in VAR_EXTERNAL CONSTANT"))
                 if n in seen:
                     issues.append(Issue("error", ln, f"duplicate declaration {d['name']}"))
                 seen.add(n)
-                env[n] = g
+                externals.append((d, g, ln))
+                # 外部宣告為 CONSTANT 時,本 POU 內一律唯讀(即使全域可寫,已另報錯)
+                env[n] = {**g, "const": True} if d.get("const") else g
                 continue
             if n in seen and owner is None and n in gmap and not d.get("glob"):
                 issues.append(Issue("error", ln, f"{d['name']} conflicts with VAR_GLOBAL {gmap[n]['name']}"))
@@ -172,6 +218,8 @@ def check(src, profile="iec"):
                 struct_types(t, d["name"], ())
             elif fb_of(t) is None and t not in prof.types:
                 issues.append(Issue("error", 0, f"type {t} of {d['name']} not supported by profile {prof.name}"))
+        for d, g, ln in externals:  # 本地常數都載入後再比對界限(外部宣告可引用本地或全域常數)
+            check_external(d, g, ln)
 
     def struct_types(t, owner, stack):
         sd = structs[t.lower()]
@@ -407,17 +455,8 @@ def check(src, profile="iec"):
         return None
 
     def cval(x):
-        """compile-time integer value of an array bound (literal, -literal or VAR CONSTANT), else None."""
-        if x[0] == "num" and isinstance(x[1], int):
-            return x[1]
-        if x[0] == "neg":
-            v = cval(x[1])
-            return None if v is None else -v
-        if x[0] == "var":
-            d = env.get(x[1].lower())
-            if d and d.get("const") and d.get("init") is not None and not d.get("array"):
-                return cval(d["init"])
-        return None
+        """compile-time integer value of an array bound (literal, -literal, + - * / MOD, VAR CONSTANT), else None."""
+        return _cint(x, env.get)
 
     def shape(d):
         out = []

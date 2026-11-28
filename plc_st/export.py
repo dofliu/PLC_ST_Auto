@@ -147,9 +147,10 @@ def global_blocks(src):
     return out
 
 
-def _consts(blocks, where=""):
-    """VAR CONSTANT 區段中可算出整數值的常數 {小寫名稱: 值}(可引用先前宣告的常數)。"""
-    out = {}
+def _consts(blocks, where="", seed=None):
+    """VAR CONSTANT 區段中可算出整數值的常數 {小寫名稱: 值}(可引用先前宣告的常數;
+    seed = 外層已知常數,例如全域常數,本地常數可引用它們,同名時本地優先)。"""
+    out = dict(seed or {})
     for kind, decls in blocks:
         if "CONSTANT" not in kind.mods:
             continue
@@ -388,7 +389,7 @@ def to_plcopen(src, project="PLC_ST_Auto"):
         o.append(f'    <pou name={quoteattr(p["name"])} pouType="{_POUTYPE[p["kind"]]}"><interface>')
         if p["rtype"]:
             o.append(f'      <returnType>{_tc6_type(p["rtype"])}</returnType>')
-        consts = {**gconsts, **_consts(p["blocks"], p["name"])}
+        consts = _consts(p["blocks"], p["name"], gconsts)
         for kind, decls in p["blocks"]:
             if decls:
                 varlist(kind, decls, consts, _SECTION[kind])

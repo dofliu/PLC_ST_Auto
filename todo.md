@@ -8,6 +8,10 @@
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
 - 建議順序:(M31–M43、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
+## M43b ✅ PR #60 審查意見修正(`docs/test_report_M43b.md`)
+- [x] 外部/全域陣列界限先求常數值再比對;EXTERNAL CONSTANT 綁可寫全域報錯;PLCopen 本地常數可引用全域常數
+- [x] FB 內整份複製全域 STRUCT / ARRAY OF STRUCT 元素;帶 %I/%Q 位址的全域依 glob 旗標提前初始化
+- [x] 單元 15 項(`tests/test_m43_review.py`,修正前 11 項失敗)、截圖 `docs/screenshots/m43b/`;**尚未實機驗證**
 ## M43 ✅ VAR_GLOBAL / VAR_EXTERNAL(`docs/test_report_M43.md`)
 - [x] 語法:頂層 / PROGRAM 內 `VAR_GLOBAL [CONSTANT|RETAIN]`、POU 內 `VAR_EXTERNAL [CONSTANT]`;FB 內 VAR_GLOBAL、EXTERNAL 初值/AT 位址明確報錯
 - [x] 虛擬 PLC:FB/函式變數表連到全域 scope(VAR_EXTERNAL 與直接存取),本地同名遮蔽;RETAIN 暖重啟、AT 共用記憶體、常數保護皆適用
