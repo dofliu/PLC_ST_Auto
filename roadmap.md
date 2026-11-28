@@ -1,4 +1,40 @@
 # Roadmap(每個里程碑 ≤ 2 小時)
+
+## 📌 v1.0 衝刺計畫(2026-11-28 起;每次排程先讀這裡,選下一個未完成項目,完成後打勾)
+**凍結規則**:v1.0 前不做新的冷門語法特性(STRUCT 欄位為 ARRAY OF STRUCT、`ARRAY[*]`、外部讀取 `fb.arr[i]`、新匯出格式細節等),
+一律放「v1.1 backlog」;只有題庫或交叉驗證實際需要時才做。發現的既有缺陷可當作當次項目修正。階段提早完成就直接進入下一階段。
+**結案條件**:階段 D 完成並打 tag v1.0.0 → 寫 `docs/status_report_final.md`、標記「🏁 v1.0 結案」;或到 2026-12-12(台北時間)不論進度只做收尾並標記「🏁 結案」;
+或連續 3 次排程因外部阻擋沒有可合併進展 → 寫明原因並標記「⏸ 暫停」。
+
+### 階段 A 標準函式庫與正確性稽核(預計 11/28–11/30)
+- [x] A1 `docs/stdlib_coverage.md`:對照 IEC 61131-3 第 3 版標準函式/標準 FB 表逐項標示(2026-11-28;`tools/stdlib_probe.py` 自動探測 112 項:OK 60 / 結果錯誤 7 / 未支援 45 = 53%)
+- [ ] A2 補齊缺口(拆兩次):
+  - [ ] A2a 依型別寬度的 SHL/SHR/ROL/ROR 與 AND/OR/XOR/NOT(含中間值)、`BOOL_TO_STRING`、MUX、MOVE、EXPT、MID/FIND/INSERT/DELETE/REPLACE、多引數 CONCAT、`STRING(n)`、`STRING_TO_*`、BCD、`TRUNC_xxx`、CODESYS `TO_xxx`、函式形式 ADD/GT/AND…
+  - [ ] A2b TIME/TOD/DATE/DT/LTIME 常數、型別與運算函式、型別化計數器 `CTU_DINT` 等
+  - 每個函式至少一個邊界值測試,檢查器與方言警告同步更新;`tests/test_stdlib_probe.py` 的 `BASELINE_OK` 隨之調高
+- [ ] A3 GitHub Actions CI(unittest + PLCopen XSD 驗證;無法啟動就略過、改自我審查);README「目前狀態」改為實際狀態
+- 完成目標:常用標準函式與 FB 覆蓋率 ≥ 95%,ROL/ROR 等寬度錯誤修正並有回歸測試
+
+### 階段 B 獨立參考實作交叉驗證(預計 12/1–12/3,替代目前無法進行的實機驗證)
+- [ ] B1 嘗試在雲端建置 matiec(iec2c → C → gcc)或 rusty;一次排程內建不起來就記錄原因,改用手算期望值對照表
+- [ ] B2 `tests/differential/`:同一支 ST + 同一組輸入序列,逐掃描週期比對虛擬 PLC 與參考實作輸出
+- [ ] B3 ≥ 40 支程式(四則運算、溢位、型別轉換、計時器、計數器、邊緣偵測、字串、陣列、STRUCT、自訂 FB)結果一致;不一致逐一判定並寫入 `docs/differential_report.md`
+
+### 階段 C 實務工控題庫(預計 12/4–12/8)
+- [ ] C1 `tests/benchmark/` 架構 + 前 10 題(需求文字、點位表 CSV、情境 JSON 含互鎖/安全逐週期檢查、參考解 .st)
+- [ ] C2 第 11–20 題
+- [ ] C3 第 21–30 題(馬達啟停、正逆轉互鎖、星三角、交通號誌、水塔液位、輸送帶分揀、批次配料、混合槽、停車場計數、三層電梯、警報確認與閃爍、手動/自動切換、溫控回差/PI、SFC 風格步進、緊急停止與復歸……)
+- [ ] C4 30 題全部通過 check + 情境 + ≥3 種廠牌匯出(PLCopen TC6 XSD 通過);併入 `eval`(14 → 44 題)。有 LLM 金鑰才跑真實評測,沒有就跳過(不用 mock 充數)
+
+### 階段 D v1.0 發布收尾(預計 12/9–12/11)
+- [ ] D1 `pyproject.toml`(`pip install .` → `plc-st` 指令)、Dockerfile(serve)
+- [ ] D2 `docs/user_manual.md`:需求 → 產生 → 模擬 → 情境測試 → 匯出 完整操作手冊(附截圖)
+- [ ] D3 `docs/hardware_validation_checklist.md`:彙整 todo.md 所有「待實機」項目為可勾選清單(廠牌/版本、匯入步驟、預期結果、範例檔)
+- [ ] D4 全專案回歸(單元 + 全部 UI E2E + 題庫 + 交叉驗證)→ `docs/test_report_v1.0.md`,tag `v1.0.0` + GitHub Release
+
+**下一步**:A2a(依型別寬度的位元運算修正 + 常用缺漏函式)。
+
+## 已完成里程碑
 - M1 ST 解譯核心:lexer/parser/interpreter、掃描週期、TON/TOF/CTU/R_TRIG/F_TRIG ✅
 - M2 虛擬 PLC CLI + 點位表格(CSV)匯入/強制值/trace ✅
 - M3 廠牌 profile:型別支援/溢位行為(iec、codesys、siemens、rockwell、mitsubishi、omron、strict、saturate;為近似模擬)✅

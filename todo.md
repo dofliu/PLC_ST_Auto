@@ -1,12 +1,46 @@
 # TODO
 
+## 📌 v1.0 衝刺計畫(2026-11-28 起;每次排程先讀這裡,選下一個未完成項目,完成後打勾)
+**凍結規則**:v1.0 前不做新的冷門語法特性(STRUCT 欄位為 ARRAY OF STRUCT、`ARRAY[*]`、外部讀取 `fb.arr[i]`、新匯出格式細節等),
+一律放「v1.1 backlog」;只有題庫或交叉驗證實際需要時才做。發現的既有缺陷可當作當次項目修正。階段提早完成就直接進入下一階段。
+**結案條件**:階段 D 完成並打 tag v1.0.0 → 寫 `docs/status_report_final.md`、標記「🏁 v1.0 結案」;或到 2026-12-12(台北時間)不論進度只做收尾並標記「🏁 結案」;
+或連續 3 次排程因外部阻擋沒有可合併進展 → 寫明原因並標記「⏸ 暫停」。
+
+### 階段 A 標準函式庫與正確性稽核(預計 11/28–11/30)
+- [x] A1 `docs/stdlib_coverage.md`:對照 IEC 61131-3 第 3 版標準函式/標準 FB 表逐項標示(2026-11-28;`tools/stdlib_probe.py` 自動探測 112 項:OK 60 / 結果錯誤 7 / 未支援 45 = 53%)
+- [ ] A2 補齊缺口(拆兩次):
+  - [ ] A2a 依型別寬度的 SHL/SHR/ROL/ROR 與 AND/OR/XOR/NOT(含中間值)、`BOOL_TO_STRING`、MUX、MOVE、EXPT、MID/FIND/INSERT/DELETE/REPLACE、多引數 CONCAT、`STRING(n)`、`STRING_TO_*`、BCD、`TRUNC_xxx`、CODESYS `TO_xxx`、函式形式 ADD/GT/AND…
+  - [ ] A2b TIME/TOD/DATE/DT/LTIME 常數、型別與運算函式、型別化計數器 `CTU_DINT` 等
+  - 每個函式至少一個邊界值測試,檢查器與方言警告同步更新;`tests/test_stdlib_probe.py` 的 `BASELINE_OK` 隨之調高
+- [ ] A3 GitHub Actions CI(unittest + PLCopen XSD 驗證;無法啟動就略過、改自我審查);README「目前狀態」改為實際狀態
+- 完成目標:常用標準函式與 FB 覆蓋率 ≥ 95%,ROL/ROR 等寬度錯誤修正並有回歸測試
+
+### 階段 B 獨立參考實作交叉驗證(預計 12/1–12/3,替代目前無法進行的實機驗證)
+- [ ] B1 嘗試在雲端建置 matiec(iec2c → C → gcc)或 rusty;一次排程內建不起來就記錄原因,改用手算期望值對照表
+- [ ] B2 `tests/differential/`:同一支 ST + 同一組輸入序列,逐掃描週期比對虛擬 PLC 與參考實作輸出
+- [ ] B3 ≥ 40 支程式(四則運算、溢位、型別轉換、計時器、計數器、邊緣偵測、字串、陣列、STRUCT、自訂 FB)結果一致;不一致逐一判定並寫入 `docs/differential_report.md`
+
+### 階段 C 實務工控題庫(預計 12/4–12/8)
+- [ ] C1 `tests/benchmark/` 架構 + 前 10 題(需求文字、點位表 CSV、情境 JSON 含互鎖/安全逐週期檢查、參考解 .st)
+- [ ] C2 第 11–20 題
+- [ ] C3 第 21–30 題(馬達啟停、正逆轉互鎖、星三角、交通號誌、水塔液位、輸送帶分揀、批次配料、混合槽、停車場計數、三層電梯、警報確認與閃爍、手動/自動切換、溫控回差/PI、SFC 風格步進、緊急停止與復歸……)
+- [ ] C4 30 題全部通過 check + 情境 + ≥3 種廠牌匯出(PLCopen TC6 XSD 通過);併入 `eval`(14 → 44 題)。有 LLM 金鑰才跑真實評測,沒有就跳過(不用 mock 充數)
+
+### 階段 D v1.0 發布收尾(預計 12/9–12/11)
+- [ ] D1 `pyproject.toml`(`pip install .` → `plc-st` 指令)、Dockerfile(serve)
+- [ ] D2 `docs/user_manual.md`:需求 → 產生 → 模擬 → 情境測試 → 匯出 完整操作手冊(附截圖)
+- [ ] D3 `docs/hardware_validation_checklist.md`:彙整 todo.md 所有「待實機」項目為可勾選清單(廠牌/版本、匯入步驟、預期結果、範例檔)
+- [ ] D4 全專案回歸(單元 + 全部 UI E2E + 題庫 + 交叉驗證)→ `docs/test_report_v1.0.md`,tag `v1.0.0` + GitHub Release
+
+**下一步**:A2a(依型別寬度的位元運算修正 + 常用缺漏函式)。
+
 ## 📌 排程備忘(每次排程先讀這裡)
 - **2026-11-09 起使用者暫時無法在本機執行**:排程自行往下推進,只做不需要使用者的工作。
 - 雲端環境目前**沒有** LLM API 金鑰(`ANTHROPIC_API_KEY` 等),無法實際呼叫 LLM;若某次排程偵測到金鑰已設定,
   就在 M31 完成後重跑 `python -m plc_st eval --provider claude --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3`,
   並與 `docs/eval_report_20261109_haiku_vs_sonnet.md` 比較。
 - **暫緩(需要使用者)**:Haiku `unknown variable stop` 的 4 個 .st 檔;Studio 5000 / TIA Portal 等實機匯入確認。
-- 建議順序:(M31–M43、UI1–UI8 已完成)→ 下一步候選(由上而下)。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
+- 建議順序:依上方「📌 v1.0 衝刺計畫」。每次一個 ≤2h 里程碑,做完測試、截圖、報告、PR、合併、雲端紀錄。
 
 ## M43b ✅ PR #60 審查意見修正(`docs/test_report_M43b.md`)
 - [x] 外部/全域陣列界限先求常數值再比對;EXTERNAL CONSTANT 綁可寫全域報錯;PLCopen 本地常數可引用全域常數
@@ -195,26 +229,28 @@
 - [x] UI6 測試與匯出:情境表格編輯器、匯出卡片
 - [x] UI5 產生流程時間軸、修正輪 diff、點位表預覽
 - [x] UI7 響應式(手機底部導覽)、可拖曳分欄、設定記憶、無障礙、README 截圖
-## 下一步候選(≤2h)
+## 下一步候選(v1.0 前已完成者)
 - [x] 寬螢幕(≥1600px)右側同時顯示兩個頁籤(例:模擬+測試)(UI8)
 - [x] 產生流程串流顯示(每輪完成即更新時間軸)(M40)
 - [x] 匯出時展開 VAR CONSTANT 陣列邊界(M34)
 - [x] ARRAY OF STRUCT 且 STRUCT 含 ARRAY 欄位(M41)
 - [x] GX Works3 / Sysmac STRUCT 匯出(M42)
-- [ ] GX Works3 標籤陣列型別改為 MELSEC 寫法 `Word [Signed](0..9)`(待實機確認後)
-- [ ] GX Works3 / Sysmac 自訂 FUNCTION / FUNCTION_BLOCK 匯出
 - [x] 自訂 POU 的 PLCopen/SCL 匯出(M33)
 - [x] 自訂 FUNCTION_BLOCK → Rockwell L5X Add-On Instruction(M35)
 - [x] VAR_IN_OUT / VAR_INPUT 傳入整個陣列、陣列整體賦值、L5X COP 改寫(M36)
-- [ ] 自訂 FUNCTION → L5X(提升為 AOI 並把運算式內呼叫拆成暫存實例)
 - [x] 匯出支援 `VAR CONSTANT` / `RETAIN` 區段修飾詞(M34)
 - [x] 靜態檢查:初值超出宣告型別範圍(M36)
 - [x] `VAR_GLOBAL` / `VAR_EXTERNAL`(多 POU 共用變數、PLCopen 匯出)(M43)
-- [ ] VAR_GLOBAL → SCL 全域 DB / L5X controller 標籤 / GX・Sysmac 全域表
-- [ ] 從外部讀取 FB 陣列成員元素 `fb.arr[i]`(與 `x := fb.arr` 一起做)
 - [x] 虛擬 PLC 模擬位址共用記憶體(%MW0 與 %MX0.0 重疊時同步)(M37)
 - [x] 點位表匯出為各廠牌可匯入格式(M38)
 - [x] 點位表匯出時依廠牌換算 IEC 位址 word 編號並可選 Logix Alias 列(M39)
+
+## v1.1 backlog(v1.0 凍結期間不做,除非題庫/交叉驗證需要)
+- [ ] GX Works3 標籤陣列型別改為 MELSEC 寫法 `Word [Signed](0..9)`(待實機確認後)
+- [ ] GX Works3 / Sysmac 自訂 FUNCTION / FUNCTION_BLOCK 匯出
+- [ ] 自訂 FUNCTION → L5X(提升為 AOI 並把運算式內呼叫拆成暫存實例)
+- [ ] VAR_GLOBAL → SCL 全域 DB / L5X controller 標籤 / GX・Sysmac 全域表
+- [ ] 從外部讀取 FB 陣列成員元素 `fb.arr[i]`(與 `x := fb.arr` 一起做)
 - [ ] GX Works3 點位表 IEC 位元位址 → X/Y 裝置(依機種選 8/16 進位)
 - [ ] STRUCT 欄位為 ARRAY OF STRUCT
 - [ ] ARRAY OF STRUCT 整體傳遞/賦值、`ARRAY[*]` 可變長度 VAR_IN_OUT
